@@ -1,0 +1,102 @@
+# Guía de configuración (macOS)
+
+Pasos verificados en este repositorio (macOS, Apple Silicon, zsh). Si usas otro shell/OS, ajusta solo la sintaxis de variables de entorno.
+
+## 1. Node.js
+
+```bash
+node --version   # se probó con v22.13.1 — cualquier Node 22 LTS funciona
+npm --version     # 11.x
+```
+
+Si no tienes Node 22, instálalo con [nvm](https://github.com/nvm-sh/nvm) o el instalador oficial de [nodejs.org](https://nodejs.org).
+
+## 2. Clonar e instalar dependencias
+
+```bash
+cd poker-manager
+npm install
+```
+
+## 3. Crear el proyecto en Neon
+
+1. Entra a [neon.tech](https://neon.tech) y crea una cuenta/proyecto (tiene plan gratuito).
+2. En el dashboard del proyecto, pestaña **Connect**, verás dos cadenas:
+   - **Pooled connection** (el host tiene el sufijo `-pooler`) → esta es tu `DATABASE_URL`.
+   - **Direct connection** → esta es tu `DIRECT_URL`.
+3. Copia ambas — las necesitas en el paso 4.
+
+## 4. Variables de entorno
+
+```bash
+cp .env.example .env.local
+```
+
+Edita `.env.local`:
+
+```dotenv
+DATABASE_URL="<pooled connection de Neon>"
+DIRECT_URL="<direct connection de Neon>"
+AUTH_SECRET=""              # lo genera el siguiente comando
+AUTH_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_NAME="Poker Manager"
+APP_TIMEZONE="America/Monterrey"
+```
+
+Genera `AUTH_SECRET`:
+
+```bash
+openssl rand -base64 33
+```
+
+Pega el valor directamente en `.env.local`. (**No** uses `npx auth secret` — ese comando instala y ejecuta el paquete npm `auth`, que es el CLI de _Better Auth_, una librería completamente distinta a Auth.js/next-auth que usa este proyecto. `openssl` viene preinstalado en macOS y no depende de terceros.)
+
+**Nunca** commitees `.env.local`. Ya está en `.gitignore` (`.env*`, con excepción explícita de `.env.example`).
+
+## 5. Migrar la base de datos
+
+```bash
+npm run db:generate   # genera el cliente de Prisma (src/generated/prisma)
+npm run db:migrate    # crea las tablas en tu base de Neon
+```
+
+Si ves un error de conexión, revisa que `DIRECT_URL` sea la conexión **directa** (no la pooled) — Migrate la necesita así.
+
+## 6. Crear el primer SUPERADMIN
+
+```bash
+SEED_SUPERADMIN_NAME="Tu Nombre" \
+SEED_SUPERADMIN_EMAIL="tu@correo.com" \
+SEED_SUPERADMIN_PASSWORD="una-contraseña-fuerte-de-al-menos-12-caracteres" \
+npm run db:seed
+```
+
+Es seguro volver a correrlo: si ya existe un SUPERADMIN, no hace nada (idempotente).
+
+## 7. Ejecutar en local
+
+```bash
+npm run dev
+```
+
+Abre [http://localhost:3000](http://localhost:3000) → redirige a `/login`. Entra con el correo/contraseña del paso 6.
+
+## 8. Pruebas
+
+```bash
+npm test              # unitarias (Vitest) — no requieren Neon
+npm run test:e2e       # E2E (Playwright) — primera vez: npx playwright install
+```
+
+Las pruebas E2E del Módulo 00 corren contra variables de entorno dummy (no tu Neon real) y cubren solo rutas que no requieren una DB conectada (ver `tests/e2e/smoke.spec.ts`). Un login exitoso de punta a punta requiere tu Neon real y un usuario creado con el paso 6.
+
+## Errores frecuentes
+
+| Síntoma                                                                             | Causa probable                                                                                        | Solución                                                                                                               |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `Variables de entorno inválidas o faltantes` al hacer login/consultar algo          | Falta `.env.local` o le falta una variable                                                            | Revisa el paso 4                                                                                                       |
+| `prisma migrate dev` falla con error de conexión                                    | Usaste la URL pooled en `DIRECT_URL`, o la base de Neon está "suspendida" por inactividad (plan free) | Usa la conexión directa; abre el dashboard de Neon para "despertar" la base                                            |
+| `/api/health/ready` responde 503                                                    | No hay conexión a la DB (credenciales mal puestas, o la base de Neon está dormida)                    | Es el comportamiento esperado — no debe dar 200 si la DB no responde. Revisa `.env.local`                              |
+| `next build` falla por Edge Runtime / `node:path`                                   | Se importó Prisma o bcryptjs desde `src/proxy.ts`                                                     | No importes `@/lib/auth` (el completo) desde el proxy — usa `@/lib/auth.config.ts`                                     |
+| ESLint/Prettier marcan diferencias                                                  | No corriste `npm run format` después de editar                                                        | `npm run format` antes de commitear                                                                                    |
+| `npm run typecheck` falla con `Cannot find name 'LayoutProps'` en un checkout nuevo | Next.js genera ese tipo en `.next/types/` y aún no existe (nunca corriste `dev`/`build`/`typecheck`)  | Ya resuelto: `npm run typecheck` corre `next typegen` primero. Si llamas `tsc` directo, corre `npx next typegen` antes |

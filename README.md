@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Poker Manager
 
-## Getting Started
+Aplicación web privada para administrar sesiones presenciales de póker: caja central, mesas simultáneas, inventario de fichas, compras, créditos, liquidaciones y notificaciones por WhatsApp.
 
-First, run the development server:
+> **Estado:** Módulo 00 (infraestructura) completado. Los módulos de negocio (compras, créditos, liquidaciones, WhatsApp real, etc.) se construyen en etapas posteriores — ver [`docs/MODULES.md`](docs/MODULES.md).
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript estricto · Tailwind CSS 4 · shadcn/ui (`base-nova`, sobre `@base-ui/react`) · Prisma ORM 7 + Neon PostgreSQL · Auth.js v5 (Credentials + JWT) · TanStack Query · Zod · React Hook Form · Vitest · Playwright.
+
+Decisiones y versiones exactas: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Requisitos
+
+- Node.js ≥ 22 (LTS; probado con 22.13.1)
+- npm ≥ 11
+- Una base de datos PostgreSQL en [Neon](https://neon.tech)
+
+## Instalación
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # completa DATABASE_URL, DIRECT_URL, AUTH_SECRET…
+openssl rand -base64 33       # genera un valor para AUTH_SECRET (pégalo en .env.local)
+npm run db:migrate            # crea las tablas en tu base de Neon
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Guía detallada paso a paso (incluye cómo obtener las credenciales de Neon): [`docs/SETUP.md`](docs/SETUP.md).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Primer usuario (SUPERADMIN)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+No hay registro público. El primer SUPERADMIN se crea con:
 
-## Learn More
+```bash
+SEED_SUPERADMIN_NAME="Tu Nombre" \
+SEED_SUPERADMIN_EMAIL="tu@correo.com" \
+SEED_SUPERADMIN_PASSWORD="una-contraseña-fuerte-de-al-menos-12-caracteres" \
+npm run db:seed
+```
 
-To learn more about Next.js, take a look at the following resources:
+Es idempotente: si ya existe un SUPERADMIN, no hace nada.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Ejecución
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run dev      # http://localhost:3000
+```
 
-## Deploy on Vercel
+## Scripts disponibles
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script                            | Qué hace                           |
+| --------------------------------- | ---------------------------------- |
+| `npm run dev`                     | Servidor de desarrollo (Turbopack) |
+| `npm run build`                   | Build de producción                |
+| `npm run start`                   | Sirve el build de producción       |
+| `npm run lint`                    | ESLint                             |
+| `npm run typecheck`               | `tsc --noEmit`                     |
+| `npm test`                        | Pruebas unitarias (Vitest)         |
+| `npm run test:watch`              | Vitest en modo watch               |
+| `npm run test:e2e`                | Pruebas E2E (Playwright)           |
+| `npm run db:generate`             | Regenera el cliente de Prisma      |
+| `npm run db:migrate`              | Aplica migraciones en desarrollo   |
+| `npm run db:deploy`               | Aplica migraciones en producción   |
+| `npm run db:studio`               | Abre Prisma Studio                 |
+| `npm run db:seed`                 | Bootstrap del primer SUPERADMIN    |
+| `npm run format` / `format:check` | Prettier                           |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentación
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura, decisiones técnicas, capas, flujo de una request.
+- [`docs/DATABASE.md`](docs/DATABASE.md) — Neon, Prisma, conexiones, migraciones, variables.
+- [`docs/BUSINESS_RULES.md`](docs/BUSINESS_RULES.md) — reglas de negocio conocidas del dominio.
+- [`docs/MODULES.md`](docs/MODULES.md) — checklist de los 16 módulos (00–15).
+- [`docs/SETUP.md`](docs/SETUP.md) — guía de configuración desde cero en macOS.
+- [`CLAUDE.md`](CLAUDE.md) — reglas permanentes para trabajar en este repo con asistencia de IA.

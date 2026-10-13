@@ -1,0 +1,62 @@
+// Poker Manager — Prisma schema
+// Módulo 00: infraestructura mínima (usuarios + auditoría).
+// Los modelos financieros (sesiones, mesas, compras, deudas, liquidaciones)
+// se agregan en módulos posteriores — ver docs/MODULES.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// En Prisma 7 la URL de conexión ya no vive aquí: la de runtime se pasa
+// como adapter a PrismaClient (ver src/lib/prisma.ts, usa DATABASE_URL
+// pooled) y la de Migrate se configura en prisma.config.ts (usa
+// DIRECT_URL, sin pooling) — ver https://pris.ly/d/config-datasource.
+datasource db {
+  provider = "postgresql"
+}
+
+/// Rol de acceso de un usuario. Ampliable sin alterar la arquitectura principal.
+enum Role {
+  SUPERADMIN
+  PARTNER
+  CASHIER
+}
+
+/// Usuarios del sistema. Inicialmente 4 cuentas: 1 SUPERADMIN, 2 PARTNER, 1 CASHIER.
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+
+  auditLogs AuditLog[] @relation("AuditLogActor")
+
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+/// Registro de auditoría de acciones del sistema.
+/// Nunca debe contener contraseñas, tokens ni secretos — ver docs/BUSINESS_RULES.md.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
