@@ -1,27 +1,32 @@
 import type { DefaultSession } from "next-auth"
 
-type AppRole = "SUPERADMIN" | "PARTNER" | "CASHIER"
+import type { Role } from "@/config/permission-matrix"
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string
-      role: AppRole
+      role: Role
       isActive: boolean
+      sessionVersion: number
     } & DefaultSession["user"]
   }
 
   interface User {
     id: string
-    role: AppRole
+    role: Role
     isActive: boolean
+    sessionVersion: number
   }
 }
 
-declare module "next-auth/jwt" {
+// `next-auth/jwt` solo re-exporta `@auth/core/jwt`: la ampliación debe
+// declararse sobre el módulo original para que TypeScript la combine.
+declare module "@auth/core/jwt" {
   interface JWT {
     id: string
-    role: AppRole
+    role: Role
     isActive: boolean
+    sessionVersion: number
   }
 }

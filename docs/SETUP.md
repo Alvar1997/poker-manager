@@ -81,14 +81,35 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000) → redirige a `/login`. Entra con el correo/contraseña del paso 6.
 
+Para crear las cuentas de socios y cajero: **Usuarios → Nuevo usuario**. El sistema genera una credencial temporal que verás una sola vez; entrégala en persona y el usuario deberá cambiarla en su primer acceso.
+
 ## 8. Pruebas
 
 ```bash
-npm test              # unitarias (Vitest) — no requieren Neon
-npm run test:e2e       # E2E (Playwright) — primera vez: npx playwright install
+npm test                  # unitarias (Vitest) — no requieren base de datos
+npm run test:integration  # integración contra Postgres real desechable (requiere TEST_DATABASE_URL)
+npm run test:e2e          # E2E (Playwright) — primera vez: npx playwright install
 ```
 
-Las pruebas E2E del Módulo 00 corren contra variables de entorno dummy (no tu Neon real) y cubren solo rutas que no requieren una DB conectada (ver `tests/e2e/smoke.spec.ts`). Un login exitoso de punta a punta requiere tu Neon real y un usuario creado con el paso 6.
+### Base de pruebas desechable (integración y E2E con sesión real)
+
+Las pruebas de integración y los E2E de login/usuarios **vacían tablas**, así que nunca usan tu Neon. Usan una base local que levanta el propio CLI de Prisma (sin Docker):
+
+```bash
+npx prisma dev -n poker-test -d     # levanta Postgres local en segundo plano
+npx prisma dev ls                   # copia la URL "TCP" (postgres://postgres:postgres@localhost:<puerto>/template1?sslmode=disable)
+export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:<puerto>/template1?sslmode=disable"
+
+npm run test:integration
+npm run test:e2e
+npx prisma dev stop poker-test      # al terminar
+```
+
+- Las migraciones se aplican solas antes de cada corrida.
+- Por seguridad, `TEST_DATABASE_URL` debe ser `localhost` (salvo `ALLOW_REMOTE_TEST_DATABASE=1`, p. ej. para una rama desechable de Neon en CI).
+- Los E2E crean usuarios por rol con contraseñas **aleatorias** en cada corrida (`tests/e2e/.auth/users.json`, ignorado por git).
+- `prisma dev` (PGlite) atiende una sola sesión a la vez: con esa base Playwright corre en un solo worker.
+- Sin `TEST_DATABASE_URL`, `npm run test:e2e` corre solo los smoke tests que no necesitan base (los demás aparecen como _skipped_).
 
 ## Errores frecuentes
 

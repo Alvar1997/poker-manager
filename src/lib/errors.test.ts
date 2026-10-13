@@ -6,6 +6,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  RateLimitError,
   UnauthorizedError,
   ValidationError,
   toAppError,
@@ -23,6 +24,7 @@ describe("AppError y subclases", () => {
       "BUSINESS_RULE_ERROR",
       422,
     ],
+    [new RateLimitError(), "RATE_LIMITED", 429],
   ] as const)(
     "%# mapea al código y status HTTP correctos",
     (error, code, status) => {

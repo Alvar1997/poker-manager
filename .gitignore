@@ -39,6 +39,8 @@ yarn-error.log*
 /playwright-report
 /test-results
 /blob-report
+# credenciales aleatorias generadas por el global setup de E2E
+/tests/e2e/.auth
 
 # prisma
 /prisma/dev.db

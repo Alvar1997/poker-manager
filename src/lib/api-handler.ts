@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { NextResponse, type NextRequest } from "next/server"
 
 import { fail } from "@/lib/api-response"
-import { toAppError } from "@/lib/errors"
+import { ForbiddenError, toAppError } from "@/lib/errors"
 import { createRequestLogger } from "@/lib/logger"
 
 export type RouteContext<TParams = Record<string, string>> = {
@@ -25,8 +25,12 @@ type Handler<TParams> = (
  *   formato de respuesta estándar, sin filtrar detalles internos.
  * - Loguea la request con su resultado y duración.
  *
- * El handler NO debe contener lógica de negocio: valida con Zod, verifica
- * autorización, y delega en un servicio de `src/modules/*`.
+ * - En métodos que modifican estado (POST/PUT/PATCH/DELETE) rechaza con
+ *   403 las solicitudes de otro origen (defensa CSRF; ver
+ *   assertSameOrigin).
+ *
+ * El handler NO debe contener lógica de negocio: autentica/autoriza,
+ * valida con Zod y delega en un servicio de `src/modules/*`.
  */
 export function withApiHandler<TParams = Record<string, string>>(
   handler: Handler<TParams>
@@ -40,6 +44,7 @@ export function withApiHandler<TParams = Record<string, string>>(
     const startedAt = performance.now()
 
     try {
+      assertSameOrigin(req)
       const response = await handler(req, { ...ctx, requestId })
       log.info({
         event: "api_request",
@@ -68,5 +73,42 @@ export function withApiHandler<TParams = Record<string, string>>(
       response.headers.set("x-request-id", requestId)
       return response
     }
+  }
+}
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
+
+/**
+ * Defensa CSRF para la API propia (la sesión viaja en cookie):
+ * 1. La cookie de Auth.js es SameSite=Lax → el navegador no la envía en
+ *    POST/PATCH iniciados desde otro sitio.
+ * 2. Además, aquí se rechaza cualquier solicitud mutante cuyo
+ *    `Sec-Fetch-Site` indique otro sitio o cuyo `Origin` no coincida con
+ *    el host. Los navegadores modernos siempre envían ambos en fetch.
+ * Clientes sin navegador (sin Origin) no portan la cookie de otro
+ * usuario, así que no representan un vector CSRF.
+ */
+export function assertSameOrigin(req: Request): void {
+  if (SAFE_METHODS.has(req.method)) return
+
+  const fetchSite = req.headers.get("sec-fetch-site")
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+    throw new ForbiddenError("Origen de la solicitud no permitido")
+  }
+
+  const origin = req.headers.get("origin")
+  if (!origin) return
+
+  const host =
+    req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ??
+    req.headers.get("host")
+  let originHost: string | null = null
+  try {
+    originHost = new URL(origin).host
+  } catch {
+    originHost = null
+  }
+  if (!host || originHost !== host) {
+    throw new ForbiddenError("Origen de la solicitud no permitido")
   }
 }

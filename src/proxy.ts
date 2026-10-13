@@ -5,15 +5,16 @@ import { authConfig } from "@/lib/auth.config"
 
 /**
  * Next.js 16 renombró la convención "middleware" a "proxy" (el archivo
- * debe llamarse proxy.ts y exportar una función `proxy`). Corre en Edge
- * Runtime: por eso usa `authConfig` (sin el provider de Credentials,
- * que depende de Prisma/bcryptjs — incompatibles con Edge) en vez de
- * importar src/lib/auth.ts completo.
+ * debe llamarse proxy.ts y exportar una función `proxy`). En Next 16 el
+ * proxy corre en Node.js, pero se mantiene deliberadamente ligero: usa
+ * `authConfig` (sin el provider de Credentials, sin Prisma) y solo
+ * decodifica el JWT.
  *
- * Protege /dashboard: sin sesión, redirige a /login. Esta es una capa de
- * conveniencia (UX) — la autorización real por rol para cada acción vive
- * en el servidor (Route Handlers / Server Components vía
- * src/config/permissions.ts), no aquí.
+ * Protege /dashboard/*: sin cookie de sesión, redirige a /login. Es una
+ * capa de conveniencia (UX). La validación real — usuario activo,
+ * sessionVersion vigente y permisos por capacidad — ocurre en el servidor
+ * en cada página (layout + requirePagePermission) y en cada endpoint
+ * (requireUser/requirePermission), que además responden 401/403 en la API.
  */
 const { auth } = NextAuth(authConfig)
 

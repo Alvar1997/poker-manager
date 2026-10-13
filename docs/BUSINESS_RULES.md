@@ -40,15 +40,24 @@ Reglas confirmadas al momento de construir el Módulo 00. Son la fuente de verda
 
 ## Usuarios y roles
 
-| Rol          | Alcance                                                                |
-| ------------ | ---------------------------------------------------------------------- |
-| `SUPERADMIN` | Control total del sistema.                                             |
-| `PARTNER`    | Dos cuentas de socios — principalmente consulta.                       |
-| `CASHIER`    | Operador de caja: compras, entregas, créditos, arqueos, liquidaciones. |
+Detalle completo y matriz de permisos: [`docs/ROLES_AND_PERMISSIONS.md`](ROLES_AND_PERMISSIONS.md).
 
-- Inicialmente 4 cuentas: 1 `SUPERADMIN`, 2 `PARTNER`, 1 `CASHIER`.
-- No hay registro público — los usuarios se crean vía bootstrap (`npm run db:seed`, solo el primer SUPERADMIN) o por un `SUPERADMIN` autenticado (Módulo 01).
-- Un usuario desactivado (`isActive = false`) no puede operar.
+| Rol          | Alcance                                                                                                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUPERADMIN` | Propietario. Control total: operación, finanzas, auditoría completa, **y en exclusiva** administración de usuarios, roles, seguridad y configuración crítica.                                     |
+| `PARTNER`    | Socio. **Prácticamente las mismas capacidades de operación y visibilidad financiera que SUPERADMIN**, sin administración de usuarios, roles, seguridad ni configuración crítica.                  |
+| `CASHIER`    | Cajero. Opera sesiones y caja central (arqueos, compras, crédito, firmas, abonos, liquidaciones FIFO, cierre) **sin aprobación de socios**. Sin reportes de ganancias globales ni administración. |
+
+- Configuración inicial: 1 `SUPERADMIN`, 2 `PARTNER`, 1 `CASHIER` — son cuentas iniciales, no límites.
+- No hay registro público — los usuarios se crean vía bootstrap (`npm run db:seed`, solo el primer SUPERADMIN) o por un `SUPERADMIN` autenticado.
+- Un usuario desactivado (`isActive = false`) no puede iniciar sesión y sus sesiones abiertas dejan de valer de inmediato.
+- **Nunca se borran usuarios físicamente**: se desactivan, conservando todo su historial (operaciones, auditoría).
+- El sistema **siempre** conserva al menos un SUPERADMIN activo.
+- Nadie puede cambiar su propio rol ni desactivarse a sí mismo.
+- Asignar roles (incluido SUPERADMIN) solo es posible desde rutas exclusivas de SUPERADMIN.
+- Las credenciales iniciales y los restablecimientos generan una contraseña temporal que el usuario debe cambiar en su primer acceso; no se envían por correo.
+- Todo cambio administrativo y todo evento de seguridad relevante queda en `audit_logs`, que es inmutable (ni PARTNER ni nadie puede alterarla o borrarla).
+- Un permiso de rol no exime de las reglas de negocio ni de los estados de cada operación (p. ej. sesión cerrada → no editable).
 
 ## Dinero y fichas
 
@@ -64,6 +73,6 @@ Reglas confirmadas al momento de construir el Módulo 00. Son la fuente de verda
 - Se **muestran** al usuario siempre convertidos a `America/Monterrey` (`src/lib/format.ts`) — nunca formatear una fecha "a mano" en otro lugar del código.
 - Una sesión no necesariamente termina el mismo día calendario en que empezó (p. ej. empieza 23:30, termina 01:00). El concepto de **fecha operativa** (`businessDate`, `src/lib/format.ts#businessDateOf`) resuelve a qué día calendario de Monterrey pertenece un instante — el módulo de sesiones decidirá, con ese dato, a qué sesión/día de negocio pertenece cada movimiento. Los cierres financieros nunca deben basarse únicamente en la fecha calendario del servidor.
 
-## Explícitamente fuera de alcance del Módulo 00
+## Explícitamente fuera de alcance de los Módulos 00 y 01
 
 No implementado todavía (se construye en módulos posteriores — ver `docs/MODULES.md`): compras, créditos, inventario operativo de fichas, liquidaciones, cierre de sesiones, envío real de WhatsApp.

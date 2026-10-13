@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test"
 
 /**
- * Smoke test de navegación — Módulo 00.
+ * Smoke test de navegación — Módulo 00 (los flujos con sesión real del
+ * Módulo 01 viven en auth-and-users.spec.ts).
  *
  * Corre contra un servidor de producción (`next build && next start`)
  * con variables de entorno dummy (ver playwright.config.ts): no hay una
@@ -51,9 +52,13 @@ test("un intento de login fallido no rompe la página y muestra un error", async
   await page.goto("/login")
 
   await page.getByLabel("Correo").fill("nadie@example.com")
-  await page.getByLabel("Contraseña").fill("contraseña-incorrecta")
+  await page
+    .getByLabel("Contraseña", { exact: true })
+    .fill("contraseña-incorrecta")
   await page.getByRole("button", { name: "Entrar" }).click()
 
-  await expect(page.getByRole("alert")).toBeVisible()
+  await expect(
+    page.getByRole("alert").filter({ hasText: /incorrectos|conectar/ })
+  ).toBeVisible()
   await expect(page).toHaveURL(/\/login/)
 })

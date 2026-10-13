@@ -1,5 +1,8 @@
 // Poker Manager — Prisma schema
 // Módulo 00: infraestructura mínima (usuarios + auditoría).
+// Módulo 01: control de sesiones (sessionVersion), credenciales temporales,
+// trazabilidad de altas/ediciones, resultado/requestId en auditoría y
+// limitación de intentos de login.
 // Los modelos financieros (sesiones, mesas, compras, deudas, liquidaciones)
 // se agregan en módulos posteriores — ver docs/MODULES.md.
 
@@ -23,7 +26,9 @@ enum Role {
   CASHIER
 }
 
-/// Usuarios del sistema. Inicialmente 4 cuentas: 1 SUPERADMIN, 2 PARTNER, 1 CASHIER.
+/// Usuarios del sistema. Configuración inicial: 1 SUPERADMIN, 2 PARTNER, 1 CASHIER
+/// (no es un límite). Nunca se eliminan físicamente: se desactivan (isActive)
+/// para conservar su historial — ver docs/BUSINESS_RULES.md.
 model User {
   id           String    @id @default(cuid())
   name         String
@@ -35,28 +40,70 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastLoginAt  DateTime?
 
-  auditLogs AuditLog[] @relation("AuditLogActor")
+  /// true cuando la contraseña actual es una credencial temporal (alta o
+  /// restablecimiento por SUPERADMIN): el usuario debe cambiarla antes de operar.
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime?
+  /// Se incrementa al cambiar/restablecer la contraseña, cambiar el rol o
+  /// desactivar la cuenta. Los JWT emitidos con una versión anterior dejan
+  /// de ser válidos en el servidor — ver docs/AUTHENTICATION.md.
+  sessionVersion     Int       @default(0)
+
+  createdById String?
+  createdBy   User?   @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?   @relation("UserUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  usersCreated User[]     @relation("UserCreatedBy")
+  usersUpdated User[]     @relation("UserUpdatedBy")
+  auditLogs    AuditLog[] @relation("AuditLogActor")
 
   @@index([role])
   @@index([isActive])
   @@map("users")
 }
 
+/// Resultado de una acción auditada.
+enum AuditResult {
+  SUCCESS
+  FAILURE
+  DENIED
+}
+
 /// Registro de auditoría de acciones del sistema.
 /// Nunca debe contener contraseñas, tokens ni secretos — ver docs/BUSINESS_RULES.md.
 model AuditLog {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   actorUserId String?
-  actor       User?    @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actor       User?       @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   action      String
   entityType  String
   entityId    String?
+  result      AuditResult @default(SUCCESS)
+  /// Identificador de la request HTTP (x-request-id) que originó el evento.
+  requestId   String?
   metadata    Json?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
 
   @@index([actorUserId])
   @@index([entityType, entityId])
   @@index([action])
   @@index([createdAt])
+  @@index([requestId])
   @@map("audit_logs")
+}
+
+/// Contador de intentos fallidos de inicio de sesión (protección contra
+/// fuerza bruta). Persistido en base de datos porque en un despliegue
+/// serverless la memoria del proceso no se comparte entre instancias.
+/// `key` es "email:<sha256 del correo>" o "ip:<dirección>" — nunca el correo
+/// en claro ni contraseñas. Ver src/modules/auth/login-throttle.ts.
+model LoginThrottle {
+  key             String    @id
+  failures        Int       @default(0)
+  windowStartedAt DateTime
+  lockedUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@map("login_throttles")
 }

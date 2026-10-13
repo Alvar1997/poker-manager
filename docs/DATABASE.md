@@ -47,12 +47,13 @@ npm run db:deploy    # producción: aplica migraciones pendientes sin generar nu
 npm run db:studio    # explorador visual de la base
 ```
 
-## Modelos (Módulo 00)
+## Modelos (Módulos 00–01)
 
-- `User` (`@@map("users")`): `id`, `name`, `email` (único), `passwordHash`, `role` (`Role`: `SUPERADMIN`/`PARTNER`/`CASHIER`), `isActive`, `createdAt`, `updatedAt`, `lastLoginAt?`.
-- `AuditLog` (`@@map("audit_logs")`): `id`, `actorUserId?` → `User`, `action`, `entityType`, `entityId?`, `metadata` (`Json?`), `createdAt`. **Nunca** contiene contraseñas/tokens/secretos.
+- `User` (`@@map("users")`): `id`, `name`, `email` (único), `passwordHash`, `role` (`Role`: `SUPERADMIN`/`PARTNER`/`CASHIER`), `isActive`, `createdAt`, `updatedAt`, `lastLoginAt?`; desde el Módulo 01: `mustChangePassword` (credencial temporal pendiente), `passwordChangedAt?`, `sessionVersion` (revocación de sesiones), `createdById?`/`updatedById?` → `User`. Nunca se borra físicamente.
+- `AuditLog` (`@@map("audit_logs")`): `id`, `actorUserId?` → `User`, `action`, `entityType`, `entityId?`, `result` (`AuditResult`: `SUCCESS`/`FAILURE`/`DENIED`), `requestId?`, `metadata` (`Json?`), `createdAt`. **Nunca** contiene contraseñas/tokens/secretos. **Solo inserción**: un trigger (`audit_logs_immutable`) rechaza `UPDATE`/`DELETE`.
+- `LoginThrottle` (`@@map("login_throttles")`): `key` (`email:<sha256>` / `ip:<ip>` / `password-change:<userId>`), `failures`, `windowStartedAt`, `lockedUntil?`, `updatedAt`. Limitador de intentos de login — ver `docs/AUTHENTICATION.md`.
 
-Los modelos financieros (sesiones, mesas, compras, deudas, liquidaciones, inventario) se agregan en los módulos siguientes — ver `docs/MODULES.md`.
+Migraciones: `20261013044915_init` (Módulo 00) y `20261013180000_module01_security` (Módulo 01, aditiva).
 
 ## Backups
 

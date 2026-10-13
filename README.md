@@ -2,7 +2,7 @@
 
 Aplicación web privada para administrar sesiones presenciales de póker: caja central, mesas simultáneas, inventario de fichas, compras, créditos, liquidaciones y notificaciones por WhatsApp.
 
-> **Estado:** Módulo 00 (infraestructura) completado. Los módulos de negocio (compras, créditos, liquidaciones, WhatsApp real, etc.) se construyen en etapas posteriores — ver [`docs/MODULES.md`](docs/MODULES.md).
+> **Estado:** Módulos 00 (infraestructura) y 01 (usuarios, roles, permisos y seguridad) completados. Los módulos de negocio (compras, créditos, liquidaciones, WhatsApp real, etc.) se construyen en etapas posteriores — ver [`docs/MODULES.md`](docs/MODULES.md).
 
 ## Stack
 
@@ -48,22 +48,23 @@ npm run dev      # http://localhost:3000
 
 ## Scripts disponibles
 
-| Script                            | Qué hace                           |
-| --------------------------------- | ---------------------------------- |
-| `npm run dev`                     | Servidor de desarrollo (Turbopack) |
-| `npm run build`                   | Build de producción                |
-| `npm run start`                   | Sirve el build de producción       |
-| `npm run lint`                    | ESLint                             |
-| `npm run typecheck`               | `tsc --noEmit`                     |
-| `npm test`                        | Pruebas unitarias (Vitest)         |
-| `npm run test:watch`              | Vitest en modo watch               |
-| `npm run test:e2e`                | Pruebas E2E (Playwright)           |
-| `npm run db:generate`             | Regenera el cliente de Prisma      |
-| `npm run db:migrate`              | Aplica migraciones en desarrollo   |
-| `npm run db:deploy`               | Aplica migraciones en producción   |
-| `npm run db:studio`               | Abre Prisma Studio                 |
-| `npm run db:seed`                 | Bootstrap del primer SUPERADMIN    |
-| `npm run format` / `format:check` | Prettier                           |
+| Script                            | Qué hace                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`                     | Servidor de desarrollo (Turbopack)                                        |
+| `npm run build`                   | Build de producción                                                       |
+| `npm run start`                   | Sirve el build de producción                                              |
+| `npm run lint`                    | ESLint                                                                    |
+| `npm run typecheck`               | `tsc --noEmit`                                                            |
+| `npm test`                        | Pruebas unitarias (Vitest)                                                |
+| `npm run test:watch`              | Vitest en modo watch                                                      |
+| `npm run test:integration`        | Integración contra Postgres real (`TEST_DATABASE_URL`, ver docs/SETUP.md) |
+| `npm run test:e2e`                | Pruebas E2E (Playwright)                                                  |
+| `npm run db:generate`             | Regenera el cliente de Prisma                                             |
+| `npm run db:migrate`              | Aplica migraciones en desarrollo                                          |
+| `npm run db:deploy`               | Aplica migraciones en producción                                          |
+| `npm run db:studio`               | Abre Prisma Studio                                                        |
+| `npm run db:seed`                 | Bootstrap del primer SUPERADMIN                                           |
+| `npm run format` / `format:check` | Prettier                                                                  |
 
 ## Documentación
 

@@ -51,7 +51,7 @@ Mientras no exista una base de Neon real, `next build` no debe fallar por falta 
 
 Auth.js con `Credentials` provider no es compatible con el adaptador de base de datos (la verificación de credenciales es responsabilidad de `authorize`, y Auth.js solo soporta sesión JWT en ese caso). No hacían falta esos modelos para el Módulo 00.
 
-**Limitación conocida:** si se desactiva un usuario (`isActive = false`), pierde acceso en su próximo login o cuando su JWT expire (8 horas — ver `src/lib/auth.config.ts`), no instantáneamente. Revocación inmediata de sesiones activas queda fuera de alcance del Módulo 00.
+~~Limitación del Módulo 00: la desactivación solo surtía efecto al expirar el JWT.~~ **Resuelto en el Módulo 01:** cada request valida al usuario contra la base (`isActive` + `sessionVersion`), así que desactivar, cambiar el rol o cambiar/restablecer la contraseña invalida las sesiones existentes de inmediato. Ver `docs/AUTHENTICATION.md`.
 
 ### Por qué el `form` de shadcn se escribió a mano (`src/components/ui/form.tsx`)
 
@@ -64,22 +64,27 @@ Los componentes de este proyecto están construidos sobre `@base-ui/react`, que 
 ## Capas del backend
 
 ```
-Route Handler  →  Validación (Zod)  →  Autorización  →  Servicio  →  Prisma
-   route.ts        src/lib/validation.ts  src/config/permissions.ts  src/modules/*/*.service.ts
+Route Handler  →  Autenticación/Autorización  →  Validación (Zod)  →  Servicio  →  Prisma
+   route.ts        src/config/permissions.ts       src/lib/validation.ts  src/modules/*/*.service.ts
 ```
+
+**Cambio en el Módulo 01:** la autorización va **antes** de la validación del body. Así un usuario sin sesión siempre recibe 401 (y uno sin permiso 403) sin importar lo que envíe, y no se revela la forma del contrato a quien no puede usarlo. Si un campo del body exige un permiso adicional (p. ej. `role` → `roles:manage`), se verifica justo después de validar.
 
 - `src/lib/api-handler.ts`: envuelve cada Route Handler — genera `requestId`, loguea, captura errores y los traduce al formato de respuesta estándar.
 - `src/lib/errors.ts`: `AppError` y subclases (`ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `BusinessRuleError`) — cada una mapea a un código HTTP fijo.
 - `src/lib/api-response.ts`: formato `{ success, data, message, requestId }` / `{ success: false, error: { code, message, details }, requestId }`.
-- `src/config/permissions.ts`: `getCurrentUser`, `requireUser`, `requireRole`, `hasRole` — única fuente de verdad de autorización, siempre en servidor.
+- `src/config/permission-matrix.ts`: **única fuente de verdad** de roles → permisos (capacidades). Puro, lo usan servidor y navegación.
+- `src/config/permissions.ts`: `getCurrentUser` (valida el JWT contra la base: usuario activo + `sessionVersion`), `requireUser`, `requirePermission`, `requirePagePermission`, `can`. Reemplaza a `requireRole`/`hasRole` del Módulo 00 (autorización por capacidad, no por rol). Ver `docs/ROLES_AND_PERMISSIONS.md` y `docs/AUTHENTICATION.md`.
+- `src/lib/api-handler.ts`: además rechaza con 403 las mutaciones de otro origen (`assertSameOrigin`, defensa CSRF).
+- `src/modules/audit/audit.service.ts`: `recordAudit` (dentro de transacciones) y `recordAuditSafe` (eventos que no deben bloquear la respuesta).
 
 ## Flujo de una request autenticada típica
 
 1. El navegador llama a un Route Handler bajo `src/app/api/**`.
 2. `withApiHandler` genera un `requestId` y arranca el log de la request.
-3. El handler valida el body/query con Zod (`parseJsonBody`/`parseQueryParams`).
-4. El handler llama a `requireRole(...)` (o `requireUser()`) — lanza `UnauthorizedError`/`ForbiddenError` si no corresponde.
-5. El handler delega en un servicio de `src/modules/<dominio>/` (aún no implementado para los módulos de negocio — ver `docs/MODULES.md`).
+3. El handler llama a `requirePermission(PERMISSIONS.X, { requestId })` (o `requireUser()`) — lanza `UnauthorizedError`/`ForbiddenError` si no corresponde; los 403 se auditan.
+4. El handler valida el body/query con Zod (`parseJsonBody`/`parseQueryParams`); los schemas de entrada son `strictObject` (campos no previstos → 400).
+5. El handler delega en un servicio de `src/modules/<dominio>/` (`users`, `auth`, `audit` desde el Módulo 01).
 6. El servicio usa `prisma` (`src/lib/prisma.ts`) — en una `$transaction` si mueve dinero o fichas.
 7. La respuesta se devuelve con `ok()`/`fail()`, con el mismo `requestId` en los logs y en la respuesta HTTP.
 
@@ -87,8 +92,22 @@ Route Handler  →  Validación (Zod)  →  Autorización  →  Servicio  →  P
 
 Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo los ya documentados arriba. Los directorios de módulos de negocio (`src/modules/sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) no se crearon vacíos — se documentan en `docs/MODULES.md` y se crean cuando se implementen.
 
+## Decisiones del Módulo 01
+
+- **Sin dependencias nuevas.** Se agregaron los componentes shadcn `dropdown-menu` y `alert-dialog` (código copiado al repo, sobre `@base-ui/react` ya instalado).
+- **Modelo nuevo `LoginThrottle`** (justificación): el limitador de intentos debe compartirse entre instancias serverless; la memoria del proceso no sirve. No se crearon modelos de sesión (JWT) ni de tokens de recuperación (no hay recuperación por correo todavía).
+- **`sessionVersion` en `User`** en vez de una tabla de sesiones: con JWT basta un contador para revocar todas las sesiones de un usuario, sin duplicar lo que Auth.js ya maneja.
+- **Permisos derivados del rol**, no almacenados por usuario.
+- **Credenciales temporales generadas por el servidor** y mostradas una sola vez (no se envían por correo).
+- **Trigger de inmutabilidad en `audit_logs`** (en la migración): la auditoría no se puede alterar ni borrar ni por un bug.
+- **`forbidden()` de Next no se usa**: sigue siendo experimental en 16.4 (`authInterrupts`); se redirige a `/dashboard/access-denied`.
+- **Pruebas de integración contra Postgres real** (`prisma dev`, sin Docker) con salvaguarda que impide apuntar a una base remota.
+- **Proxy en Node**: en Next 16 `proxy.ts` corre en Node.js; se mantiene ligero de todas formas (sin Prisma).
+
 ## Decisiones de UI/Mobile
 
 - `next-themes` para claro/oscuro (clase `.dark` en `<html>`, respeta `prefers-color-scheme` por defecto).
 - Safe-area insets (`env(safe-area-inset-*)`) aplicados en `globals.css` para notch/gestos de iOS/Android.
 - Área táctil mínima recomendada (44px) para acciones primarias en móvil: usar `size="lg"` (h-9) o superior en `<Button>` para CTAs principales; los tamaños `xs`/`sm`/`icon-*` son para UI densa de escritorio/tablas.
+- Desde el Módulo 01, inputs y botones de formularios usan `h-11 md:h-9` (44px en celular), los selects son nativos (`NativeSelect`, abren el selector del sistema) y los listados usan tarjetas en vez de tablas.
+- Navegación: barra lateral en `md+`; en celular, menú a pantalla completa desde el header.

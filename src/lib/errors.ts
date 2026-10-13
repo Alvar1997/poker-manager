@@ -11,6 +11,7 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "BUSINESS_RULE_ERROR"
+  | "RATE_LIMITED"
   | "INTERNAL_ERROR"
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
@@ -20,6 +21,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   BUSINESS_RULE_ERROR: 422,
+  RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
 }
 
@@ -71,6 +73,12 @@ export class ConflictError extends AppError {
 export class BusinessRuleError extends AppError {
   constructor(message: string, details?: unknown) {
     super("BUSINESS_RULE_ERROR", message, details)
+  }
+}
+
+export class RateLimitError extends AppError {
+  constructor(message = "Demasiados intentos. Espera unos minutos.") {
+    super("RATE_LIMITED", message)
   }
 }
 
