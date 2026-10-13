@@ -3,6 +3,9 @@
 // Módulo 01: control de sesiones (sessionVersion), credenciales temporales,
 // trazabilidad de altas/ediciones, resultado/requestId en auditoría y
 // limitación de intentos de login.
+// Módulo 02: configuración (negocio, caja central, mesas, juegos de fichas,
+// denominaciones, métodos de pago, cuenta bancaria, folios, políticas y
+// WhatsApp pendiente). Solo catálogos: ningún saldo ni movimiento.
 // Los modelos financieros (sesiones, mesas, compras, deudas, liquidaciones)
 // se agregan en módulos posteriores — ver docs/MODULES.md.
 
@@ -58,6 +61,20 @@ model User {
   usersUpdated User[]     @relation("UserUpdatedBy")
   auditLogs    AuditLog[] @relation("AuditLogActor")
 
+  // Trazabilidad de configuración (Módulo 02).
+  businessSettingsUpdated BusinessSettings[] @relation("BusinessSettingsUpdatedBy")
+  cashBoxesUpdated        CashBox[]          @relation("CashBoxUpdatedBy")
+  chipSetsCreated         ChipSet[]          @relation("ChipSetCreatedBy")
+  chipSetsUpdated         ChipSet[]          @relation("ChipSetUpdatedBy")
+  denominationsCreated    ChipDenomination[] @relation("ChipDenominationCreatedBy")
+  denominationsUpdated    ChipDenomination[] @relation("ChipDenominationUpdatedBy")
+  tablesCreated           PokerTable[]       @relation("PokerTableCreatedBy")
+  tablesUpdated           PokerTable[]       @relation("PokerTableUpdatedBy")
+  paymentMethodsUpdated   PaymentMethod[]    @relation("PaymentMethodUpdatedBy")
+  paymentAccountsCreated  PaymentAccount[]   @relation("PaymentAccountCreatedBy")
+  paymentAccountsUpdated  PaymentAccount[]   @relation("PaymentAccountUpdatedBy")
+  folioSequencesUpdated   FolioSequence[]    @relation("FolioSequenceUpdatedBy")
+
   @@index([role])
   @@index([isActive])
   @@map("users")
@@ -106,4 +123,258 @@ model LoginThrottle {
   updatedAt       DateTime  @updatedAt
 
   @@map("login_throttles")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Módulo 02 — Configuración. Ver docs/MODULE_02_CONFIGURATION.md.
+// Ningún modelo de este bloque guarda saldos, existencias ni movimientos:
+// los saldos se calcularán a partir de los libros de movimientos de los
+// módulos posteriores.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Configuración general del negocio. Registro ÚNICO: id = 1 (CHECK en BD).
+model BusinessSettings {
+  id           Int        @id @default(1)
+  businessName String
+  displayName  String?
+  logoUrl      String?
+  /// Fijo en esta versión (MXN): no editable desde la API.
+  currency     String     @default("MXN")
+  /// Fijo en esta versión (America/Monterrey): no editable desde la API.
+  timezone     String     @default("America/Monterrey")
+  dateFormat   DateFormat @default(DD_MM_YYYY)
+  timeFormat   TimeFormat @default(H12)
+  updatedById  String?
+  updatedBy    User?      @relation("BusinessSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("business_settings")
+}
+
+enum DateFormat {
+  DD_MM_YYYY
+  YYYY_MM_DD
+}
+
+enum TimeFormat {
+  H12
+  H24
+}
+
+/// Caja financiera central — ÚNICA (CHECK code = 'MAIN'). Sin campo de
+/// saldo: el saldo se derivará del libro de movimientos (módulos futuros).
+/// No pertenece a ninguna mesa y no es un juego de fichas.
+model CashBox {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  currency    String   @default("MXN")
+  isActive    Boolean  @default(true)
+  updatedById String?
+  updatedBy   User?    @relation("CashBoxUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("cash_boxes")
+}
+
+/// Juego FÍSICO de fichas. Cada juego es una identidad de inventario
+/// propia: dos fichas del mismo valor en juegos distintos son entidades
+/// distintas. Nunca se borra; se desactiva.
+model ChipSet {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation("ChipSetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("ChipSetUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  denominations ChipDenomination[]
+  tables        PokerTable[]
+
+  @@index([isActive])
+  @@map("chip_sets")
+}
+
+/// Denominación de un juego de fichas. Sin cantidades: las existencias
+/// pertenecen al inventario (módulo posterior). Nunca se borra.
+model ChipDenomination {
+  id          String   @id @default(cuid())
+  chipSetId   String
+  chipSet     ChipSet  @relation(fields: [chipSetId], references: [id], onDelete: Restrict)
+  /// Valor monetario (Decimal, nunca Float). > 0 (CHECK en BD).
+  value       Decimal  @db.Decimal(12, 2)
+  name        String?
+  color       String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation("ChipDenominationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("ChipDenominationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([chipSetId, value])
+  @@index([chipSetId, isActive])
+  @@map("chip_denominations")
+}
+
+/// Mesa del catálogo. Las sesiones futuras guardarán una fotografía
+/// (snapshot) de ciegas y juego de fichas: cambiar esta configuración no
+/// altera el histórico. No crea ninguna caja. Nunca se borra.
+model PokerTable {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  name             String
+  smallBlind       Decimal  @db.Decimal(12, 2)
+  bigBlind         Decimal  @db.Decimal(12, 2)
+  defaultChipSetId String
+  defaultChipSet   ChipSet  @relation(fields: [defaultChipSetId], references: [id], onDelete: Restrict)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdById      String?
+  createdBy        User?    @relation("PokerTableCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById      String?
+  updatedBy        User?    @relation("PokerTableUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([defaultChipSetId])
+  @@map("poker_tables")
+}
+
+/// Formas en que entra dinero real. No existe MIXED (un pago mixto será una
+/// operación con componentes) ni CREDIT (el crédito es una cuenta por cobrar).
+enum PaymentMethodCode {
+  CASH
+  BANK_TRANSFER
+}
+
+model PaymentMethod {
+  id          String            @id @default(cuid())
+  code        PaymentMethodCode @unique
+  name        String
+  isActive    Boolean           @default(true)
+  sortOrder   Int               @default(0)
+  updatedById String?
+  updatedBy   User?             @relation("PaymentMethodUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("payment_methods")
+}
+
+enum PaymentAccountType {
+  BANK
+}
+
+/// Cuenta receptora de transferencias. Solo una activa y principal (índice
+/// único parcial en BD). Números cifrados (AES-256-GCM) + últimos 4 dígitos
+/// para mostrar enmascarado. Nunca claves de banca electrónica ni tokens.
+/// Reemplazar la cuenta crea un registro nuevo y desactiva el anterior.
+model PaymentAccount {
+  id                     String             @id @default(cuid())
+  name                   String
+  type                   PaymentAccountType @default(BANK)
+  bankName               String?
+  accountHolder          String?
+  accountNumberEncrypted String?
+  accountNumberLast4     String?
+  clabeEncrypted         String?
+  clabeLast4             String?
+  isActive               Boolean            @default(true)
+  isPrimary              Boolean            @default(false)
+  createdById            String?
+  createdBy              User?              @relation("PaymentAccountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById            String?
+  updatedBy              User?              @relation("PaymentAccountUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@map("payment_accounts")
+}
+
+enum FolioDocumentType {
+  SESSION
+  PURCHASE
+  DEBT_PAYMENT
+  SETTLEMENT
+  CASH_MOVEMENT
+  CHIP_MOVEMENT
+  CASH_CLOSING
+}
+
+/// Consecutivo de folios por tipo de documento. La emisión es atómica
+/// (UPDATE … RETURNING) y el formato se bloquea tras el primer folio.
+model FolioSequence {
+  id           String            @id @default(cuid())
+  documentType FolioDocumentType @unique
+  prefix       String
+  nextNumber   Int               @default(1)
+  padding      Int               @default(6)
+  isActive     Boolean           @default(true)
+  /// Primer/último folio emitido. Si no es null, el formato ya no es editable.
+  lastIssuedAt DateTime?
+  updatedById  String?
+  updatedBy    User?             @relation("FolioSequenceUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("folio_sequences")
+}
+
+enum InitialCashPolicy {
+  NEW_FUND_PER_SESSION
+}
+
+enum ClosingCashPolicy {
+  FULL_WITHDRAWAL
+}
+
+/// Políticas operativas configurables. Registro ÚNICO (id = 1). Las reglas
+/// invariables de esta versión viven como constantes de dominio en
+/// src/config/operational-rules.ts, no aquí.
+model OperationalSettings {
+  id                Int               @id @default(1)
+  initialCashPolicy InitialCashPolicy @default(NEW_FUND_PER_SESSION)
+  closingCashPolicy ClosingCashPolicy @default(FULL_WITHDRAWAL)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@map("operational_settings")
+}
+
+enum WhatsAppProvider {
+  META_CLOUD_API
+}
+
+enum WhatsAppConfigurationStatus {
+  PENDING_CONFIGURATION
+  CONFIGURED
+}
+
+/// Configuración NO sensible de WhatsApp. Registro ÚNICO (id = 1). Los
+/// tokens/secretos nunca se guardan aquí (irán en variables de entorno).
+/// No puede estar habilitada si no está configurada (CHECK en BD).
+model WhatsAppSettings {
+  id                  Int                         @id @default(1)
+  provider            WhatsAppProvider            @default(META_CLOUD_API)
+  senderPhone         String?
+  phoneNumberId       String?
+  businessAccountId   String?
+  enabled             Boolean                     @default(false)
+  configurationStatus WhatsAppConfigurationStatus @default(PENDING_CONFIGURATION)
+  lastVerifiedAt      DateTime?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+
+  @@map("whatsapp_settings")
 }

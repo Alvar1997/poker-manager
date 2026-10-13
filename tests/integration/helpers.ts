@@ -3,17 +3,25 @@ import { NextRequest } from "next/server"
 import type { Role } from "@/config/permission-matrix"
 import { hashPassword } from "@/lib/password"
 import { prisma } from "@/lib/prisma"
+import { seedConfiguration } from "@/modules/settings/configuration.seed"
+
+import { ALL_TABLES } from "./tables"
 
 export const TEST_PASSWORD = "clave-de-prueba-123"
 
 let passwordHashCache: string | undefined
 
+/**
+ * Vacía la base de pruebas y vuelve a sembrar la configuración inicial
+ * (Módulo 02), igual que una instalación nueva tras `npm run db:seed`.
+ */
 export async function resetDatabase() {
   // TRUNCATE no dispara el trigger de inmutabilidad de audit_logs (es de
   // fila): solo se usa en bases de prueba.
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "audit_logs", "login_throttles", "users" CASCADE'
+    `TRUNCATE TABLE ${ALL_TABLES.map((t) => `"${t}"`).join(", ")} CASCADE`
   )
+  await seedConfiguration(prisma)
   globalThis.__testSession = null
 }
 

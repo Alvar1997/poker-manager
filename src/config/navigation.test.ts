@@ -10,7 +10,7 @@ describe("navegación por capacidades", () => {
     expect(ids("SUPERADMIN")).toEqual(NAV_ITEMS.map((item) => item.id))
   })
 
-  it("PARTNER ve todo lo operativo y financiero, sin usuarios ni configuración", () => {
+  it("PARTNER ve todo lo operativo, financiero y la configuración (consulta), sin usuarios", () => {
     const partner = ids("PARTNER")
     expect(partner).toEqual(
       expect.arrayContaining([
@@ -22,11 +22,11 @@ describe("navegación por capacidades", () => {
         "reports",
         "audit",
         "chips",
+        "settings",
         "profile",
       ])
     )
     expect(partner).not.toContain("users")
-    expect(partner).not.toContain("settings")
   })
 
   it("CASHIER ve solo lo necesario para operar sesión y caja", () => {
@@ -41,10 +41,11 @@ describe("navegación por capacidades", () => {
         "cash",
         "credits",
         "settlements",
+        "settings",
         "profile",
       ])
     )
-    for (const hidden of ["users", "settings", "reports", "audit"]) {
+    for (const hidden of ["users", "reports", "audit"]) {
       expect(cashier).not.toContain(hidden)
     }
   })
@@ -53,6 +54,6 @@ describe("navegación por capacidades", () => {
     const available = NAV_ITEMS.filter((item) => item.available).map(
       (item) => item.id
     )
-    expect(available.sort()).toEqual(["home", "profile", "users"])
+    expect(available.sort()).toEqual(["home", "profile", "settings", "users"])
   })
 })

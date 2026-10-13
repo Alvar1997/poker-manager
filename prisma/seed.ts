@@ -1,40 +1,52 @@
 /**
- * Bootstrap del primer usuario SUPERADMIN.
+ * Seed de Poker Manager. Idempotente: se puede ejecutar cuantas veces se
+ * quiera sin duplicar registros.
+ *
+ * 1. Configuración del Módulo 02 (siempre): negocio, Caja Central MAIN,
+ *    mesas 25/25 y 10/10 con su juego físico de fichas, métodos de pago,
+ *    cuenta principal sin datos, folios, políticas y WhatsApp pendiente.
+ *    Ver src/modules/settings/configuration.seed.ts.
+ * 2. Bootstrap del primer SUPERADMIN (opcional): solo si se definen las
+ *    variables de entorno y no existe ya un SUPERADMIN.
  *
  * Uso:
+ *   npm run db:seed                                  # solo configuración
  *   SEED_SUPERADMIN_NAME="Tu Nombre" \
  *   SEED_SUPERADMIN_EMAIL="tu@correo.com" \
  *   SEED_SUPERADMIN_PASSWORD="una-contraseña-fuerte" \
- *   npm run db:seed
+ *   npm run db:seed                                  # + primer SUPERADMIN
  *
- * Garantías:
- * - Idempotente: si ya existe al menos un SUPERADMIN, no hace nada
- *   (no crea uno nuevo, no falla, no modifica el existente).
- * - No acepta una contraseña fija/hardcodeada: siempre viene de una
- *   variable de entorno que tú provees al ejecutar el comando, nunca
- *   almacenada en el repositorio.
- * - Nunca imprime la contraseña ni el hash en logs/consola.
- * - Pensado para ejecutarse manualmente en un entorno autorizado
- *   (tu máquina o un `migrate deploy` job controlado) — no se ejecuta
- *   automáticamente en cada deploy.
+ * Garantías del bootstrap:
+ * - Si ya existe al menos un SUPERADMIN, no hace nada.
+ * - No acepta una contraseña fija/hardcodeada: viene de una variable de
+ *   entorno que tú provees al ejecutar el comando.
+ * - Nunca imprime la contraseña ni el hash.
+ * - Se ejecuta manualmente en un entorno autorizado — no en cada deploy.
  */
 import bcrypt from "bcryptjs"
 
 import { PrismaClient } from "@/generated/prisma/client"
+import { seedConfiguration } from "@/modules/settings/configuration.seed"
 import { PrismaPg } from "@prisma/adapter-pg"
 
 const MIN_PASSWORD_LENGTH = 12
 
-async function main() {
+async function bootstrapSuperadmin(prisma: PrismaClient) {
   const name = process.env.SEED_SUPERADMIN_NAME
   const email = process.env.SEED_SUPERADMIN_EMAIL?.trim().toLowerCase()
   const password = process.env.SEED_SUPERADMIN_PASSWORD
 
+  if (!name && !email && !password) {
+    console.log(
+      "[seed] Sin variables SEED_SUPERADMIN_*: se omite el bootstrap del SUPERADMIN."
+    )
+    return
+  }
+
   if (!name || !email || !password) {
     console.error(
-      "[seed] Faltan variables de entorno. Define SEED_SUPERADMIN_NAME, " +
-        "SEED_SUPERADMIN_EMAIL y SEED_SUPERADMIN_PASSWORD antes de ejecutar " +
-        "`npm run db:seed`. Ver el encabezado de prisma/seed.ts."
+      "[seed] Para crear el SUPERADMIN define SEED_SUPERADMIN_NAME, " +
+        "SEED_SUPERADMIN_EMAIL y SEED_SUPERADMIN_PASSWORD. Ver prisma/seed.ts."
     )
     process.exitCode = 1
     return
@@ -48,6 +60,33 @@ async function main() {
     return
   }
 
+  const existingSuperadmin = await prisma.user.findFirst({
+    where: { role: "SUPERADMIN" },
+    select: { id: true },
+  })
+
+  if (existingSuperadmin) {
+    console.log(
+      "[seed] Ya existe un SUPERADMIN — no se crea uno nuevo (operación idempotente)."
+    )
+    return
+  }
+
+  const created = await prisma.user.create({
+    data: {
+      name,
+      email,
+      passwordHash: await bcrypt.hash(password, 12),
+      role: "SUPERADMIN",
+      isActive: true,
+    },
+    select: { id: true, email: true },
+  })
+
+  console.log(`[seed] SUPERADMIN creado: ${created.email} (id: ${created.id})`)
+}
+
+async function main() {
   const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
   if (!connectionString) {
     console.error(
@@ -62,34 +101,9 @@ async function main() {
   })
 
   try {
-    const existingSuperadmin = await prisma.user.findFirst({
-      where: { role: "SUPERADMIN" },
-      select: { id: true, email: true },
-    })
-
-    if (existingSuperadmin) {
-      console.log(
-        "[seed] Ya existe un SUPERADMIN — no se crea uno nuevo (operación idempotente)."
-      )
-      return
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12)
-
-    const created = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        role: "SUPERADMIN",
-        isActive: true,
-      },
-      select: { id: true, email: true },
-    })
-
-    console.log(
-      `[seed] SUPERADMIN creado: ${created.email} (id: ${created.id})`
-    )
+    await seedConfiguration(prisma)
+    console.log("[seed] Configuración del Módulo 02 verificada (idempotente).")
+    await bootstrapSuperadmin(prisma)
   } finally {
     await prisma.$disconnect()
   }

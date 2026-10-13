@@ -62,7 +62,9 @@ npm run db:migrate    # crea las tablas en tu base de Neon
 
 Si ves un error de conexión, revisa que `DIRECT_URL` sea la conexión **directa** (no la pooled) — Migrate la necesita así.
 
-## 6. Crear el primer SUPERADMIN
+## 6. Configuración inicial y primer SUPERADMIN
+
+`npm run db:seed` siempre siembra la configuración del Módulo 02 (caja central, mesas, juegos de fichas, métodos de pago, folios, políticas y WhatsApp pendiente). Es idempotente y no pisa lo que edites después. Si además defines las variables de abajo, crea el primer SUPERADMIN:
 
 ```bash
 SEED_SUPERADMIN_NAME="Tu Nombre" \
@@ -71,7 +73,15 @@ SEED_SUPERADMIN_PASSWORD="una-contraseña-fuerte-de-al-menos-12-caracteres" \
 npm run db:seed
 ```
 
-Es seguro volver a correrlo: si ya existe un SUPERADMIN, no hace nada (idempotente).
+Es seguro volver a correrlo: no duplica la configuración y, si ya existe un SUPERADMIN, no crea otro.
+
+Para capturar datos bancarios (Configuración → Cuenta bancaria), define también `SETTINGS_ENCRYPTION_KEY` en `.env.local` (y en las variables de entorno del hosting):
+
+```bash
+openssl rand -base64 32
+```
+
+Las variables `WHATSAPP_*` se dejan vacías: el número exclusivo de WhatsApp aún no está disponible (Módulo 13).
 
 ## 7. Ejecutar en local
 

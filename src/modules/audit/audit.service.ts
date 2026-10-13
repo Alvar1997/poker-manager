@@ -32,6 +32,26 @@ export const AUDIT_ACTIONS = {
   USER_ACTIVATED: "USER_ACTIVATED",
   USER_DEACTIVATED: "USER_DEACTIVATED",
   USER_PASSWORD_RESET: "USER_PASSWORD_RESET",
+
+  // Módulo 02 — configuración.
+  BUSINESS_SETTINGS_UPDATED: "SETTINGS_BUSINESS_UPDATED",
+  CASH_BOX_UPDATED: "SETTINGS_CASH_BOX_UPDATED",
+  TABLE_CREATED: "TABLE_CREATED",
+  TABLE_UPDATED: "TABLE_UPDATED",
+  TABLE_ACTIVATED: "TABLE_ACTIVATED",
+  TABLE_DEACTIVATED: "TABLE_DEACTIVATED",
+  CHIP_SET_CREATED: "CHIP_SET_CREATED",
+  CHIP_SET_UPDATED: "CHIP_SET_UPDATED",
+  CHIP_SET_ACTIVATED: "CHIP_SET_ACTIVATED",
+  CHIP_SET_DEACTIVATED: "CHIP_SET_DEACTIVATED",
+  DENOMINATION_CREATED: "CHIP_DENOMINATION_CREATED",
+  DENOMINATION_UPDATED: "CHIP_DENOMINATION_UPDATED",
+  DENOMINATION_ACTIVATED: "CHIP_DENOMINATION_ACTIVATED",
+  DENOMINATION_DEACTIVATED: "CHIP_DENOMINATION_DEACTIVATED",
+  PAYMENT_METHOD_UPDATED: "PAYMENT_METHOD_UPDATED",
+  BANK_ACCOUNT_UPDATED: "BANK_ACCOUNT_UPDATED",
+  BANK_ACCOUNT_REPLACED: "BANK_ACCOUNT_REPLACED",
+  FOLIO_SEQUENCE_UPDATED: "FOLIO_SEQUENCE_UPDATED",
 } as const
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS]
@@ -64,6 +84,24 @@ export function sanitizeMetadata(value: unknown): unknown {
     )
   }
   return value
+}
+
+/**
+ * Cambios campo a campo `{ campo: { from, to } }` entre el estado previo y
+ * lo que se envió (ignora campos no enviados o sin cambio). null si nada
+ * cambió — en ese caso no se audita una "edición" vacía.
+ */
+export function diffChanges(
+  before: Record<string, unknown>,
+  input: Record<string, unknown>
+): Record<string, { from: unknown; to: unknown }> | null {
+  const changes: Record<string, { from: unknown; to: unknown }> = {}
+  for (const [key, to] of Object.entries(input)) {
+    if (to !== undefined && before[key] !== to) {
+      changes[key] = { from: before[key], to }
+    }
+  }
+  return Object.keys(changes).length > 0 ? changes : null
 }
 
 export async function recordAudit(

@@ -66,7 +66,7 @@ test.describe("navegación por rol", () => {
     await expect(nav.locator('[data-nav-id="reports"]')).toBeVisible()
   })
 
-  test("PARTNER ve finanzas y auditoría, pero no usuarios ni configuración", async ({
+  test("PARTNER ve finanzas, auditoría y configuración, pero no usuarios", async ({
     page,
   }) => {
     const users = requireE2EUsers()
@@ -76,8 +76,8 @@ test.describe("navegación por rol", () => {
     await expect(nav.locator('[data-nav-id="cash"]')).toBeVisible()
     await expect(nav.locator('[data-nav-id="reports"]')).toBeVisible()
     await expect(nav.locator('[data-nav-id="audit"]')).toBeVisible()
+    await expect(nav.locator('[data-nav-id="settings"]')).toBeVisible()
     await expect(nav.locator('[data-nav-id="users"]')).toHaveCount(0)
-    await expect(nav.locator('[data-nav-id="settings"]')).toHaveCount(0)
   })
 
   test("CASHIER ve la operación de caja, sin reportes ni administración", async ({
@@ -89,7 +89,8 @@ test.describe("navegación por rol", () => {
 
     await expect(nav.locator('[data-nav-id="cash"]')).toBeVisible()
     await expect(nav.locator('[data-nav-id="purchases"]')).toBeVisible()
-    for (const hidden of ["users", "settings", "reports", "audit"]) {
+    await expect(nav.locator('[data-nav-id="settings"]')).toBeVisible()
+    for (const hidden of ["users", "reports", "audit"]) {
       await expect(nav.locator(`[data-nav-id="${hidden}"]`)).toHaveCount(0)
     }
   })

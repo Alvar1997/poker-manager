@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
@@ -5,6 +6,7 @@ import path from "node:path"
 import bcrypt from "bcryptjs"
 import { Client } from "pg"
 
+import { ALL_TABLES } from "../integration/tables"
 import { resolveTestDatabaseUrl } from "../integration/test-db"
 
 export const E2E_USERS_FILE = path.join(__dirname, ".auth", "users.json")
@@ -29,7 +31,6 @@ export default async function globalSetup() {
   if (!process.env.TEST_DATABASE_URL) return
 
   const url = resolveTestDatabaseUrl()
-  const { execSync } = await import("node:child_process")
   execSync("npx prisma migrate deploy", {
     stdio: "inherit",
     env: { ...process.env, DIRECT_URL: url },
@@ -42,8 +43,13 @@ export default async function globalSetup() {
 
   try {
     await db.query(
-      'TRUNCATE TABLE "audit_logs", "login_throttles", "users" CASCADE'
+      `TRUNCATE TABLE ${ALL_TABLES.map((t) => `"${t}"`).join(", ")} CASCADE`
     )
+    // Configuración inicial del Módulo 02 con el seed real (idempotente).
+    execSync("npm run db:seed", {
+      stdio: "inherit",
+      env: { ...process.env, DIRECT_URL: url, DATABASE_URL: url },
+    })
 
     const make = (name: string, email: string): E2EUser => ({
       name,

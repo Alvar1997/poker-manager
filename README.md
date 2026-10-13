@@ -2,7 +2,7 @@
 
 Aplicación web privada para administrar sesiones presenciales de póker: caja central, mesas simultáneas, inventario de fichas, compras, créditos, liquidaciones y notificaciones por WhatsApp.
 
-> **Estado:** Módulos 00 (infraestructura) y 01 (usuarios, roles, permisos y seguridad) completados. Los módulos de negocio (compras, créditos, liquidaciones, WhatsApp real, etc.) se construyen en etapas posteriores — ver [`docs/MODULES.md`](docs/MODULES.md).
+> **Estado:** Módulos 00 (infraestructura), 01 (usuarios, roles, permisos y seguridad) y 02 (configuración general) completados. Siguiente: Módulo 03 — Jugadores. Los módulos de negocio (compras, créditos, liquidaciones, WhatsApp real, etc.) se construyen en etapas posteriores — ver [`docs/MODULES.md`](docs/MODULES.md).
 
 ## Stack
 

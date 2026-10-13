@@ -8,6 +8,8 @@ process.env.DIRECT_URL = url
 process.env.AUTH_SECRET ||= "integration-secret-at-least-32-characters"
 process.env.AUTH_URL ||= "http://localhost:3000"
 process.env.LOG_LEVEL ||= "silent"
+// Clave efímera de prueba para cifrar datos bancarios (no es la de ningún entorno real).
+process.env.SETTINGS_ENCRYPTION_KEY ||= Buffer.alloc(32, 7).toString("base64")
 
 vi.mock("server-only", () => ({}))
 

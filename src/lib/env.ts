@@ -41,6 +41,27 @@ const envSchema = z.object({
     ),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
 
+  /**
+   * Clave AES-256 (32 bytes en base64) para cifrar datos bancarios.
+   * Opcional para arrancar; obligatoria para capturar número de cuenta o
+   * CLABE. Genérala con `openssl rand -base64 32`.
+   */
+  SETTINGS_ENCRYPTION_KEY: z
+    .string()
+    .refine(
+      (key) => Buffer.from(key, "base64").length === 32,
+      "SETTINGS_ENCRYPTION_KEY debe ser 32 bytes en base64 (openssl rand -base64 32)"
+    )
+    .optional(),
+
+  // WhatsApp Cloud API — PENDIENTE (Módulo 13). Sin valores todavía: el
+  // número exclusivo de Poker Manager aún no está disponible.
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+  WHATSAPP_APP_SECRET: z.string().optional(),
+
   NEXT_PUBLIC_APP_NAME: z.string().default("Poker Manager"),
   APP_TIMEZONE: z.string().default("America/Monterrey"),
 })

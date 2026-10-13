@@ -106,6 +106,22 @@ describe("matriz de permisos", () => {
     expect(permissionsForRole("HACKER" as Role)).toEqual([])
   })
 
+  it("configuración (Módulo 02): SUPERADMIN edita; PARTNER consulta todo; CASHIER solo catálogos", () => {
+    expect(roleHasPermission("SUPERADMIN", PERMISSIONS.SETTINGS_MANAGE)).toBe(
+      true
+    )
+    expect(roleHasPermission("PARTNER", PERMISSIONS.SETTINGS_READ)).toBe(true)
+    expect(roleHasPermission("PARTNER", PERMISSIONS.CATALOGS_READ)).toBe(true)
+    expect(roleHasPermission("PARTNER", PERMISSIONS.SETTINGS_MANAGE)).toBe(
+      false
+    )
+    expect(roleHasPermission("CASHIER", PERMISSIONS.CATALOGS_READ)).toBe(true)
+    expect(roleHasPermission("CASHIER", PERMISSIONS.SETTINGS_READ)).toBe(false)
+    expect(roleHasPermission("CASHIER", PERMISSIONS.SETTINGS_MANAGE)).toBe(
+      false
+    )
+  })
+
   it("los valores de permiso son únicos (sin alias que se pisen)", () => {
     expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length)
   })

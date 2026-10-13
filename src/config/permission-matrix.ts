@@ -42,6 +42,13 @@ export const PERMISSIONS = {
   SETTINGS_MANAGE: "settings:manage",
   AUDIT_SECURITY_READ: "audit:security-read",
 
+  // Configuración (Módulo 02). SETTINGS_READ: toda la configuración no
+  // secreta (caja, cuenta bancaria enmascarada, folios, WhatsApp).
+  // CATALOGS_READ: catálogos necesarios para operar (parámetros generales,
+  // mesas, juegos de fichas, denominaciones, métodos de pago, reglas).
+  SETTINGS_READ: "settings:read",
+  CATALOGS_READ: "catalogs:read",
+
   // Dashboard.
   DASHBOARD_VIEW: "dashboard:view",
   DASHBOARD_FINANCIAL: "dashboard:financial",
@@ -106,6 +113,7 @@ export const ADMIN_ONLY_PERMISSIONS: readonly Permission[] = [
 ]
 
 const CASHIER_PERMISSIONS: readonly Permission[] = [
+  PERMISSIONS.CATALOGS_READ,
   PERMISSIONS.DASHBOARD_VIEW,
   PERMISSIONS.SESSIONS_READ,
   PERMISSIONS.SESSIONS_MANAGE,

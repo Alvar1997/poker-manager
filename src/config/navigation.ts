@@ -27,7 +27,7 @@ export type NavSection = "operation" | "finance" | "admin" | "account"
 export const NAV_SECTION_LABEL: Record<NavSection, string> = {
   operation: "Operación",
   finance: "Finanzas y control",
-  admin: "Administración",
+  admin: "Administración y configuración",
   account: "Cuenta",
 }
 
@@ -154,11 +154,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "settings",
     label: "Configuración",
-    href: "/dashboard/settings",
+    href: "/dashboard/configuracion",
     icon: Settings,
     section: "admin",
-    permission: PERMISSIONS.SETTINGS_MANAGE,
-    available: false,
+    // Los tres roles la ven (con secciones según permisos): CASHIER consulta
+    // catálogos, PARTNER toda la configuración, solo SUPERADMIN edita.
+    permission: PERMISSIONS.CATALOGS_READ,
+    available: true,
   },
   {
     id: "profile",

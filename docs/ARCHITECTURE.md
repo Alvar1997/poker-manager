@@ -104,6 +104,18 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 - **Pruebas de integración contra Postgres real** (`prisma dev`, sin Docker) con salvaguarda que impide apuntar a una base remota.
 - **Proxy en Node**: en Next 16 `proxy.ts` corre en Node.js; se mantiene ligero de todas formas (sin Prisma).
 
+## Decisiones del Módulo 02
+
+- **Rutas en español bajo `/dashboard`**: `/dashboard/configuracion/*` conserva la protección del proxy y el layout del Módulo 01. `/configuracion/*` redirige allí (`next.config.ts`).
+- **Montos como string en la API, `Decimal` en la base** (`src/lib/money.ts`): ningún `number` de JS toca dinero. `positiveMoneySchema` es puro (sirve en cliente y servidor).
+- **Singletons con `CHECK (id = 1)`** y caja única con `CHECK (code = 'MAIN')`: la unicidad la garantiza la base, no solo el código.
+- **Reglas fijas como constantes tipadas** (`src/config/operational-rules.ts`), no como columnas editables. Solo las políticas de efectivo se persisten (`enum` de un valor). No hay motor genérico de reglas.
+- **Cifrado de datos bancarios** con AES-256-GCM (`src/lib/crypto.ts`) y clave en `SETTINGS_ENCRYPTION_KEY`, con últimos 4 dígitos en claro para enmascarar. Sin la clave se puede usar todo el sistema, pero no capturar números.
+- **Folios con `UPDATE … RETURNING`**: atómico sin locks explícitos; la edición del formato usa `updateMany` condicionado a `lastIssuedAt IS NULL`.
+- **Permisos nuevos `settings:read` y `catalogs:read`** en la misma matriz del Módulo 01; secciones de configuración filtradas por capacidad (`src/config/settings-sections.ts`).
+- **Enlaces con estilo de botón**: `<Link className={buttonVariants()}>`, no `<Button render={<Link/>}>`. Con `nativeButton={false}`, Base UI agrega `role="button"` y el enlace deja de anunciarse como enlace.
+- **Sin dependencias nuevas.**
+
 ## Decisiones de UI/Mobile
 
 - `next-themes` para claro/oscuro (clase `.dark` en `<html>`, respeta `prefers-color-scheme` por defecto).

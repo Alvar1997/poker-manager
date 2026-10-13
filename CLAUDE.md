@@ -25,6 +25,9 @@ Detalle completo de decisiones técnicas: `docs/ARCHITECTURE.md`.
 - Las compras a crédito no requieren aprobación externa — el cajero puede otorgarlo.
 - SUPERADMIN y PARTNER tienen prácticamente las mismas capacidades de operación y visibilidad financiera. Administración de usuarios, roles, seguridad y configuración crítica son exclusivas de SUPERADMIN. CASHIER opera la caja sin aprobación de socios.
 - Usuarios: nunca borrado físico (solo desactivar); siempre al menos un SUPERADMIN activo; nadie cambia su propio rol.
+- Caja central única (`CashBox` `MAIN`), sin campo de saldo: los saldos se derivan de movimientos. Cada mesa usa un juego FÍSICO de fichas propio (`ChipSet`); el inventario se identifica por (juego, denominación), nunca por mesa. Las sesiones deben guardar una fotografía de ciegas y juego.
+- Fondo de efectivo nuevo en cada sesión y retiro total al cierre. El crédito no es un método de pago; el pago mixto es una operación con componentes.
+- WhatsApp: el número exclusivo está pendiente; la integración real corresponde al Módulo 13 y su ausencia no bloquea nada. Nunca guardes tokens en la base de datos.
 - Las entregas de fichas requieren firma del jugador en el celular del cajero.
 - Las deudas se compensan por antigüedad (FIFO) al liquidar.
 - Los mensajes de WhatsApp de compras/recompras a crédito se envían **después** de confirmar la compra, no antes.
@@ -42,6 +45,9 @@ Detalle completo: `docs/BUSINESS_RULES.md`.
 - Schemas Zod de entrada como `z.strictObject`: un campo no previsto (p. ej. `role`) es 400, no se ignora.
 - Nunca devolver `passwordHash`/`sessionVersion`: lecturas de usuario siempre con `publicUserSelect` (`src/modules/users/user.dto.ts`).
 - `audit_logs` es de solo inserción (trigger en BD). Las mutaciones administrativas auditan dentro de su misma transacción.
+- Catálogos de configuración: sin `DELETE` (activar/desactivar), códigos internos inmutables, montos como string en la API y `Decimal` en la base (`src/lib/money.ts`). Reglas fijas en `src/config/operational-rules.ts`. Folios solo con `issueFolio(tx, tipo)` dentro de la transacción del documento.
+- Datos bancarios cifrados (`src/lib/crypto.ts`, `SETTINGS_ENCRYPTION_KEY`); nunca devolver números completos.
+- Enlaces con estilo de botón: `<Link className={buttonVariants()}>`, nunca `<Button render={<Link/>}>`.
 - Pruebas de integración (`npm run test:integration`) y E2E con sesión real requieren `TEST_DATABASE_URL` local desechable (`npx prisma dev`), nunca Neon — ver `docs/SETUP.md`.
 - Dinero: siempre `Decimal` de Prisma — **nunca** `Float`/`number` de JS para cálculos financieros.
 - Fichas: siempre enteros no negativos (`src/lib/validation.ts#nonNegativeInt`).
@@ -70,4 +76,5 @@ No modifiques un módulo ya cerrado/entregado sin una razón técnica explícita
 
 - Módulo 00 (infraestructura) completado.
 - Módulo 01 (usuarios, roles, permisos y seguridad) completado — ver `docs/AUTHENTICATION.md` y `docs/ROLES_AND_PERMISSIONS.md`.
-- Siguiente: **Módulo 02**. El encargo lo nombra "Configuración general"; `docs/MODULES.md` aún lista "Mesas y sesiones" como 02 — confirmar el roadmap antes de empezar y actualizar la tabla.
+- Módulo 02 (configuración general) completado — ver `docs/MODULE_02_CONFIGURATION.md`. WhatsApp en `PENDING_CONFIGURATION` por diseño.
+- Siguiente: **Módulo 03 — Jugadores** (`docs/MODULES.md`).

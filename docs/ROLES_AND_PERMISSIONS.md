@@ -25,6 +25,8 @@ Fuente de verdad en código: [`src/config/permission-matrix.ts`](../src/config/p
 | `USERS_RESET_PASSWORD` | `users:reset-password` |     ✅     |    —    |    —    |
 | `ROLES_MANAGE`         | `roles:manage`         |     ✅     |    —    |    —    |
 | `SETTINGS_MANAGE`      | `settings:manage`      |     ✅     |    —    |    —    |
+| `SETTINGS_READ`        | `settings:read`        |     ✅     |   ✅    |    —    |
+| `CATALOGS_READ`        | `catalogs:read`        |     ✅     |   ✅    |   ✅    |
 | `AUDIT_SECURITY_READ`  | `audit:security-read`  |     ✅     |    —    |    —    |
 | `DASHBOARD_VIEW`       | `dashboard:view`       |     ✅     |   ✅    |   ✅    |
 | `DASHBOARD_FINANCIAL`  | `dashboard:financial`  |     ✅     |   ✅    |    —    |
@@ -64,6 +66,14 @@ Además de las del encargo se agregaron, sin crear módulos nuevos:
 - **Sin `CORRECTIONS_OPERATE`**: el cajero no elimina ni altera movimientos confirmados.
 - `CREDITS_READ` sí: necesita consultar deudas para operar compras y liquidaciones.
 
+### Configuración (Módulo 02)
+
+- `settings:read`: caja central, cuenta bancaria (enmascarada), folios y estado de WhatsApp; además permite ver registros inactivos de los catálogos.
+- `catalogs:read`: lo que el cajero necesita para operar (parámetros generales, mesas, juegos de fichas, denominaciones, métodos de pago y reglas operativas), solo registros activos.
+- `settings:manage` (solo SUPERADMIN): cualquier modificación de configuración.
+
+Detalle por sección y endpoint: `docs/MODULE_02_CONFIGURATION.md`.
+
 ## Dónde se aplica
 
 | Capa                                    | Mecanismo                                                                      | ¿Es defensa real? |
@@ -89,21 +99,21 @@ Cada `403` de la API o de una página deja un registro `AUTH_ACCESS_DENIED` en `
 
 ## Navegación por rol
 
-| Opción               | Permiso que la muestra | SUPERADMIN | PARTNER | CASHIER | Estado       |
-| -------------------- | ---------------------- | :--------: | :-----: | :-----: | ------------ |
-| Inicio               | `dashboard:view`       |     ✅     |   ✅    |   ✅    | Disponible   |
-| Sesiones y mesas     | `sessions:read`        |     ✅     |   ✅    |   ✅    | Próximamente |
-| Jugadores            | `players:read`         |     ✅     |   ✅    |   ✅    | Próximamente |
-| Compras y recompras  | `purchases:read`       |     ✅     |   ✅    |   ✅    | Próximamente |
-| Fichas               | `chips:read`           |     ✅     |   ✅    |   ✅    | Próximamente |
-| Caja                 | `cash:read`            |     ✅     |   ✅    |   ✅    | Próximamente |
-| Créditos y abonos    | `credits:read`         |     ✅     |   ✅    |   ✅    | Próximamente |
-| Liquidaciones        | `settlements:read`     |     ✅     |   ✅    |   ✅    | Próximamente |
-| Reportes y ganancias | `reports:financial`    |     ✅     |   ✅    |    —    | Próximamente |
-| Auditoría            | `audit:read`           |     ✅     |   ✅    |    —    | Próximamente |
-| Usuarios             | `users:read`           |     ✅     |    —    |    —    | Disponible   |
-| Configuración        | `settings:manage`      |     ✅     |    —    |    —    | Próximamente |
-| Mi perfil            | (cualquier sesión)     |     ✅     |   ✅    |   ✅    | Disponible   |
+| Opción               | Permiso que la muestra | SUPERADMIN | PARTNER | CASHIER | Estado                                                               |
+| -------------------- | ---------------------- | :--------: | :-----: | :-----: | -------------------------------------------------------------------- |
+| Inicio               | `dashboard:view`       |     ✅     |   ✅    |   ✅    | Disponible                                                           |
+| Sesiones y mesas     | `sessions:read`        |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Jugadores            | `players:read`         |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Compras y recompras  | `purchases:read`       |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Fichas               | `chips:read`           |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Caja                 | `cash:read`            |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Créditos y abonos    | `credits:read`         |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Liquidaciones        | `settlements:read`     |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Reportes y ganancias | `reports:financial`    |     ✅     |   ✅    |    —    | Próximamente                                                         |
+| Auditoría            | `audit:read`           |     ✅     |   ✅    |    —    | Próximamente                                                         |
+| Usuarios             | `users:read`           |     ✅     |    —    |    —    | Disponible                                                           |
+| Configuración        | `catalogs:read`        |     ✅     |   ✅    |   ✅    | Disponible (Módulo 02; secciones por permiso, solo SUPERADMIN edita) |
+| Mi perfil            | (cualquier sesión)     |     ✅     |   ✅    |   ✅    | Disponible                                                           |
 
 Las opciones "Próximamente" se muestran sin enlace ni acción: no aparentan operaciones que todavía no existen. Al construir un módulo se cambia `available: true` en `NAV_ITEMS`.
 
