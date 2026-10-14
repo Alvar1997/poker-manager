@@ -6,6 +6,8 @@
 // Módulo 02: configuración (negocio, caja central, mesas, juegos de fichas,
 // denominaciones, métodos de pago, cuenta bancaria, folios, políticas y
 // WhatsApp pendiente). Solo catálogos: ningún saldo ni movimiento.
+// Módulo 03: jugadores (directorio, historial de teléfonos y consentimiento
+// de notificaciones). Sin deudas, saldos ni límites de crédito.
 // Los modelos financieros (sesiones, mesas, compras, deudas, liquidaciones)
 // se agregan en módulos posteriores — ver docs/MODULES.md.
 
@@ -74,6 +76,12 @@ model User {
   paymentAccountsCreated  PaymentAccount[]   @relation("PaymentAccountCreatedBy")
   paymentAccountsUpdated  PaymentAccount[]   @relation("PaymentAccountUpdatedBy")
   folioSequencesUpdated   FolioSequence[]    @relation("FolioSequenceUpdatedBy")
+
+  // Trazabilidad de jugadores (Módulo 03). Los jugadores NO son usuarios.
+  playersCreated         Player[]                    @relation("PlayerCreatedBy")
+  playersUpdated         Player[]                    @relation("PlayerUpdatedBy")
+  playerPhoneChanges     PlayerPhoneHistory[]        @relation("PlayerPhoneChangedBy")
+  playerConsentsRecorded PlayerNotificationConsent[] @relation("PlayerConsentRecordedBy")
 
   @@index([role])
   @@index([isActive])
@@ -377,4 +385,100 @@ model WhatsAppSettings {
   updatedAt           DateTime                    @updatedAt
 
   @@map("whatsapp_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Módulo 03 — Jugadores. Ver docs/MODULE_03_PLAYERS.md.
+// Un jugador es una entidad del negocio, NO un usuario: sin correo,
+// contraseña ni rol. No hay campos de deuda, saldo, compras ni límite de
+// crédito: esos valores se derivarán de operaciones confirmadas.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Jugador. Nunca se borra físicamente: se desactiva (isActive).
+model Player {
+  id          String   @id @default(cuid())
+  name        String
+  nickname    String?
+  /// Teléfono normalizado E.164 (p. ej. +528711234567). ÚNICO en la base.
+  phone       String   @unique
+  /// País del número (ISO 3166-1 alfa-2, p. ej. "MX"), detectado al normalizar.
+  countryCode String
+  isActive    Boolean  @default(true)
+  /// Observaciones operativas internas (texto plano, nunca se envían por WhatsApp).
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation("PlayerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("PlayerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  phoneHistory PlayerPhoneHistory[]
+  consents     PlayerNotificationConsent[]
+
+  @@index([isActive, name])
+  @@index([name])
+  @@index([nickname])
+  @@index([createdAt])
+  @@map("players")
+}
+
+/// Historial de cambios de teléfono (datos personales: acceso restringido).
+/// Solo inserción. Los comprobantes futuros guardarán su propio teléfono.
+model PlayerPhoneHistory {
+  id            String   @id @default(cuid())
+  playerId      String
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  previousPhone String
+  newPhone      String
+  reason        String?
+  changedById   String?
+  changedBy     User?    @relation("PlayerPhoneChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+  changedAt     DateTime @default(now())
+
+  @@index([playerId, changedAt])
+  @@map("player_phone_history")
+}
+
+enum NotificationChannel {
+  WHATSAPP
+}
+
+enum NotificationConsentType {
+  TRANSACTIONAL
+}
+
+enum ConsentAction {
+  GRANTED
+  REVOKED
+}
+
+enum ConsentSource {
+  IN_PERSON
+  ADMIN_ENTRY
+}
+
+/// Historial de consentimiento de notificaciones (solo inserción). El
+/// consentimiento VIGENTE se deriva del registro más reciente por canal y
+/// solo aplica al teléfono para el que se otorgó (`phone`): si el jugador
+/// cambia de número, el consentimiento anterior deja de estar vigente.
+model PlayerNotificationConsent {
+  id                String                  @id @default(cuid())
+  playerId          String
+  player            Player                  @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  channel           NotificationChannel     @default(WHATSAPP)
+  consentType       NotificationConsentType @default(TRANSACTIONAL)
+  action            ConsentAction
+  /// Teléfono E.164 al que aplica este registro.
+  phone             String
+  noticeVersion     String
+  source            ConsentSource
+  evidenceReference String?
+  notes             String?
+  recordedById      String?
+  recordedBy        User?                   @relation("PlayerConsentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  recordedAt        DateTime                @default(now())
+
+  @@index([playerId, channel, recordedAt])
+  @@map("player_notification_consents")
 }

@@ -28,6 +28,12 @@ Detalle completo de decisiones técnicas: `docs/ARCHITECTURE.md`.
 - Caja central única (`CashBox` `MAIN`), sin campo de saldo: los saldos se derivan de movimientos. Cada mesa usa un juego FÍSICO de fichas propio (`ChipSet`); el inventario se identifica por (juego, denominación), nunca por mesa. Las sesiones deben guardar una fotografía de ciegas y juego.
 - Fondo de efectivo nuevo en cada sesión y retiro total al cierre. El crédito no es un método de pago; el pago mixto es una operación con componentes.
 - WhatsApp: el número exclusivo está pendiente; la integración real corresponde al Módulo 13 y su ausencia no bloquea nada. Nunca guardes tokens en la base de datos.
+- Jugadores (`Player`) separados de los usuarios administrativos: sin correo, contraseña ni rol.
+- Teléfono del jugador obligatorio, normalizado a E.164 con `src/lib/phone.ts` (México por defecto) y único en la base. Nunca concatenar +52 a mano.
+- Crédito ilimitado: sin límite por jugador ni global (`src/config/credit-policy.ts`); nunca agregar campos o controles de límite sin una decisión de negocio documentada.
+- Deudas y saldos SIEMPRE derivados de movimientos reales confirmados; nunca campos editables del jugador.
+- Consentimiento de WhatsApp independiente del teléfono: explícito, versionado, revocable, ligado al número; los envíos deben consultar `getConsentStatus(playerId).granted`.
+- Sin borrado físico de jugadores (desactivar); un inactivo no se selecciona para operaciones nuevas (`assertPlayerSelectable`), pero sus deudas siguen vigentes.
 - Las entregas de fichas requieren firma del jugador en el celular del cajero.
 - Las deudas se compensan por antigüedad (FIFO) al liquidar.
 - Los mensajes de WhatsApp de compras/recompras a crédito se envían **después** de confirmar la compra, no antes.
@@ -74,7 +80,6 @@ No modifiques un módulo ya cerrado/entregado sin una razón técnica explícita
 
 ## Estado actual
 
-- Módulo 00 (infraestructura) completado.
-- Módulo 01 (usuarios, roles, permisos y seguridad) completado — ver `docs/AUTHENTICATION.md` y `docs/ROLES_AND_PERMISSIONS.md`.
-- Módulo 02 (configuración general) completado — ver `docs/MODULE_02_CONFIGURATION.md`. WhatsApp en `PENDING_CONFIGURATION` por diseño.
-- Siguiente: **Módulo 03 — Jugadores** (`docs/MODULES.md`).
+- Módulos 00 (infraestructura), 01 (usuarios, roles y seguridad), 02 (configuración general) y 03 (jugadores) completados — ver `docs/MODULES.md` y `docs/MODULE_0X_*.md`.
+- WhatsApp en `PENDING_CONFIGURATION` por diseño (número exclusivo pendiente; integración en el Módulo 13).
+- Siguiente: **Módulo 04 — Inventario central de fichas**, por (juego físico, denominación): los juegos de las mesas 25/25 y 10/10 son inventarios distintos.

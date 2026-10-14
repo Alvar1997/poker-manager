@@ -2,25 +2,25 @@
 
 Roadmap propuesto de 16 módulos (00–15). Cada módulo crea su propio directorio bajo `src/modules/<dominio>/` cuando se implementa (no se crean vacíos de antemano). El orden respeta las dependencias de negocio descritas en `docs/BUSINESS_RULES.md`.
 
-| #             | Módulo                      | Responsabilidad                                                                                                           | Estado                     |
-| ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| 00            | Infraestructura             | Next.js, TS estricto, Tailwind, shadcn, Prisma+Neon, auth básica, errores, logging, health checks, PWA base               | ✅ Completado              |
-| 01            | Usuarios, roles y seguridad | Usuarios (SUPERADMIN), roles, permisos por capacidad, sesiones seguras, auditoría de seguridad                            | ✅ Completado (2026-10-13) |
-| 02            | Configuración general       | Negocio, caja central única, mesas, juegos de fichas, denominaciones, pagos, banco, folios, políticas, WhatsApp pendiente | ✅ Completado (2026-10-14) |
-| 03            | Jugadores                   | Alta/edición de jugadores, historial por jugador                                                                          | **Siguiente**              |
-| por confirmar | Mesas y sesiones            | Apertura (fondo nuevo + arqueo inicial), mesas simultáneas, snapshot de ciegas/juego, `businessDate`                      | Pendiente                  |
-| por confirmar | Inventario de fichas        | Existencias por (juego, denominación), movimientos, conversiones entre juegos, conciliación                               | Pendiente                  |
-| por confirmar | Caja central (movimientos)  | Libro de movimientos de efectivo/banco, saldo derivado, vínculo sesión/mesa                                               | Pendiente                  |
-| por confirmar | Compras y recompras         | Pagada/parcial/crédito, pagos con componentes (efectivo + transferencia + crédito)                                        | Pendiente                  |
-| por confirmar | Entregas y firma            | Entrega de fichas con firma del jugador                                                                                   | Pendiente                  |
-| por confirmar | Deudas y abonos             | Deuda por jugador, abonos, saldo pendiente                                                                                | Pendiente                  |
-| por confirmar | Liquidaciones               | Compensación FIFO, devolución de fichas, pago neto                                                                        | Pendiente                  |
-| por confirmar | Cierre de sesión            | Arqueo final, retiro total, diferencias, bloqueo post-cierre, correcciones auditadas                                      | Pendiente                  |
-| 13            | Notificaciones automáticas  | WhatsApp Cloud API real (número exclusivo pendiente de recepción)                                                         | Pendiente                  |
-| por confirmar | Reportes y auditoría        | Reportes operativos/financieros, consulta de `AuditLog`                                                                   | Pendiente                  |
-| por confirmar | PWA, hardening, despliegue  | UX móvil avanzada, revisión de seguridad, operación                                                                       | Pendiente                  |
+| #             | Módulo                       | Responsabilidad                                                                                                           | Estado                     |
+| ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| 00            | Infraestructura              | Next.js, TS estricto, Tailwind, shadcn, Prisma+Neon, auth básica, errores, logging, health checks, PWA base               | ✅ Completado              |
+| 01            | Usuarios, roles y seguridad  | Usuarios (SUPERADMIN), roles, permisos por capacidad, sesiones seguras, auditoría de seguridad                            | ✅ Completado (2026-10-13) |
+| 02            | Configuración general        | Negocio, caja central única, mesas, juegos de fichas, denominaciones, pagos, banco, folios, políticas, WhatsApp pendiente | ✅ Completado (2026-10-14) |
+| 03            | Jugadores                    | Directorio, teléfono E.164 único, historial de teléfonos, consentimiento WhatsApp, crédito sin límite (política)          | ✅ Completado (2026-10-15) |
+| por confirmar | Mesas y sesiones             | Apertura (fondo nuevo + arqueo inicial), mesas simultáneas, snapshot de ciegas/juego, `businessDate`                      | Pendiente                  |
+| 04            | Inventario central de fichas | Existencias por (juego, denominación), movimientos, conversiones entre juegos, conciliación                               | **Siguiente**              |
+| por confirmar | Caja central (movimientos)   | Libro de movimientos de efectivo/banco, saldo derivado, vínculo sesión/mesa                                               | Pendiente                  |
+| por confirmar | Compras y recompras          | Pagada/parcial/crédito, pagos con componentes (efectivo + transferencia + crédito)                                        | Pendiente                  |
+| por confirmar | Entregas y firma             | Entrega de fichas con firma del jugador                                                                                   | Pendiente                  |
+| por confirmar | Deudas y abonos              | Deuda por jugador, abonos, saldo pendiente                                                                                | Pendiente                  |
+| por confirmar | Liquidaciones                | Compensación FIFO, devolución de fichas, pago neto                                                                        | Pendiente                  |
+| por confirmar | Cierre de sesión             | Arqueo final, retiro total, diferencias, bloqueo post-cierre, correcciones auditadas                                      | Pendiente                  |
+| 13            | Notificaciones automáticas   | WhatsApp Cloud API real (número exclusivo pendiente de recepción)                                                         | Pendiente                  |
+| por confirmar | Reportes y auditoría         | Reportes operativos/financieros, consulta de `AuditLog`                                                                   | Pendiente                  |
+| por confirmar | PWA, hardening, despliegue   | UX móvil avanzada, revisión de seguridad, operación                                                                       | Pendiente                  |
 
-> La numeración confirmada por el encargo es: 02 Configuración general, 03 Jugadores y 13 Notificaciones automáticas. El orden del resto se confirmará al planear cada módulo.
+> La numeración confirmada por los encargos es: 02 Configuración general, 03 Jugadores, 04 Inventario central de fichas y 13 Notificaciones automáticas. El orden del resto se confirmará al planear cada módulo.
 
 ## Módulo 01 — entregado
 
@@ -49,6 +49,21 @@ Pendientes conocidos (fuera de alcance de 02):
 - Aplicar `dateFormat`/`timeFormat` a las pantallas (hoy se usa es-MX).
 - Bloquear el cambio de valor de denominaciones con movimientos (DEN-11), en el módulo de inventario.
 - Integración WhatsApp real: Módulo 13, cuando llegue el número.
+
+## Módulo 03 — entregado
+
+Detalle: [`docs/MODULE_03_PLAYERS.md`](MODULE_03_PLAYERS.md).
+
+- `Player` separado de `User`; teléfono obligatorio en E.164, único en la base (también ante altas simultáneas); México por defecto e internacionales válidos (libphonenumber-js).
+- `PlayerPhoneHistory` y `PlayerNotificationConsent` de solo inserción. El consentimiento vigente es derivado y está ligado al número.
+- Política de crédito sin límite documentada (`src/config/credit-policy.ts`, regla `NO_CREDIT_LIMIT`), sin campos de deuda, saldo ni límite.
+- Directorio paginado en servidor, alta, perfil y edición Mobile First; permisos `players:create/update/consent` y auditoría `PLAYER_*`.
+
+Pendientes conocidos (fuera de alcance de 03):
+
+- Política de conservación y derechos ARCO de los historiales de datos personales: definir con asesoría legal.
+- Revisión legal y de Meta del texto del aviso de consentimiento antes del Módulo 13.
+- Verificación de titularidad del número (SMS): no requerida por ahora.
 
 ## Notas
 

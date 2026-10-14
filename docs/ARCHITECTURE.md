@@ -116,6 +116,16 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 - **Enlaces con estilo de botón**: `<Link className={buttonVariants()}>`, no `<Button render={<Link/>}>`. Con `nativeButton={false}`, Base UI agrega `role="button"` y el enlace deja de anunciarse como enlace.
 - **Sin dependencias nuevas.**
 
+## Decisiones del Módulo 03
+
+- **Dependencia nueva justificada: `libphonenumber-js` 1.13.14** (MIT, sin dependencias). Validar teléfonos internacionales con expresiones regulares no es confiable; se usan sus metadatos completos (`/max`) para validar estructura y longitud por país. Se fijó la versión más reciente con al menos dos semanas publicada (1.13.15 tenía 5 días).
+- **E.164 como clave de unicidad** (`UNIQUE` + `CHECK` de formato en la base) y normalización en servidor siempre (`src/lib/phone.ts`, puro: también lo usa el formulario).
+- **Consentimiento derivado, no proyectado**: el vigente se calcula del último registro del historial (índice compuesto). Así no hay columnas duplicadas que puedan desincronizarse. Queda ligado al número para el que se otorgó.
+- **Historiales de solo inserción** (teléfonos y consentimiento) con trigger, como `audit_logs`.
+- **Transacciones de jugadores con `maxWait` 10 s / `timeout` 15 s**: el predeterminado de Prisma (2 s) es corto ante el arranque en frío de Neon y ante altas simultáneas, que deben responder 409 y no agotar el tiempo.
+- **Opciones de país calculadas en el servidor** y pasadas al formulario: `Intl.DisplayNames` puede diferir entre Node y el navegador y romper la hidratación.
+- **Directorio con búsqueda y paginación en servidor** (formulario GET, estado en la URL), con `loading.tsx` (skeleton) y `error.tsx`.
+
 ## Decisiones de UI/Mobile
 
 - `next-themes` para claro/oscuro (clase `.dark` en `<html>`, respeta `prefers-color-scheme` por defecto).

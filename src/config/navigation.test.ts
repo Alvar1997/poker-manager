@@ -54,6 +54,12 @@ describe("navegación por capacidades", () => {
     const available = NAV_ITEMS.filter((item) => item.available).map(
       (item) => item.id
     )
-    expect(available.sort()).toEqual(["home", "profile", "settings", "users"])
+    expect(available.sort()).toEqual([
+      "home",
+      "players",
+      "profile",
+      "settings",
+      "users",
+    ])
   })
 })

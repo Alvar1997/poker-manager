@@ -13,18 +13,22 @@ export class ApiClientError extends Error {
   readonly code: ErrorCode | "NETWORK_ERROR"
   readonly status: number
   readonly fieldIssues: FieldIssue[]
+  /** `details` crudos del servidor (p. ej. referencia a un registro duplicado). */
+  readonly details: unknown
 
   constructor(
     code: ApiClientError["code"],
     message: string,
     status: number,
-    fieldIssues: FieldIssue[] = []
+    fieldIssues: FieldIssue[] = [],
+    details: unknown = undefined
   ) {
     super(message)
     this.name = "ApiClientError"
     this.code = code
     this.status = status
     this.fieldIssues = fieldIssues
+    this.details = details
   }
 }
 
@@ -73,7 +77,8 @@ export async function apiRequest<T>(
       payload.error.code,
       payload.error.message,
       response.status,
-      details
+      details,
+      payload.error.details
     )
   }
 

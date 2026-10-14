@@ -122,6 +122,23 @@ describe("matriz de permisos", () => {
     )
   })
 
+  it("jugadores (Módulo 03): los tres roles registran, consultan, editan, activan y registran consentimiento", () => {
+    for (const role of ["SUPERADMIN", "PARTNER", "CASHIER"] as const) {
+      for (const permission of [
+        PERMISSIONS.PLAYERS_READ,
+        PERMISSIONS.PLAYERS_CREATE,
+        PERMISSIONS.PLAYERS_UPDATE,
+        PERMISSIONS.PLAYERS_MANAGE,
+        PERMISSIONS.PLAYERS_CONSENT,
+      ]) {
+        expect(roleHasPermission(role, permission)).toBe(true)
+      }
+    }
+    // Historial telefónico y auditoría del jugador: datos personales históricos.
+    expect(roleHasPermission("CASHIER", PERMISSIONS.AUDIT_READ)).toBe(false)
+    expect(roleHasPermission("PARTNER", PERMISSIONS.AUDIT_READ)).toBe(true)
+  })
+
   it("los valores de permiso son únicos (sin alias que se pisen)", () => {
     expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length)
   })

@@ -12,5 +12,8 @@ export const ALL_TABLES = [
   "folio_sequences",
   "operational_settings",
   "whatsapp_settings",
+  "player_notification_consents",
+  "player_phone_history",
+  "players",
   "users",
 ]

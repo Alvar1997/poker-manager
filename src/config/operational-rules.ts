@@ -29,6 +29,13 @@ export const OPERATIONAL_RULES: readonly OperationalRule[] = [
     enforcedBy: "Compras y recompras",
   },
   {
+    id: "NO_CREDIT_LIMIT",
+    title: "Crédito sin límite",
+    description:
+      "No existe límite de crédito por jugador ni límite global. Crédito ilimitado no significa sin control: cada compra a crédito queda asociada a un jugador, firmada y auditada.",
+    enforcedBy: "Módulo 03 (política) y Compras y recompras",
+  },
+  {
     id: "CREDIT_NO_EXTERNAL_APPROVAL",
     title: "Crédito sin autorización externa",
     description: "El cajero puede otorgar crédito sin aprobación de un socio.",

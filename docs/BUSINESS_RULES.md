@@ -51,6 +51,17 @@ Reglas confirmadas al momento de construir el Módulo 00. Son la fuente de verda
 - El mensaje se envía **después** de confirmar la compra (no antes, no en paralelo sin confirmación).
 - El mensaje debe informar: hora, importe de la operación actual, acumulado comprado (en la sesión) y deuda pendiente del jugador.
 
+## Jugadores (Módulo 03) — ver `docs/MODULE_03_PLAYERS.md`
+
+- Un jugador **no es un usuario**: sin correo, contraseña ni rol.
+- Teléfono **obligatorio**, normalizado a **E.164** y **único** (México +52 por defecto; internacionales válidos). El formato válido no prueba la titularidad.
+- Nombre obligatorio; apodo opcional. Nombre y apodo pueden repetirse y nunca se fusionan jugadores por nombre.
+- **Crédito sin límite** (ni por jugador ni global), otorgable por los tres roles sin autorización adicional. Cada compra a crédito irá ligada a un jugador y con firma, y la deuda persiste entre sesiones y se compensa por FIFO. Crédito ilimitado no significa sin auditoría.
+- Las deudas **nunca** son campos del jugador: se derivarán de operaciones confirmadas y no se editan a mano.
+- Sin borrado físico. Desactivar conserva historial y deudas, impide seleccionarlo para nuevas compras o sesiones y se puede revertir.
+- El teléfono obligatorio **no** implica consentimiento de WhatsApp. El consentimiento es explícito (checkbox desmarcado), del jugador y no del operador, con versión del aviso, revocable y con historial. Al cambiar de número deja de estar vigente. Sin consentimiento vigente no se envían mensajes por WhatsApp.
+- Las notas internas nunca se envían al jugador ni sustituyen datos de deudas o pagos.
+
 ## Usuarios y roles
 
 Detalle completo y matriz de permisos: [`docs/ROLES_AND_PERMISSIONS.md`](ROLES_AND_PERMISSIONS.md).
@@ -86,6 +97,6 @@ Detalle completo y matriz de permisos: [`docs/ROLES_AND_PERMISSIONS.md`](ROLES_A
 - Se **muestran** al usuario siempre convertidos a `America/Monterrey` (`src/lib/format.ts`) — nunca formatear una fecha "a mano" en otro lugar del código.
 - Una sesión no necesariamente termina el mismo día calendario en que empezó (p. ej. empieza 23:30, termina 01:00). El concepto de **fecha operativa** (`businessDate`, `src/lib/format.ts#businessDateOf`) resuelve a qué día calendario de Monterrey pertenece un instante — el módulo de sesiones decidirá, con ese dato, a qué sesión/día de negocio pertenece cada movimiento. Los cierres financieros nunca deben basarse únicamente en la fecha calendario del servidor.
 
-## Explícitamente fuera de alcance de los Módulos 00, 01 y 02
+## Explícitamente fuera de alcance de los Módulos 00 a 03
 
 No implementado todavía (se construye en módulos posteriores — ver `docs/MODULES.md`): compras, créditos, inventario operativo de fichas, liquidaciones, cierre de sesiones, envío real de WhatsApp.

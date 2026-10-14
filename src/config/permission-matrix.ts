@@ -57,9 +57,14 @@ export const PERMISSIONS = {
   SESSIONS_READ: "sessions:read",
   SESSIONS_MANAGE: "sessions:manage",
 
-  // Jugadores.
+  // Jugadores (Módulo 03). PLAYERS_MANAGE = activar/desactivar.
+  // El historial de teléfonos y la auditoría del jugador (datos personales
+  // históricos) exigen AUDIT_READ.
   PLAYERS_READ: "players:read",
+  PLAYERS_CREATE: "players:create",
+  PLAYERS_UPDATE: "players:update",
   PLAYERS_MANAGE: "players:manage",
+  PLAYERS_CONSENT: "players:consent",
 
   // Caja central.
   CASH_READ: "cash:read",
@@ -118,7 +123,10 @@ const CASHIER_PERMISSIONS: readonly Permission[] = [
   PERMISSIONS.SESSIONS_READ,
   PERMISSIONS.SESSIONS_MANAGE,
   PERMISSIONS.PLAYERS_READ,
+  PERMISSIONS.PLAYERS_CREATE,
+  PERMISSIONS.PLAYERS_UPDATE,
   PERMISSIONS.PLAYERS_MANAGE,
+  PERMISSIONS.PLAYERS_CONSENT,
   PERMISSIONS.CASH_READ,
   PERMISSIONS.CASH_OPERATE,
   PERMISSIONS.PURCHASES_READ,

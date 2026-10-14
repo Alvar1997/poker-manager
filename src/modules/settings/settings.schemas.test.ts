@@ -78,16 +78,17 @@ describe("schemas del Módulo 02", () => {
 })
 
 describe("reglas operativas fijas", () => {
-  it("son 15, con identificadores únicos e incluyen fondo nuevo y retiro total", () => {
+  it("son 16, con identificadores únicos e incluyen fondo nuevo, retiro total y crédito sin límite", () => {
     const ids = OPERATIONAL_RULES.map((r) => r.id)
-    expect(ids).toHaveLength(15)
-    expect(new Set(ids).size).toBe(15)
+    expect(ids).toHaveLength(16)
+    expect(new Set(ids).size).toBe(16)
     expect(ids).toEqual(
       expect.arrayContaining([
         "NEW_FUND_PER_SESSION",
         "FULL_WITHDRAWAL_ON_CLOSE",
         "FIFO_COMPENSATION",
         "SINGLE_CASH_BOX",
+        "NO_CREDIT_LIMIT",
       ])
     )
   })

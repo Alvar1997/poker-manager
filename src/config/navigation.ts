@@ -73,11 +73,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "players",
     label: "Jugadores",
-    href: "/dashboard/players",
+    href: "/dashboard/jugadores",
     icon: UsersRound,
     section: "operation",
     permission: PERMISSIONS.PLAYERS_READ,
-    available: false,
+    available: true,
   },
   {
     id: "purchases",

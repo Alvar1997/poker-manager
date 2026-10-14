@@ -99,7 +99,7 @@ Son reglas **fijas** de esta versión (`src/config/operational-rules.ts`), sin i
 - Notificación de compras a crédito por WhatsApp **después** de confirmar (pendiente).
 - Hora local America/Monterrey; dinero y fichas por separado; operaciones confirmadas no editables; auditoría obligatoria.
 
-Solo las políticas de efectivo se guardan en la base, como `enum` de un único valor. No se construyó un motor genérico de reglas.
+El Módulo 03 agregó la regla `NO_CREDIT_LIMIT` (crédito sin límite), con lo que son 16. Solo las políticas de efectivo se guardan en la base, como `enum` de un único valor. No se construyó un motor genérico de reglas.
 
 ## 12. Permisos
 

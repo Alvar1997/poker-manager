@@ -47,7 +47,7 @@ npm run db:deploy    # producción: aplica migraciones pendientes sin generar nu
 npm run db:studio    # explorador visual de la base
 ```
 
-## Modelos (Módulos 00–02)
+## Modelos (Módulos 00–03)
 
 - `User` (`@@map("users")`): `id`, `name`, `email` (único), `passwordHash`, `role` (`Role`: `SUPERADMIN`/`PARTNER`/`CASHIER`), `isActive`, `createdAt`, `updatedAt`, `lastLoginAt?`; desde el Módulo 01: `mustChangePassword` (credencial temporal pendiente), `passwordChangedAt?`, `sessionVersion` (revocación de sesiones), `createdById?`/`updatedById?` → `User`. Nunca se borra físicamente.
 - `AuditLog` (`@@map("audit_logs")`): `id`, `actorUserId?` → `User`, `action`, `entityType`, `entityId?`, `result` (`AuditResult`: `SUCCESS`/`FAILURE`/`DENIED`), `requestId?`, `metadata` (`Json?`), `createdAt`. **Nunca** contiene contraseñas/tokens/secretos. **Solo inserción**: un trigger (`audit_logs_immutable`) rechaza `UPDATE`/`DELETE`.
@@ -55,7 +55,9 @@ npm run db:studio    # explorador visual de la base
 
 - Módulo 02 (configuración, sin saldos ni movimientos): `BusinessSettings` (singleton), `CashBox` (única, `MAIN`), `ChipSet`, `ChipDenomination` (`Decimal(12,2)`, único por juego), `PokerTable` (ciegas `Decimal`, juego asignado), `PaymentMethod` (`CASH`/`BANK_TRANSFER`), `PaymentAccount` (cifrada, única activa y principal), `FolioSequence`, `OperationalSettings` (singleton), `WhatsAppSettings` (singleton, sin secretos). Restricciones `CHECK`/índices parciales y detalle en `docs/MODULE_02_CONFIGURATION.md`.
 
-Migraciones: `20261013044915_init` (Módulo 00), `20261013180000_module01_security` (Módulo 01) y `20261014120000_module02_configuration` (Módulo 02). Todas son aditivas.
+- Módulo 03 (jugadores, sin deudas ni saldos): `Player` (teléfono E.164 `UNIQUE` + `CHECK`, `countryCode` ISO, sin campos financieros), `PlayerPhoneHistory` y `PlayerNotificationConsent` (ambos de solo inserción con trigger). Ver `docs/MODULE_03_PLAYERS.md`.
+
+Migraciones: `20261013044915_init` (Módulo 00), `20261013180000_module01_security` (Módulo 01), `20261014120000_module02_configuration` (Módulo 02) y `20261015120000_module03_players` (Módulo 03). Todas son aditivas.
 
 ## Seed
 
@@ -64,7 +66,7 @@ Migraciones: `20261013044915_init` (Módulo 00), `20261013180000_module01_securi
 1. Siempre: configuración inicial del Módulo 02 (`src/modules/settings/configuration.seed.ts`).
 2. Opcional: el primer SUPERADMIN, solo si se definen `SEED_SUPERADMIN_NAME`, `SEED_SUPERADMIN_EMAIL` y `SEED_SUPERADMIN_PASSWORD` y no existe ya uno.
 
-No siembra denominaciones, cantidades, importes, datos bancarios, teléfonos ni tokens.
+No siembra denominaciones, cantidades, importes, datos bancarios, teléfonos, tokens ni **jugadores**. Los jugadores de prueba se crean con factories solo en la base de pruebas (`tests/integration/helpers.ts`, `tests/e2e/players.spec.ts`), con teléfonos sintéticos.
 
 Los modelos financieros (sesiones, mesas, compras, deudas, liquidaciones, inventario) se agregan en los módulos siguientes — ver `docs/MODULES.md`.
 

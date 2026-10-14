@@ -899,7 +899,7 @@ describe("WhatsApp pendiente y políticas", () => {
     }
     expect(data.initialCashPolicy).toBe("NEW_FUND_PER_SESSION")
     expect(data.closingCashPolicy).toBe("FULL_WITHDRAWAL")
-    expect(data.rules).toHaveLength(15)
+    expect(data.rules).toHaveLength(16)
     expect("PATCH" in operationalRoute).toBe(false)
   })
 })

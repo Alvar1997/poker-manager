@@ -116,6 +116,37 @@ export async function call<P = Record<string, string>>(
   }
 }
 
+let phoneCounter = 0
+
+/**
+ * Teléfono SINTÉTICO de prueba (+52 871 000 xxxx). Solo existe en la base
+ * de pruebas y nunca se envía a ningún servicio.
+ */
+export function testPhone(): string {
+  phoneCounter += 1
+  return `+52871000${String(1000 + phoneCounter).slice(-4)}`
+}
+
+/** Factory de jugador para pruebas (nunca en seeds). */
+export async function createTestPlayer(
+  overrides: Partial<{
+    name: string
+    nickname: string | null
+    phone: string
+    isActive: boolean
+  }> = {}
+) {
+  return prisma.player.create({
+    data: {
+      name: overrides.name ?? `Jugador ${phoneCounter + 1}`,
+      nickname: overrides.nickname ?? null,
+      phone: overrides.phone ?? testPhone(),
+      countryCode: "MX",
+      isActive: overrides.isActive ?? true,
+    },
+  })
+}
+
 export function auditRows(action?: string) {
   return prisma.auditLog.findMany({
     where: action ? { action } : undefined,

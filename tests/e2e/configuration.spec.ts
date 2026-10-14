@@ -207,7 +207,7 @@ test.describe("Configuración — CASHIER (catálogos)", () => {
     await page.goto("/dashboard/configuracion/reglas")
     await expect(
       page.getByTestId("operational-rules").locator("li")
-    ).toHaveCount(15)
+    ).toHaveCount(16)
     await expectNoHorizontalScroll(page)
   })
 })

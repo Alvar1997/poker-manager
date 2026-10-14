@@ -33,7 +33,10 @@ Fuente de verdad en código: [`src/config/permission-matrix.ts`](../src/config/p
 | `SESSIONS_READ`        | `sessions:read`        |     ✅     |   ✅    |   ✅    |
 | `SESSIONS_MANAGE`      | `sessions:manage`      |     ✅     |   ✅    |   ✅    |
 | `PLAYERS_READ`         | `players:read`         |     ✅     |   ✅    |   ✅    |
+| `PLAYERS_CREATE`       | `players:create`       |     ✅     |   ✅    |   ✅    |
+| `PLAYERS_UPDATE`       | `players:update`       |     ✅     |   ✅    |   ✅    |
 | `PLAYERS_MANAGE`       | `players:manage`       |     ✅     |   ✅    |   ✅    |
+| `PLAYERS_CONSENT`      | `players:consent`      |     ✅     |   ✅    |   ✅    |
 | `CASH_READ`            | `cash:read`            |     ✅     |   ✅    |   ✅    |
 | `CASH_OPERATE`         | `cash:operate`         |     ✅     |   ✅    |   ✅    |
 | `PURCHASES_READ`       | `purchases:read`       |     ✅     |   ✅    |   ✅    |
@@ -74,6 +77,12 @@ Además de las del encargo se agregaron, sin crear módulos nuevos:
 
 Detalle por sección y endpoint: `docs/MODULE_02_CONFIGURATION.md`.
 
+### Jugadores (Módulo 03)
+
+- Los tres roles registran, consultan, editan (nombre, apodo, contacto, notas), activan/desactivan y registran el consentimiento de WhatsApp (`players:read/create/update/manage/consent`).
+- El historial de teléfonos completo y la auditoría del jugador son datos personales históricos: exigen `audit:read` (SUPERADMIN y PARTNER).
+- Crédito: los tres roles lo otorgarán sin autorización adicional y sin límite (`src/config/credit-policy.ts`).
+
 ## Dónde se aplica
 
 | Capa                                    | Mecanismo                                                                      | ¿Es defensa real? |
@@ -103,7 +112,7 @@ Cada `403` de la API o de una página deja un registro `AUTH_ACCESS_DENIED` en `
 | -------------------- | ---------------------- | :--------: | :-----: | :-----: | -------------------------------------------------------------------- |
 | Inicio               | `dashboard:view`       |     ✅     |   ✅    |   ✅    | Disponible                                                           |
 | Sesiones y mesas     | `sessions:read`        |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
-| Jugadores            | `players:read`         |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
+| Jugadores            | `players:read`         |     ✅     |   ✅    |   ✅    | Disponible (Módulo 03)                                               |
 | Compras y recompras  | `purchases:read`       |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
 | Fichas               | `chips:read`           |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
 | Caja                 | `cash:read`            |     ✅     |   ✅    |   ✅    | Próximamente                                                         |
