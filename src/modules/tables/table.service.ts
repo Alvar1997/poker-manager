@@ -9,7 +9,6 @@ import {
   AUDIT_ACTIONS,
   diffChanges,
   recordAudit,
-  type DbClient,
 } from "@/modules/audit/audit.service"
 import type { RequestContext, SessionUser } from "@/modules/auth/auth.service"
 import { assertActiveChipSet } from "@/modules/chips/chip-set.service"
@@ -23,9 +22,9 @@ import type {
  *
  * - Código único e inmutable (TABLE-01). Sin borrado: activar/desactivar
  *   (TABLE-02/03/04).
- * - Cada mesa activa tiene un juego de fichas existente y activo
- *   (TABLE-05), y un juego físico no puede ser el asignado de dos mesas
- *   activas a la vez: las fichas de un juego no se mezclan (CHIP-02/03).
+ * - Cada mesa activa usa el inventario de fichas activo (TABLE-05). Hay UN
+ *   inventario físico compartido por todas las mesas: varias mesas activas
+ *   apuntan al mismo juego y consumen el mismo stock.
  * - 0 < ciega chica ≤ ciega grande (también CHECK en BD).
  * - Cambiar ciegas o juego no altera sesiones pasadas: las sesiones
  *   (módulo posterior) guardarán su propia fotografía (TABLE-06/07, CHIP-09).
@@ -139,26 +138,6 @@ function assertBlinds(
   }
 }
 
-async function assertChipSetFreeForTable(
-  db: DbClient,
-  chipSetId: string,
-  exceptTableId?: string
-) {
-  const other = await db.pokerTable.findFirst({
-    where: {
-      defaultChipSetId: chipSetId,
-      isActive: true,
-      ...(exceptTableId ? { id: { not: exceptTableId } } : {}),
-    },
-    select: { name: true },
-  })
-  if (other) {
-    throw new BusinessRuleError(
-      `Ese juego físico de fichas ya está asignado a la mesa activa "${other.name}". Las fichas de un juego no se comparten entre mesas.`
-    )
-  }
-}
-
 export async function createTable(
   actor: SessionUser,
   input: CreateTableInput,
@@ -169,7 +148,6 @@ export async function createTable(
   try {
     return await prisma.$transaction(async (tx) => {
       const set = await assertActiveChipSet(tx, input.defaultChipSetId)
-      await assertChipSetFreeForTable(tx, input.defaultChipSetId)
 
       const created = await tx.pokerTable.create({
         data: {
@@ -241,9 +219,6 @@ export async function updateTable(
       input.defaultChipSetId !== before.defaultChipSetId
     ) {
       await assertActiveChipSet(tx, input.defaultChipSetId)
-      if (before.isActive) {
-        await assertChipSetFreeForTable(tx, input.defaultChipSetId, id)
-      }
     }
 
     const updated = await tx.pokerTable.update({
@@ -287,7 +262,11 @@ export async function updateTable(
   })
 }
 
-/** Activar exige un juego activo y libre; desactivar conserva todo el historial. */
+/**
+ * Activar exige que la mesa use el inventario de fichas activo; desactivar
+ * conserva todo el historial. Todas las mesas comparten el MISMO inventario
+ * físico (no hay juegos por mesa).
+ */
 export async function setTableStatus(
   actor: SessionUser,
   id: string,
@@ -304,7 +283,6 @@ export async function setTableStatus(
     if (current.isActive !== isActive) {
       if (isActive) {
         await assertActiveChipSet(tx, current.defaultChipSetId)
-        await assertChipSetFreeForTable(tx, current.defaultChipSetId, id)
       }
       await tx.pokerTable.update({
         where: { id },

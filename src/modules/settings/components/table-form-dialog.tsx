@@ -214,7 +214,7 @@ export function TableFormDialog({
                 name="defaultChipSetId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Juego de fichas</FormLabel>
+                    <FormLabel>Inventario de fichas</FormLabel>
                     <FormControl>
                       <NativeSelect {...field}>
                         <option value="">Selecciona…</option>
@@ -226,8 +226,8 @@ export function TableFormDialog({
                       </NativeSelect>
                     </FormControl>
                     <FormDescription>
-                      Un juego físico no puede estar asignado a dos mesas
-                      activas.
+                      Todas las mesas comparten el mismo inventario físico de
+                      fichas.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

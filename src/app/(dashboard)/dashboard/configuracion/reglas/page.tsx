@@ -10,7 +10,7 @@ import { getOperationalSettings } from "@/modules/settings/settings.service"
 
 export const metadata = { title: "Reglas operativas — Poker Manager" }
 
-const INITIAL_LABEL = { NEW_FUND_PER_SESSION: "Fondo nuevo en cada sesión" }
+const INITIAL_LABEL = { ZERO_OPENING_BALANCE: "La caja abre en $0.00" }
 const CLOSING_LABEL = { FULL_WITHDRAWAL: "Retiro total del efectivo al cierre" }
 
 export default async function OperationalRulesPage() {
@@ -37,7 +37,7 @@ export default async function OperationalRulesPage() {
               {
                 label: "Apertura",
                 value: INITIAL_LABEL[settings.initialCashPolicy],
-                hint: "El importe del fondo se registra en cada apertura; no se arrastra efectivo.",
+                hint: "Sin fondo inicial ni arrastre de la sesión anterior; antes de abrir se cuentan las fichas.",
               },
               {
                 label: "Cierre",

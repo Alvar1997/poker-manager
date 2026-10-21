@@ -13,7 +13,8 @@
  *   consulta que SUPERADMIN, excepto administración de usuarios/roles,
  *   seguridad y configuración crítica.
  * - CASHIER: lo necesario para operar la sesión y la caja, sin acceso
- *   administrativo ni a reportes financieros globales.
+ *   administrativo. Desde el Módulo 14 consulta TODOS los reportes
+ *   operativos y financieros y exporta XLSX (decisión DEC-08).
  * - Todo permiso no asignado explícitamente está DENEGADO.
  *
  * Los permisos de un rol no eximen de las reglas de negocio: un permiso
@@ -41,6 +42,8 @@ export const PERMISSIONS = {
   ROLES_MANAGE: "roles:manage",
   SETTINGS_MANAGE: "settings:manage",
   AUDIT_SECURITY_READ: "audit:security-read",
+  // Recuperación protegida y modo mantenimiento (Módulo 15).
+  RECOVERY_MANAGE: "recovery:manage",
 
   // Configuración (Módulo 02). SETTINGS_READ: toda la configuración no
   // secreta (caja, cuenta bancaria enmascarada, folios, WhatsApp).
@@ -53,9 +56,13 @@ export const PERMISSIONS = {
   DASHBOARD_VIEW: "dashboard:view",
   DASHBOARD_FINANCIAL: "dashboard:financial",
 
-  // Sesiones y mesas (apertura, arqueos, cierre).
+  // Sesiones y mesas (apertura, arqueos, preparación del cierre).
   SESSIONS_READ: "sessions:read",
   SESSIONS_MANAGE: "sessions:manage",
+  // Cierre DEFINITIVO de una sesión (CLOSING → CLOSED) y autorización de
+  // ajustes excepcionales de diferencias de arqueo (Módulo 12, DEC-04).
+  // Solo PARTNER y SUPERADMIN: CASHIER prepara el cierre pero no lo confirma.
+  SESSIONS_CLOSE_AUTHORIZE: "sessions:close-authorize",
 
   // Jugadores (Módulo 03). PLAYERS_MANAGE = activar/desactivar.
   // El historial de teléfonos y la auditoría del jugador (datos personales
@@ -65,6 +72,9 @@ export const PERMISSIONS = {
   PLAYERS_UPDATE: "players:update",
   PLAYERS_MANAGE: "players:manage",
   PLAYERS_CONSENT: "players:consent",
+  // Historial de teléfonos (dato personal histórico): PARTNER y SUPERADMIN.
+  // Desde el Módulo 15 ya no depende de `audit:read` (que tiene CASHIER).
+  PLAYERS_HISTORY_READ: "players:history",
 
   // Caja central.
   CASH_READ: "cash:read",
@@ -78,7 +88,8 @@ export const PERMISSIONS = {
   CREDITS_READ: "credits:read",
   CREDITS_OPERATE: "credits:operate",
 
-  // Liquidaciones (incluye compensación FIFO automática).
+  // Liquidaciones: devolución nominal, firma, compensación OPCIONAL (si se
+  // compensa, FIFO automático) y pagos al jugador.
   SETTLEMENTS_READ: "settlements:read",
   SETTLEMENTS_OPERATE: "settlements:operate",
 
@@ -90,14 +101,36 @@ export const PERMISSIONS = {
   SIGNATURES_READ: "signatures:read",
   SIGNATURES_CAPTURE: "signatures:capture",
 
-  // Correcciones operativas auditadas sobre sesiones cerradas.
+  // Correcciones financieras excepcionales (Módulo 15). OPERATE = AUTORIZAR
+  // (aprobar/rechazar, enlazar la ejecución real): solo PARTNER y SUPERADMIN.
+  // REQUEST: los tres roles solicitan y comentan (DEC-04/05).
   CORRECTIONS_OPERATE: "corrections:operate",
+  CORRECTIONS_REQUEST: "corrections:request",
 
-  // Reportes.
+  // Integridad e incidencias (Módulo 15). El diagnóstico es de solo lectura.
+  // Operaciones financieras especiales (Módulo 16). READ/OPERATE: los tres
+  // roles consultan, solicitan, reciben fichas, ejecutan lo YA autorizado y
+  // registran pagos reales. AUTHORIZE (validar el valor de un canje): solo
+  // PARTNER y SUPERADMIN (las demás autorizaciones usan CORRECTIONS_OPERATE).
+  SPECIAL_OPS_READ: "special-ops:read",
+  SPECIAL_OPS_OPERATE: "special-ops:operate",
+  SPECIAL_OPS_AUTHORIZE: "special-ops:authorize",
+
+  INTEGRITY_RUN: "integrity:run",
+  INCIDENTS_MANAGE: "incidents:manage",
+  INCIDENTS_RESOLVE: "incidents:resolve",
+
+  // Infraestructura (Módulo 15): NO se concede por consultar auditoría.
+  BACKUPS_READ: "backups:read",
+  SYSTEM_HEALTH_READ: "system:health",
+
+  // Reportes (Módulo 14, DEC-06..08): los TRES roles consultan los reportes
+  // operativos y financieros y exportan XLSX. Son de solo lectura.
   REPORTS_VIEW: "reports:view",
   REPORTS_FINANCIAL: "reports:financial",
+  REPORTS_EXPORT: "reports:export",
 
-  // Auditoría de operaciones.
+  // Auditoría de operaciones (Módulo 15: los TRES roles, DEC-01..03).
   AUDIT_READ: "audit:read",
 } as const
 
@@ -115,6 +148,8 @@ export const ADMIN_ONLY_PERMISSIONS: readonly Permission[] = [
   PERMISSIONS.ROLES_MANAGE,
   PERMISSIONS.SETTINGS_MANAGE,
   PERMISSIONS.AUDIT_SECURITY_READ,
+  // Recuperación de producción y modo mantenimiento (DEC-11).
+  PERMISSIONS.RECOVERY_MANAGE,
 ]
 
 const CASHIER_PERMISSIONS: readonly Permission[] = [
@@ -139,6 +174,18 @@ const CASHIER_PERMISSIONS: readonly Permission[] = [
   PERMISSIONS.CHIPS_OPERATE,
   PERMISSIONS.SIGNATURES_READ,
   PERMISSIONS.SIGNATURES_CAPTURE,
+  PERMISSIONS.REPORTS_VIEW,
+  PERMISSIONS.REPORTS_FINANCIAL,
+  PERMISSIONS.REPORTS_EXPORT,
+  // Módulo 15: consulta toda la auditoría, solicita correcciones (no las
+  // autoriza), ejecuta el diagnóstico y registra incidencias.
+  PERMISSIONS.AUDIT_READ,
+  PERMISSIONS.CORRECTIONS_REQUEST,
+  PERMISSIONS.INTEGRITY_RUN,
+  PERMISSIONS.INCIDENTS_MANAGE,
+  // Módulo 16: solicita y ejecuta lo autorizado; nunca autoriza.
+  PERMISSIONS.SPECIAL_OPS_READ,
+  PERMISSIONS.SPECIAL_OPS_OPERATE,
 ]
 
 export const ROLE_PERMISSIONS: Readonly<Record<Role, ReadonlySet<Permission>>> =

@@ -3,6 +3,8 @@ import { NextRequest } from "next/server"
 import type { Role } from "@/config/permission-matrix"
 import { hashPassword } from "@/lib/password"
 import { prisma } from "@/lib/prisma"
+import { seedFinancialAccounts } from "@/modules/cash/cash.seed"
+import { seedChipContainers } from "@/modules/inventory/inventory.seed"
 import { seedConfiguration } from "@/modules/settings/configuration.seed"
 
 import { ALL_TABLES } from "./tables"
@@ -22,6 +24,8 @@ export async function resetDatabase() {
     `TRUNCATE TABLE ${ALL_TABLES.map((t) => `"${t}"`).join(", ")} CASCADE`
   )
   await seedConfiguration(prisma)
+  await seedChipContainers(prisma)
+  await seedFinancialAccounts(prisma)
   globalThis.__testSession = null
 }
 

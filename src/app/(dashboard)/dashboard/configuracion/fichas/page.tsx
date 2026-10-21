@@ -10,7 +10,7 @@ import { ActiveBadge } from "@/modules/settings/components/active-badge"
 import { ChipSetFormDialog } from "@/modules/settings/components/chip-set-form-dialog"
 import { SettingsPageHeader } from "@/modules/settings/components/settings-page-header"
 
-export const metadata = { title: "Juegos de fichas — Poker Manager" }
+export const metadata = { title: "Inventario de fichas — Poker Manager" }
 
 export default async function ChipSetsPage() {
   const section = settingsSection("fichas")
@@ -29,10 +29,10 @@ export default async function ChipSetsPage() {
       />
 
       <p className="text-muted-foreground text-sm">
-        Cada juego es <strong>físicamente distinto</strong> y tendrá su propio
-        inventario. Dos fichas del mismo valor en juegos diferentes no son
-        intercambiables: pasar fichas de un juego a otro requerirá una
-        conversión registrada.
+        Existe <strong>un solo inventario físico de fichas</strong>, compartido
+        por las mesas 25/25 y 10/10: sus denominaciones y existencias son
+        comunes. Solo puede haber un inventario activo; los anteriores se
+        conservan inactivos como historial.
       </p>
 
       {sets.length === 0 ? (
@@ -66,7 +66,7 @@ export default async function ChipSetsPage() {
                     <p className="text-sm">
                       {set.activeDenominations} denominación(es) activa(s)
                       {set.tables.length > 0
-                        ? ` · Mesa: ${set.tables.map((t) => t.name).join(", ")}`
+                        ? ` · Mesas: ${set.tables.map((t) => t.name).join(", ")}`
                         : " · Sin mesa asignada"}
                     </p>
                     {set.needsDenominations ? (

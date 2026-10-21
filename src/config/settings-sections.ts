@@ -54,15 +54,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   {
     id: "mesas",
     title: "Mesas",
-    description: "Catálogo de mesas, ciegas y juego de fichas asignado.",
+    description: "Catálogo de mesas y ciegas; todas usan el inventario común.",
     href: `${SETTINGS_BASE_PATH}/mesas`,
     icon: Table2,
     permission: PERMISSIONS.CATALOGS_READ,
   },
   {
     id: "fichas",
-    title: "Juegos de fichas",
-    description: "Juegos físicos independientes y sus denominaciones.",
+    title: "Inventario de fichas",
+    description: "Inventario físico único compartido y sus denominaciones.",
     href: `${SETTINGS_BASE_PATH}/fichas`,
     icon: Layers,
     permission: PERMISSIONS.CATALOGS_READ,

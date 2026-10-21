@@ -38,6 +38,12 @@ export type FolioDocumentType =
   | "CASH_MOVEMENT"
   | "CHIP_MOVEMENT"
   | "CASH_CLOSING"
+  | "CORRECTION"
+  | "INCIDENT"
+  | "REDEMPTION"
+  | "PURCHASE_REVERSAL"
+  | "SETTLEMENT_CORRECTION"
+  | "SPECIAL_PAYOUT"
 
 export const FOLIO_DOCUMENT_LABEL: Record<FolioDocumentType, string> = {
   SESSION: "Sesiones",
@@ -47,6 +53,12 @@ export const FOLIO_DOCUMENT_LABEL: Record<FolioDocumentType, string> = {
   CASH_MOVEMENT: "Movimientos de caja",
   CHIP_MOVEMENT: "Movimientos de fichas",
   CASH_CLOSING: "Cierres de caja",
+  CORRECTION: "Solicitudes de corrección",
+  INCIDENT: "Incidencias",
+  REDEMPTION: "Canjes posteriores de fichas",
+  PURCHASE_REVERSAL: "Reversos de compras",
+  SETTLEMENT_CORRECTION: "Correcciones de liquidaciones",
+  SPECIAL_PAYOUT: "Pagos de operaciones especiales",
 }
 
 export type FolioSequenceView = {

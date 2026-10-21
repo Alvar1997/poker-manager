@@ -78,15 +78,24 @@ describe("schemas del Módulo 02", () => {
 })
 
 describe("reglas operativas fijas", () => {
-  it("son 16, con identificadores únicos e incluyen fondo nuevo, retiro total y crédito sin límite", () => {
+  it("son 24, con identificadores únicos e incluyen apertura en $0, retiro total y crédito sin límite", () => {
     const ids = OPERATIONAL_RULES.map((r) => r.id)
-    expect(ids).toHaveLength(16)
-    expect(new Set(ids).size).toBe(16)
+    expect(ids).toHaveLength(24)
+    expect(new Set(ids).size).toBe(24)
+    // Módulo 11: la compensación ya no es automática; la firma es obligatoria siempre.
+    expect(ids).not.toContain("AUTO_DEBT_COMPENSATION")
+    expect(ids).not.toContain("NEW_FUND_PER_SESSION")
+    // Módulo 08: ya no existe crédito sin registrar al socio autorizador.
+    expect(ids).not.toContain("CREDIT_NO_EXTERNAL_APPROVAL")
     expect(ids).toEqual(
       expect.arrayContaining([
-        "NEW_FUND_PER_SESSION",
+        "ZERO_OPENING_BALANCE",
+        "CHIP_COUNT_BEFORE_OPENING",
+        "NO_OPERATING_EXPENSES",
         "FULL_WITHDRAWAL_ON_CLOSE",
         "FIFO_COMPENSATION",
+        "OPTIONAL_DEBT_COMPENSATION",
+        "SETTLEMENT_SIGNATURE_ALWAYS",
         "SINGLE_CASH_BOX",
         "NO_CREDIT_LIMIT",
       ])

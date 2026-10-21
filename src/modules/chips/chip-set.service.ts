@@ -29,9 +29,9 @@ import type {
  * - Sin borrado físico: solo activar/desactivar (CHIP-07/08, DEN-09/10).
  * - Valor duplicado en el mismo juego → 409 (DEN-05); el mismo valor en
  *   juegos distintos sí se permite (DEN-06).
- * - DEN-11 (no cambiar el valor de una denominación con movimientos): hoy
- *   no existen movimientos de fichas; el módulo de inventario deberá
- *   bloquear el cambio de `value` cuando los haya.
+ * - DEN-11: no se cambia el `value` de una denominación que ya tiene
+ *   movimientos de inventario o aparece en arqueos (Módulo 04).
+ * - No se desactiva un juego con fichas en el maletín o en circulación.
  */
 
 export type DenominationView = {
@@ -147,10 +147,14 @@ export async function createChipSet(
 ): Promise<ChipSetView> {
   try {
     return await prisma.$transaction(async (tx) => {
+      // Un solo inventario físico activo (índice único parcial en la base):
+      // un juego nuevo nace inactivo si ya existe el inventario general.
+      const activeExists = await tx.chipSet.count({ where: { isActive: true } })
       const created = await tx.chipSet.create({
         data: {
           code: input.code,
           name: input.name,
+          isActive: activeExists === 0,
           description: input.description ?? null,
           createdById: actor.id,
           updatedById: actor.id,
@@ -234,6 +238,17 @@ export async function setChipSetStatus(
     if (!current) throw new NotFoundError("Juego de fichas no encontrado")
 
     if (current.isActive !== isActive) {
+      if (isActive) {
+        const other = await tx.chipSet.findFirst({
+          where: { isActive: true, id: { not: id } },
+          select: { name: true },
+        })
+        if (other) {
+          throw new BusinessRuleError(
+            `Solo puede haber un inventario de fichas activo y ya lo es "${other.name}". Ambas mesas comparten ese inventario.`
+          )
+        }
+      }
       if (!isActive) {
         const tables = await tx.pokerTable.findMany({
           where: { defaultChipSetId: id, isActive: true },
@@ -244,6 +259,18 @@ export async function setChipSetStatus(
             `Este juego está asignado a mesas activas (${tables
               .map((t) => t.name)
               .join(", ")}). Reasígnalas o desactívalas primero.`
+          )
+        }
+        const withStock = await tx.chipInventoryBalance.count({
+          where: {
+            chipSetId: id,
+            location: { in: ["CUSTODY", "CIRCULATION"] },
+            quantity: { gt: 0 },
+          },
+        })
+        if (withStock > 0) {
+          throw new BusinessRuleError(
+            "Este juego tiene fichas en el maletín o en circulación: no puede desactivarse."
           )
         }
       }
@@ -298,7 +325,7 @@ export async function listDenominations(
 }
 
 const DUPLICATE_DENOMINATION =
-  "Este juego ya tiene una denominación con ese valor"
+  "El inventario ya tiene una denominación con ese valor"
 
 export async function createDenomination(
   actor: SessionUser,
@@ -364,6 +391,18 @@ export async function updateDenomination(
         select: denominationSelect,
       })
       if (!before) throw new NotFoundError("Denominación no encontrada")
+
+      if (input.value !== undefined && !before.value.equals(input.value)) {
+        const [movements, counts] = await Promise.all([
+          tx.chipInventoryMovement.count({ where: { denominationId: id } }),
+          tx.chipStockCountDetail.count({ where: { denominationId: id } }),
+        ])
+        if (movements > 0 || counts > 0) {
+          throw new BusinessRuleError(
+            "Esta denominación ya tiene movimientos o arqueos: su valor no puede cambiarse. Desactívala y crea una nueva si es necesario."
+          )
+        }
+      }
 
       const updated = await tx.chipDenomination.update({
         where: { id },

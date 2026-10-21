@@ -80,7 +80,7 @@ test.describe("navegación por rol", () => {
     await expect(nav.locator('[data-nav-id="users"]')).toHaveCount(0)
   })
 
-  test("CASHIER ve la operación de caja, sin reportes ni administración", async ({
+  test("CASHIER ve la operación de caja, reportes (M14) y auditoría (M15), sin administración de usuarios", async ({
     page,
   }) => {
     const users = requireE2EUsers()
@@ -90,7 +90,11 @@ test.describe("navegación por rol", () => {
     await expect(nav.locator('[data-nav-id="cash"]')).toBeVisible()
     await expect(nav.locator('[data-nav-id="purchases"]')).toBeVisible()
     await expect(nav.locator('[data-nav-id="settings"]')).toBeVisible()
-    for (const hidden of ["users", "reports", "audit"]) {
+    // DEC-08: CASHIER consulta todos los reportes (solo lectura).
+    await expect(nav.locator('[data-nav-id="reports"]')).toBeVisible()
+    // DEC-03 (Módulo 15): CASHIER consulta la auditoría operativa y financiera.
+    await expect(nav.locator('[data-nav-id="audit"]')).toBeVisible()
+    for (const hidden of ["users"]) {
       await expect(nav.locator(`[data-nav-id="${hidden}"]`)).toHaveCount(0)
     }
   })
@@ -234,9 +238,13 @@ test.describe("administración de usuarios (SUPERADMIN)", () => {
     ).toBeVisible()
     await page.waitForLoadState("networkidle")
 
-    await page.goto(
-      `/dashboard/users?q=${encodeURIComponent(email)}&status=inactive`
-    )
+    // Aun así WebKit puede interrumpir la navegación con un refresh tardío
+    // ("interrupted by another navigation"): se reintenta hasta que aterriza.
+    const inactiveUrl = `/dashboard/users?q=${encodeURIComponent(email)}&status=inactive`
+    await expect(async () => {
+      await page.goto(inactiveUrl)
+      await expect(page).toHaveURL(/status=inactive/)
+    }).toPass({ timeout: 15_000 })
     await expect(
       page
         .getByTestId("user-card")

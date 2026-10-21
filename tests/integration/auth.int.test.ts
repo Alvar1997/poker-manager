@@ -137,7 +137,13 @@ describe("GET /api/auth/me", () => {
     expect(data.user).toMatchObject({ id: cashier.id, role: "CASHIER" })
     expect(data.permissions).toContain("cash:operate")
     expect(data.permissions).not.toContain("users:create")
-    expect(data.permissions).not.toContain("reports:financial")
+    // Módulo 14 (DEC-08): CASHIER consulta reportes financieros; Módulo 15
+    // (DEC-03): también la auditoría, pero no autoriza correcciones ni
+    // recupera producción.
+    expect(data.permissions).toContain("reports:financial")
+    expect(data.permissions).toContain("audit:read")
+    expect(data.permissions).not.toContain("corrections:operate")
+    expect(data.permissions).not.toContain("recovery:manage")
     expect(res.text).not.toMatch(/passwordHash|\$2[aby]\$/)
   })
 })

@@ -50,7 +50,7 @@ test.describe("Configuración — SUPERADMIN", () => {
     await expectNoHorizontalScroll(page)
   })
 
-  test("las mesas iniciales usan juegos físicos distintos", async ({
+  test("las mesas iniciales comparten el mismo inventario de fichas", async ({
     page,
   }) => {
     const users = requireE2EUsers()
@@ -64,30 +64,30 @@ test.describe("Configuración — SUPERADMIN", () => {
       .getByTestId("table-card")
       .filter({ hasText: "TABLE_10_10" })
     await expect(t25.getByTestId("table-chip-set")).toHaveText(
-      "Fichas Mesa 25/25"
+      "Inventario General de Fichas"
     )
     await expect(t10.getByTestId("table-chip-set")).toHaveText(
-      "Fichas Mesa 10/10"
+      "Inventario General de Fichas"
     )
     await expect(t25.getByTestId("table-blinds")).toHaveText("$25.00 / $25.00")
     await expect(page.getByRole("button", { name: "Nueva mesa" })).toBeVisible()
     await expectNoHorizontalScroll(page)
   })
 
-  test("agrega una denominación y rechaza el duplicado en el mismo juego", async ({
+  test("agrega una denominación al inventario común y rechaza el duplicado", async ({
     page,
   }, testInfo) => {
     const users = requireE2EUsers()
     // Valor distinto por proyecto: ambos comparten la base en la misma corrida.
-    const value = testInfo.project.name === "chromium" ? "25" : "50"
+    const value = testInfo.project.name === "chromium" ? "1000" : "5000"
     await login(page, users.superadmin)
     await page.goto("/dashboard/configuracion/fichas")
     await page
       .getByTestId("chip-set-card")
-      .filter({ hasText: "CHIPSET_25_25" })
+      .filter({ hasText: "CHIPSET_MAIN" })
       .click()
     await expect(
-      page.getByRole("heading", { name: /Fichas Mesa 25\/25/ })
+      page.getByRole("heading", { name: /Inventario General de Fichas/ })
     ).toBeVisible()
 
     const add = async () => {
@@ -107,7 +107,7 @@ test.describe("Configuración — SUPERADMIN", () => {
 
     const dialog = await add()
     await expect(
-      page.getByText("Este juego ya tiene una denominación con ese valor")
+      page.getByText("El inventario ya tiene una denominación con ese valor")
     ).toBeVisible()
     await dialog.press("Escape")
     await expect(
@@ -145,13 +145,14 @@ test.describe("Configuración — SUPERADMIN", () => {
     await expectNoHorizontalScroll(page)
 
     await page.goto("/dashboard/configuracion/folios")
-    await expect(page.getByTestId("folio-card")).toHaveCount(7)
+    // Módulos 15–16: además de los 7 operativos, COR-, INC-, CAN-, REV-, AJL- y PES-.
+    await expect(page.getByTestId("folio-card")).toHaveCount(13)
     await expect(
       page
         .getByTestId("folio-card")
         .filter({ hasText: "Sesiones" })
         .getByTestId("folio-preview")
-    ).toHaveText("SES-000001")
+    ).toHaveText(/^SES-\d{6}$/) // avanza si otras specs ya crearon sesiones
   })
 })
 
@@ -207,7 +208,7 @@ test.describe("Configuración — CASHIER (catálogos)", () => {
     await page.goto("/dashboard/configuracion/reglas")
     await expect(
       page.getByTestId("operational-rules").locator("li")
-    ).toHaveCount(16)
+    ).toHaveCount(24)
     await expectNoHorizontalScroll(page)
   })
 })

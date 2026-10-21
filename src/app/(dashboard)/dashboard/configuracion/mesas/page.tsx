@@ -69,7 +69,7 @@ export default async function TablesPage() {
                     </div>
                     <div>
                       <dt className="text-muted-foreground text-xs">
-                        Juego de fichas
+                        Inventario de fichas
                       </dt>
                       <dd className="font-medium" data-testid="table-chip-set">
                         {table.chipSet.name}

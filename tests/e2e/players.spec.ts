@@ -124,10 +124,13 @@ test.describe("Jugadores", () => {
 
     // Buscar por teléfono (en otro formato).
     await page.goto("/dashboard/jugadores")
-    await page.getByLabel("Buscar jugadores").fill(phone.replace(/\s/g, "-"))
+    await page
+      .getByLabel("Buscar jugadores")
+      .filter({ visible: true })
+      .fill(phone.replace(/\s/g, "-"))
     await press(page.getByRole("button", { name: "Buscar" }), testInfo)
     await expect(
-      page.getByTestId("player-card").filter({ hasText: name })
+      page.getByTestId("player-card").filter({ hasText: name, visible: true })
     ).toHaveCount(1)
 
     // Duplicado con otro formato del mismo número.
@@ -219,7 +222,7 @@ test.describe("Jugadores", () => {
     await expectNoHorizontalScroll(page)
   })
 
-  test("CASHIER no ve el historial telefónico ni la auditoría del jugador", async ({
+  test("CASHIER no ve el historial telefónico; sí la auditoría del jugador (Módulo 15)", async ({
     page,
   }, testInfo) => {
     const users = requireE2EUsers()
@@ -230,9 +233,9 @@ test.describe("Jugadores", () => {
     await expect(
       page.getByRole("heading", { name: "Historial de teléfonos" })
     ).toHaveCount(0)
-    await expect(page.getByRole("heading", { name: "Auditoría" })).toHaveCount(
-      0
-    )
+    // Módulo 15 (DEC-03): CASHIER sí consulta la auditoría del jugador; el
+    // historial de teléfonos (dato personal) sigue reservado.
+    await expect(page.getByRole("heading", { name: "Auditoría" })).toBeVisible()
 
     const id = page.url().split("/").pop()
     expect(

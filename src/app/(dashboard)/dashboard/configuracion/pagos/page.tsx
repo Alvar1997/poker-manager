@@ -1,4 +1,4 @@
-import { Banknote, Info, Landmark } from "lucide-react"
+import { Banknote, CreditCard, Info, Landmark } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { can, PERMISSIONS, requirePagePermission } from "@/config/permissions"
@@ -11,7 +11,12 @@ import { StatusToggleButton } from "@/modules/settings/components/status-toggle-
 
 export const metadata = { title: "Métodos de pago — Poker Manager" }
 
-const ICON = { CASH: Banknote, BANK_TRANSFER: Landmark } as const
+const ICON = {
+  CASH: Banknote,
+  BANK_TRANSFER: Landmark,
+  CARD_DEBIT: CreditCard,
+  CARD_CREDIT: CreditCard,
+} as const
 
 export default async function PaymentMethodsPage() {
   const section = settingsSection("pagos")
@@ -63,11 +68,18 @@ export default async function PaymentMethodsPage() {
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <ul className="list-disc space-y-1 pl-4">
             <li>
-              El efectivo y las transferencias se contabilizan por separado.
+              El efectivo, las transferencias y los cobros con terminal se
+              contabilizan por separado.
             </li>
             <li>
-              Un <strong>pago mixto</strong> no es un método: será una operación
-              con una parte en efectivo y otra por transferencia.
+              Las <strong>tarjetas de débito y crédito</strong> se cobran en la
+              terminal física: solo un cobro aprobado cuenta como pago y queda
+              «por liquidar» hasta que la terminal deposite en el banco. Nunca
+              se guardan números de tarjeta, CVV ni PIN.
+            </li>
+            <li>
+              Un <strong>pago mixto</strong> no es un método: es una compra con
+              varios componentes de pago.
             </li>
             <li>
               El <strong>crédito</strong> no es un método de pago: es una deuda

@@ -18,7 +18,7 @@ export const userIdSchema = z
   .string()
   .min(1)
   .max(64)
-  .regex(/^[a-z0-9]+$/i, "Identificador inválido")
+  .regex(/^[A-Za-z0-9_-]+$/, "Identificador inválido")
 
 /** Valida el segmento `[id]` de una ruta dinámica. */
 export async function parseUserIdParam(

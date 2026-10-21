@@ -68,9 +68,10 @@ export default async function CashBoxPage() {
               no debe confundirse con los juegos de fichas.
             </p>
             <p>
-              Cada sesión inicia con un <strong>fondo nuevo</strong> y al cierre
-              se <strong>retira todo el efectivo</strong> tras el arqueo final.
-              Ver Reglas operativas.
+              Cada sesión inicia con <strong>$0.00 en efectivo</strong> (sin
+              fondo ni arrastre) y al cierre se{" "}
+              <strong>retira todo el efectivo</strong> tras el arqueo final. Ver
+              Reglas operativas.
             </p>
           </div>
         </CardContent>

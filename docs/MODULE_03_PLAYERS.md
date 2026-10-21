@@ -153,7 +153,7 @@ Atajo: `/jugadores/*` redirige a `/dashboard/jugadores/*`, siguiendo la misma co
 ## 12. Integraciones futuras
 
 - **Sesiones/compras:** usar `assertPlayerSelectable(player)` (`src/modules/players/player.rules.ts`) para impedir operar con jugadores inactivos. Los cobros de deudas pendientes **no** usan esa verificación.
-- **Deudas:** se calcularán desde operaciones confirmadas; nunca como campo del jugador.
+- **Deudas:** se derivan de operaciones confirmadas (Módulo 10: compras a crédito − aplicaciones de abonos); nunca como campo del jugador. El perfil enlaza a «Créditos y deudas» (`/creditos/jugadores/[id]`). Un jugador inactivo puede seguir abonando a sus deudas.
 - **WhatsApp (Módulo 13):** consultar `getConsentStatus(playerId).granted` antes de cada envío, y no enviar nunca las notas.
 - **Comprobantes:** guardar su propia copia del teléfono y del nombre; los cambios posteriores del perfil no los reescriben.
 

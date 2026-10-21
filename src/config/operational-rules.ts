@@ -4,7 +4,8 @@
  * Son reglas del dominio, no preferencias: por eso viven como constantes
  * tipadas (no como columnas editables) y ningún formulario puede
  * desactivarlas. Las únicas políticas persistidas son las de efectivo
- * (OperationalSettings: NEW_FUND_PER_SESSION / FULL_WITHDRAWAL), que son
+ * (OperationalSettings: ZERO_OPENING_BALANCE / FULL_WITHDRAWAL, con sus
+ * invariantes como CHECK en la base), que son
  * de valor único en esta versión. Cambiar una regla aquí requiere una
  * decisión de negocio documentada en docs/BUSINESS_RULES.md.
  *
@@ -32,34 +33,59 @@ export const OPERATIONAL_RULES: readonly OperationalRule[] = [
     id: "NO_CREDIT_LIMIT",
     title: "Crédito sin límite",
     description:
-      "No existe límite de crédito por jugador ni límite global. Crédito ilimitado no significa sin control: cada compra a crédito queda asociada a un jugador, firmada y auditada.",
-    enforcedBy: "Módulo 03 (política) y Compras y recompras",
+      "No existe límite de crédito por jugador ni límite global. Crédito ilimitado no significa sin control: cada compra a crédito queda asociada a un jugador, al socio que la autorizó, firmada y auditada.",
+    enforcedBy: "Módulo 03 (política) y Módulo 08",
   },
   {
-    id: "CREDIT_NO_EXTERNAL_APPROVAL",
-    title: "Crédito sin autorización externa",
-    description: "El cajero puede otorgar crédito sin aprobación de un socio.",
-    enforcedBy: "Compras y recompras",
-  },
-  {
-    id: "SIGNATURE_ON_CHIP_DELIVERY",
-    title: "Firma obligatoria en entregas de fichas",
+    id: "CREDIT_PARTNER_AUTHORIZATION",
+    title: "Todo crédito identifica al socio que lo autorizó",
     description:
-      "Cada entrega de fichas requiere la firma del jugador en el celular del cajero.",
-    enforcedBy: "Entregas y firma",
+      "Cualquier compra con saldo por cobrar registra qué socio activo autorizó el crédito (verbal o por mensaje), quién lo capturó y cuándo. No hay aprobación en línea: el cajero registra la autorización comunicada.",
+    enforcedBy: "Módulo 08 (servidor + base de datos)",
   },
   {
-    id: "AUTO_DEBT_COMPENSATION",
-    title: "Compensación automática de deudas",
+    id: "SIGNATURE_ON_CREDIT_DELIVERY",
+    title: "Firma obligatoria solo en compras a crédito",
     description:
-      "Al liquidar, las deudas pendientes del jugador se compensan automáticamente.",
-    enforcedBy: "Liquidaciones",
+      "Si la compra deja cualquier saldo por cobrar (aunque sea parcial), el jugador firma en el celular del cajero la versión exacta de la compra. Las compras totalmente pagadas no requieren firma.",
+    enforcedBy:
+      "Módulo 08 (bloqueo de entrega + CHECK en base de datos) y Módulo 09 (captura)",
+  },
+  {
+    id: "PURCHASES_BY_NOMINAL_AMOUNT",
+    title: "Compras solo por importe",
+    description:
+      "El cajero captura únicamente el importe solicitado; no se piden ni guardan denominaciones. El inventario compartido se descuenta por valor nominal y las cantidades físicas se verifican en los arqueos.",
+    enforcedBy: "Módulos 04 y 08",
+  },
+  {
+    id: "CARD_TERMINAL_PAYMENTS",
+    title: "Tarjetas por terminal física",
+    description:
+      "Débito y crédito se cobran en la terminal: solo un cobro aprobado cuenta como pago, no aumenta el efectivo y queda «por liquidar» hasta el depósito bancario, que no reconoce la venta otra vez. Nunca se guardan datos de la tarjeta.",
+    enforcedBy: "Módulos 05 y 08",
+  },
+  {
+    // Módulo 11: sustituye a AUTO_DEBT_COMPENSATION (ya no se compensa por existir deuda).
+    id: "OPTIONAL_DEBT_COMPENSATION",
+    title: "Compensación de deudas opcional",
+    description:
+      "Al liquidar, el cajero decide explícitamente si compensa deuda: no compensar, compensar parcialmente o el máximo posible. Nunca se compensa solo porque exista deuda, y la compensación no es entrada de efectivo ni de banco.",
+    enforcedBy: "Liquidaciones (Módulo 11)",
   },
   {
     id: "FIFO_COMPENSATION",
     title: "Compensación FIFO",
-    description: "Las deudas se compensan empezando por la más antigua.",
-    enforcedBy: "Liquidaciones",
+    description:
+      "Si el cajero decide compensar, el importe se distribuye automáticamente empezando por la deuda más antigua; no se eligen deudas a mano.",
+    enforcedBy: "Liquidaciones (Módulo 11)",
+  },
+  {
+    id: "SETTLEMENT_SIGNATURE_ALWAYS",
+    title: "Firma en toda liquidación",
+    description:
+      "Toda liquidación requiere la firma del jugador en el celular del cajero, incluso si devuelve $0 en fichas. La firma no recibe fichas ni mueve dinero: el cajero confirma la recepción después.",
+    enforcedBy: "Liquidaciones (Módulo 11)",
   },
   {
     id: "OPENING_COUNT_REQUIRED",
@@ -83,11 +109,48 @@ export const OPERATIONAL_RULES: readonly OperationalRule[] = [
     enforcedBy: "Módulo 02 (restricción en base de datos)",
   },
   {
-    id: "NEW_FUND_PER_SESSION",
-    title: "Fondo nuevo en cada sesión",
+    id: "SHARED_CHIP_INVENTORY",
+    title: "Un inventario de fichas para ambas mesas",
     description:
-      "Cada sesión inicia con un fondo de efectivo nuevo, de importe variable; no se arrastra efectivo de la sesión anterior. El fondo no es ingreso ni ganancia.",
-    enforcedBy: "Sesiones",
+      "Las mesas 25/25 y 10/10 comparten un solo inventario físico de fichas: denominaciones y existencias comunes. Los movimientos conservan su mesa, sesión y jugador solo como trazabilidad. Un inventario compartido + dos mesas + una caja central.",
+    enforcedBy:
+      "Corrección previa al Módulo 06 (índice único: un solo inventario activo)",
+  },
+  {
+    id: "ZERO_OPENING_BALANCE",
+    title: "La caja abre en $0.00",
+    description:
+      "El efectivo físico de cada sesión inicia SIEMPRE en $0.00: no hay fondo inicial (ni obligatorio ni automático) y no se arrastra efectivo de la sesión anterior. El banco y las deudas no se reinician.",
+    enforcedBy:
+      "Módulo 05 (libro por sesión + CHECK en base de datos) y Sesiones",
+  },
+  {
+    id: "CHIP_COUNT_BEFORE_OPENING",
+    title: "Sin arqueo de fichas no hay apertura",
+    description:
+      "Antes de habilitar una sesión se realiza y concilia el arqueo general del inventario compartido (uno solo, no uno por mesa) y se confirma que el efectivo es $0.00.",
+    enforcedBy: "Módulo 05 (precondición de apertura) y Sesiones",
+  },
+  {
+    id: "NO_NEGATIVE_CASH",
+    title: "Sin saldo negativo de efectivo",
+    description:
+      "Ninguna salida puede dejar la caja en negativo. Si falta dinero, primero debe entrar dinero real (cobro, aportación o traslado confirmado).",
+    enforcedBy: "Módulo 05 (bloqueo transaccional + CHECK en base de datos)",
+  },
+  {
+    id: "NO_OPERATING_EXPENSES",
+    title: "Sin gastos operativos desde la caja",
+    description:
+      "La caja no paga comida, bebidas, insumos, servicios ni otros gastos. Solo hay salidas financieras legítimas: liquidaciones, retiros, traslados y reversos.",
+    enforcedBy: "Módulo 05 (catálogo cerrado de movimientos)",
+  },
+  {
+    id: "MANUAL_BANK_VERIFICATION",
+    title: "Transferencias verificadas manualmente",
+    description:
+      "Una transferencia pendiente no es un cobro. SUPERADMIN, PARTNER o CASHIER la confirman tras verificarla en el banco, sin aprobación adicional; se contabiliza una sola vez.",
+    enforcedBy: "Módulo 05",
   },
   {
     id: "FULL_WITHDRAWAL_ON_CLOSE",
@@ -100,7 +163,7 @@ export const OPERATIONAL_RULES: readonly OperationalRule[] = [
     id: "CREDIT_WHATSAPP_NOTIFICATION",
     title: "Notificación automática de compras a crédito",
     description:
-      "Se envía por WhatsApp después de confirmar la compra. Pendiente: el número exclusivo aún no está disponible.",
+      "Solo las compras confirmadas que generan crédito registran un evento pendiente (outbox); el envío por WhatsApp ocurre después, con consentimiento vigente y canal configurado. Pendiente: el número exclusivo aún no está disponible.",
     enforcedBy: "Notificaciones automáticas (Módulo 13)",
   },
   {
@@ -114,7 +177,7 @@ export const OPERATIONAL_RULES: readonly OperationalRule[] = [
     id: "MONEY_AND_CHIPS_INDEPENDENT",
     title: "Dinero y fichas por separado",
     description:
-      "Los saldos monetarios y las existencias físicas de fichas se manejan de forma independiente; cada juego de fichas tiene su propio inventario.",
+      "Los saldos monetarios y las existencias físicas de fichas se manejan de forma independiente: el valor nominal de las fichas nunca es dinero en caja.",
     enforcedBy: "Módulo 02 (modelo) e inventario de fichas",
   },
   {

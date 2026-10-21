@@ -40,7 +40,7 @@ export default async function ChipSetDetailPage({
         className="text-muted-foreground inline-flex min-h-11 items-center gap-1 text-sm md:min-h-0"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
-        Juegos de fichas
+        Inventario de fichas
       </Link>
 
       <Card>

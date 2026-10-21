@@ -60,6 +60,7 @@ describe("matriz de permisos", () => {
     for (const permission of [
       ...CASH_OPERATIONS,
       PERMISSIONS.CORRECTIONS_OPERATE,
+      PERMISSIONS.SPECIAL_OPS_AUTHORIZE,
     ]) {
       expect(roleHasPermission("PARTNER", permission)).toBe(true)
     }
@@ -84,18 +85,74 @@ describe("matriz de permisos", () => {
     }
   })
 
-  it("CASHIER no accede a reportes restringidos ni a datos financieros globales", () => {
-    expect(roleHasPermission("CASHIER", PERMISSIONS.REPORTS_FINANCIAL)).toBe(
+  it("reportes (Módulo 14): los tres roles consultan reportes operativos y financieros y exportan XLSX", () => {
+    for (const role of ["SUPERADMIN", "PARTNER", "CASHIER"] as const) {
+      expect(roleHasPermission(role, PERMISSIONS.REPORTS_VIEW)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.REPORTS_FINANCIAL)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.REPORTS_EXPORT)).toBe(true)
+    }
+  })
+
+  it("Módulo 15: los tres roles consultan auditoría y solicitan correcciones; solo PARTNER/SUPERADMIN autorizan; recuperación solo SUPERADMIN", () => {
+    for (const role of ["SUPERADMIN", "PARTNER", "CASHIER"] as const) {
+      expect(roleHasPermission(role, PERMISSIONS.AUDIT_READ)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.CORRECTIONS_REQUEST)).toBe(
+        true
+      )
+      expect(roleHasPermission(role, PERMISSIONS.INTEGRITY_RUN)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.INCIDENTS_MANAGE)).toBe(true)
+    }
+    for (const role of ["SUPERADMIN", "PARTNER"] as const) {
+      expect(roleHasPermission(role, PERMISSIONS.CORRECTIONS_OPERATE)).toBe(
+        true
+      )
+      expect(roleHasPermission(role, PERMISSIONS.INCIDENTS_RESOLVE)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.BACKUPS_READ)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.SYSTEM_HEALTH_READ)).toBe(true)
+    }
+    expect(roleHasPermission("CASHIER", PERMISSIONS.INCIDENTS_RESOLVE)).toBe(
       false
     )
-    expect(roleHasPermission("CASHIER", PERMISSIONS.REPORTS_VIEW)).toBe(false)
+    expect(roleHasPermission("CASHIER", PERMISSIONS.BACKUPS_READ)).toBe(false)
+    expect(roleHasPermission("CASHIER", PERMISSIONS.SYSTEM_HEALTH_READ)).toBe(
+      false
+    )
+    expect(roleHasPermission("SUPERADMIN", PERMISSIONS.RECOVERY_MANAGE)).toBe(
+      true
+    )
+    expect(roleHasPermission("PARTNER", PERMISSIONS.RECOVERY_MANAGE)).toBe(
+      false
+    )
+    expect(roleHasPermission("CASHIER", PERMISSIONS.RECOVERY_MANAGE)).toBe(
+      false
+    )
+    expect(roleHasPermission("PARTNER", PERMISSIONS.AUDIT_SECURITY_READ)).toBe(
+      false
+    )
+  })
+
+  it("CASHIER no autoriza correcciones ni ve el dashboard financiero administrativo", () => {
     expect(roleHasPermission("CASHIER", PERMISSIONS.DASHBOARD_FINANCIAL)).toBe(
       false
     )
-    expect(roleHasPermission("CASHIER", PERMISSIONS.AUDIT_READ)).toBe(false)
     expect(roleHasPermission("CASHIER", PERMISSIONS.CORRECTIONS_OPERATE)).toBe(
       false
     )
+  })
+
+  it("cierre de sesión (Módulo 12): los tres preparan; solo PARTNER y SUPERADMIN confirman y autorizan ajustes", () => {
+    for (const role of ["SUPERADMIN", "PARTNER", "CASHIER"] as const) {
+      expect(roleHasPermission(role, PERMISSIONS.SESSIONS_MANAGE)).toBe(true)
+    }
+    expect(
+      roleHasPermission("SUPERADMIN", PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE)
+    ).toBe(true)
+    expect(
+      roleHasPermission("PARTNER", PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE)
+    ).toBe(true)
+    expect(
+      roleHasPermission("CASHIER", PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE)
+    ).toBe(false)
   })
 
   it("deniega por defecto un rol o permiso desconocido", () => {
@@ -135,11 +192,28 @@ describe("matriz de permisos", () => {
       }
     }
     // Historial telefónico y auditoría del jugador: datos personales históricos.
-    expect(roleHasPermission("CASHIER", PERMISSIONS.AUDIT_READ)).toBe(false)
     expect(roleHasPermission("PARTNER", PERMISSIONS.AUDIT_READ)).toBe(true)
   })
 
   it("los valores de permiso son únicos (sin alias que se pisen)", () => {
     expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length)
+  })
+
+  it("Módulo 16: los tres roles operan operaciones especiales; solo PARTNER y SUPERADMIN autorizan", () => {
+    for (const role of ["SUPERADMIN", "PARTNER", "CASHIER"] as const) {
+      expect(roleHasPermission(role, PERMISSIONS.SPECIAL_OPS_READ)).toBe(true)
+      expect(roleHasPermission(role, PERMISSIONS.SPECIAL_OPS_OPERATE)).toBe(
+        true
+      )
+    }
+    expect(
+      roleHasPermission("CASHIER", PERMISSIONS.SPECIAL_OPS_AUTHORIZE)
+    ).toBe(false)
+    expect(
+      roleHasPermission("PARTNER", PERMISSIONS.SPECIAL_OPS_AUTHORIZE)
+    ).toBe(true)
+    expect(
+      roleHasPermission("SUPERADMIN", PERMISSIONS.SPECIAL_OPS_AUTHORIZE)
+    ).toBe(true)
   })
 })

@@ -3,7 +3,11 @@ import "server-only"
 import { redirect } from "next/navigation"
 import { cache } from "react"
 
-import { roleHasPermission, type Permission } from "@/config/permission-matrix"
+import {
+  PERMISSIONS,
+  roleHasPermission,
+  type Permission,
+} from "@/config/permission-matrix"
 import { auth } from "@/lib/auth"
 import { ForbiddenError, UnauthorizedError } from "@/lib/errors"
 import { AUDIT_ACTIONS, recordAuditSafe } from "@/modules/audit/audit.service"
@@ -133,4 +137,39 @@ async function auditDenied(
     requestId: ctx.requestId,
     metadata: { role: user.role, resource: ctx.resource },
   })
+  // Módulo 15 §19: un intento de acceso administrativo no autorizado es una
+  // incidencia (una abierta por usuario y capacidad; no se duplica).
+  const severity = SENSITIVE_PERMISSIONS[permission]
+  if (severity) {
+    try {
+      const { raiseIncident } =
+        await import("@/modules/incidents/incident.service")
+      await raiseIncident({
+        source: "SECURITY",
+        fingerprint: `security:denied:${user.id}:${permission}`,
+        title: `Acceso administrativo denegado: ${permission}`,
+        description: `${user.name} (${user.role}) intentó usar «${permission}» en ${ctx.resource ?? "un recurso protegido"} sin autorización.`,
+        severity,
+        entityType: "User",
+        entityId: user.id,
+        actorId: user.id,
+        requestId: ctx.requestId,
+      })
+    } catch {
+      // La incidencia es complementaria: la denegación ya quedó auditada.
+    }
+  }
 }
+
+/** Capacidades cuyo intento no autorizado abre una incidencia de seguridad. */
+const SENSITIVE_PERMISSIONS: Partial<Record<Permission, "HIGH" | "CRITICAL">> =
+  {
+    [PERMISSIONS.RECOVERY_MANAGE]: "CRITICAL",
+    [PERMISSIONS.ROLES_MANAGE]: "HIGH",
+    [PERMISSIONS.USERS_CREATE]: "HIGH",
+    [PERMISSIONS.USERS_UPDATE]: "HIGH",
+    [PERMISSIONS.USERS_DISABLE]: "HIGH",
+    [PERMISSIONS.USERS_RESET_PASSWORD]: "HIGH",
+    [PERMISSIONS.SETTINGS_MANAGE]: "HIGH",
+    [PERMISSIONS.AUDIT_SECURITY_READ]: "HIGH",
+  }

@@ -187,7 +187,7 @@ export const playerIdSchema = z
   .string()
   .min(1)
   .max(64)
-  .regex(/^[a-z0-9]+$/i, "Identificador inválido")
+  .regex(/^[A-Za-z0-9_-]+$/, "Identificador inválido")
 
 export async function parsePlayerIdParam(
   params: Promise<{ id: string }>

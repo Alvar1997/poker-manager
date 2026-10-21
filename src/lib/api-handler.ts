@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { NextResponse, type NextRequest } from "next/server"
 
 import { fail } from "@/lib/api-response"
-import { ForbiddenError, toAppError } from "@/lib/errors"
+import { ForbiddenError, MaintenanceError, toAppError } from "@/lib/errors"
 import { createRequestLogger } from "@/lib/logger"
 
 export type RouteContext<TParams = Record<string, string>> = {
@@ -45,6 +45,7 @@ export function withApiHandler<TParams = Record<string, string>>(
 
     try {
       assertSameOrigin(req)
+      await assertNotInMaintenance(req)
       const response = await handler(req, { ...ctx, requestId })
       log.info({
         event: "api_request",
@@ -111,4 +112,24 @@ export function assertSameOrigin(req: Request): void {
   if (!host || originHost !== host) {
     throw new ForbiddenError("Origen de la solicitud no permitido")
   }
+}
+
+/** Rutas que siguen operando en mantenimiento (identidad y la propia recuperación). */
+const MAINTENANCE_EXEMPT = [
+  "/api/auth/",
+  "/api/admin/recovery",
+  "/api/admin/maintenance",
+]
+
+/**
+ * Modo mantenimiento (Módulo 15): durante una recuperación se rechazan las
+ * escrituras de negocio con 503. Las lecturas siguen disponibles.
+ */
+async function assertNotInMaintenance(req: NextRequest): Promise<void> {
+  if (SAFE_METHODS.has(req.method)) return
+  const path = req.nextUrl.pathname
+  if (MAINTENANCE_EXEMPT.some((p) => path.startsWith(p))) return
+  const { isMaintenanceEnabled } =
+    await import("@/modules/backups/recovery.service")
+  if (await isMaintenanceEnabled()) throw new MaintenanceError()
 }

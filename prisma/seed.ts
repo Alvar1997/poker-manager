@@ -6,6 +6,9 @@
  *    mesas 25/25 y 10/10 con su juego físico de fichas, métodos de pago,
  *    cuenta principal sin datos, folios, políticas y WhatsApp pendiente.
  *    Ver src/modules/settings/configuration.seed.ts.
+ *    Inventario general de fichas CHIPSET_MAIN (compartido por ambas mesas)
+ *    y su ubicación INVENTARIO-GENERAL, sin denominaciones ni cantidades.
+ *    Cuentas financieras de la Caja Central (Módulo 05), sin saldos.
  * 2. Bootstrap del primer SUPERADMIN (opcional): solo si se definen las
  *    variables de entorno y no existe ya un SUPERADMIN.
  *
@@ -26,6 +29,8 @@
 import bcrypt from "bcryptjs"
 
 import { PrismaClient } from "@/generated/prisma/client"
+import { seedFinancialAccounts } from "@/modules/cash/cash.seed"
+import { seedChipContainers } from "@/modules/inventory/inventory.seed"
 import { seedConfiguration } from "@/modules/settings/configuration.seed"
 import { PrismaPg } from "@prisma/adapter-pg"
 
@@ -103,6 +108,14 @@ async function main() {
   try {
     await seedConfiguration(prisma)
     console.log("[seed] Configuración del Módulo 02 verificada (idempotente).")
+    await seedChipContainers(prisma)
+    console.log(
+      "[seed] Inventario general de fichas verificado (una ubicación, sin cantidades)."
+    )
+    await seedFinancialAccounts(prisma)
+    console.log(
+      "[seed] Cuentas financieras del Módulo 05 verificadas (sin saldos ni movimientos)."
+    )
     await bootstrapSuperadmin(prisma)
   } finally {
     await prisma.$disconnect()

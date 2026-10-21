@@ -40,6 +40,8 @@ test("el formulario de login muestra validación de campos vacíos", async ({
   page,
 }) => {
   await page.goto("/login")
+  // Esperar la hidratación antes de interactuar (WebKit).
+  await page.waitForLoadState("networkidle")
   await page.getByRole("button", { name: "Entrar" }).click()
 
   await expect(page.getByText("El correo es requerido")).toBeVisible()
@@ -50,6 +52,8 @@ test("un intento de login fallido no rompe la página y muestra un error", async
   page,
 }) => {
   await page.goto("/login")
+  // Esperar la hidratación antes de interactuar (WebKit).
+  await page.waitForLoadState("networkidle")
 
   await page.getByLabel("Correo").fill("nadie@example.com")
   await page

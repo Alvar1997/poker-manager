@@ -46,6 +46,12 @@ export async function navigation(page: Page) {
 }
 
 export async function logout(page: Page) {
-  await page.getByRole("button", { name: "Cerrar sesión" }).first().click()
-  await expect(page).toHaveURL(/\/login/)
+  // Que termine el router.refresh() posterior al login antes de salir.
+  await page.waitForLoadState("networkidle")
+  await page
+    .getByRole("button", { name: "Cerrar sesión" })
+    .filter({ visible: true })
+    .first()
+    .click()
+  await expect(page).toHaveURL(/\/login/, { timeout: 15_000 })
 }

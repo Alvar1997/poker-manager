@@ -29,7 +29,7 @@ describe("navegación por capacidades", () => {
     expect(partner).not.toContain("users")
   })
 
-  it("CASHIER ve solo lo necesario para operar sesión y caja", () => {
+  it("CASHIER ve lo necesario para operar sesión y caja, y los reportes (Módulo 14)", () => {
     const cashier = ids("CASHIER")
     expect(cashier).toEqual(
       expect.arrayContaining([
@@ -41,11 +41,14 @@ describe("navegación por capacidades", () => {
         "cash",
         "credits",
         "settlements",
+        "special-operations",
+        "reports",
+        "audit",
         "settings",
         "profile",
       ])
     )
-    for (const hidden of ["users", "reports", "audit"]) {
+    for (const hidden of ["users"]) {
       expect(cashier).not.toContain(hidden)
     }
   })
@@ -55,10 +58,19 @@ describe("navegación por capacidades", () => {
       (item) => item.id
     )
     expect(available.sort()).toEqual([
+      "audit",
+      "cash",
+      "chips",
+      "credits",
       "home",
       "players",
       "profile",
+      "purchases",
+      "reports",
+      "sessions",
       "settings",
+      "settlements",
+      "special-operations",
       "users",
     ])
   })

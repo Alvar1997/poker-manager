@@ -19,7 +19,16 @@ export const DEFAULT_FOLIO_PREFIXES = {
   CASH_MOVEMENT: "MOV",
   CHIP_MOVEMENT: "MFI",
   CASH_CLOSING: "CIE",
+  CORRECTION: "COR",
+  INCIDENT: "INC",
+  REDEMPTION: "CAN",
+  PURCHASE_REVERSAL: "REV",
+  SETTLEMENT_CORRECTION: "AJL",
+  SPECIAL_PAYOUT: "PES",
 } as const
+
+/** Código del inventario físico único de fichas (ver docs/MODULE_04_CHIP_INVENTORY.md). */
+export const SHARED_CHIP_SET_CODE = "CHIPSET_MAIN"
 
 export async function seedConfiguration(db: PrismaClient): Promise<void> {
   await db.businessSettings.upsert({
@@ -34,21 +43,14 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
     update: {},
   })
 
-  const chipSet25 = await db.chipSet.upsert({
-    where: { code: "CHIPSET_25_25" },
+  // UN inventario físico compartido por todas las mesas (corrección
+  // arquitectónica previa al Módulo 06): ambas mesas usan CHIPSET_MAIN.
+  const sharedChipSet = await db.chipSet.upsert({
+    where: { code: SHARED_CHIP_SET_CODE },
     create: {
-      code: "CHIPSET_25_25",
-      name: "Fichas Mesa 25/25",
-      description: "Juego físico de fichas de la mesa 25/25.",
-    },
-    update: {},
-  })
-  const chipSet10 = await db.chipSet.upsert({
-    where: { code: "CHIPSET_10_10" },
-    create: {
-      code: "CHIPSET_10_10",
-      name: "Fichas Mesa 10/10",
-      description: "Juego físico de fichas de la mesa 10/10.",
+      code: SHARED_CHIP_SET_CODE,
+      name: "Inventario General de Fichas",
+      description: "Inventario físico único compartido por todas las mesas.",
     },
     update: {},
   })
@@ -60,7 +62,7 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
       name: "Mesa 25/25",
       smallBlind: "25",
       bigBlind: "25",
-      defaultChipSetId: chipSet25.id,
+      defaultChipSetId: sharedChipSet.id,
       sortOrder: 1,
     },
     update: {},
@@ -72,7 +74,7 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
       name: "Mesa 10/10",
       smallBlind: "10",
       bigBlind: "10",
-      defaultChipSetId: chipSet10.id,
+      defaultChipSetId: sharedChipSet.id,
       sortOrder: 2,
     },
     update: {},
@@ -89,6 +91,25 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
       code: "BANK_TRANSFER",
       name: "Transferencia bancaria",
       sortOrder: 2,
+    },
+    update: {},
+  })
+  // Módulo 08: cobros con terminal física (débito y crédito por separado).
+  await db.paymentMethod.upsert({
+    where: { code: "CARD_DEBIT" },
+    create: {
+      code: "CARD_DEBIT",
+      name: "Tarjeta de débito (terminal)",
+      sortOrder: 3,
+    },
+    update: {},
+  })
+  await db.paymentMethod.upsert({
+    where: { code: "CARD_CREDIT" },
+    create: {
+      code: "CARD_CREDIT",
+      name: "Tarjeta de crédito (terminal)",
+      sortOrder: 4,
     },
     update: {},
   })
@@ -119,6 +140,12 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
   }
 
   await db.operationalSettings.upsert({
+    where: { id: 1 },
+    create: { id: 1 },
+    update: {},
+  })
+
+  await db.systemMaintenance.upsert({
     where: { id: 1 },
     create: { id: 1 },
     update: {},

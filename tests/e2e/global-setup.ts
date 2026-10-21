@@ -51,6 +51,46 @@ export default async function globalSetup() {
       env: { ...process.env, DIRECT_URL: url, DATABASE_URL: url },
     })
 
+    // Fixtures de PRUEBA (no del seed): denominaciones del inventario
+    // ÚNICO compartido por ambas mesas, para ejercitar el inventario.
+    for (const [code, values] of [
+      ["CHIPSET_MAIN", ["25", "100", "500"]],
+    ] as const) {
+      for (const [i, value] of values.entries()) {
+        await db.query(
+          `INSERT INTO "chip_denominations" ("id", "chipSetId", "value", "color", "sortOrder", "isActive", "createdAt", "updatedAt")
+           SELECT $1, "id", $2::numeric, $3, $4, true, NOW(), NOW() FROM "chip_sets" WHERE "code" = $5`,
+          [
+            `e2e${randomBytes(8).toString("hex")}`,
+            value,
+            ["Verde", "Negra", "Morada"][i],
+            i,
+            code,
+          ]
+        )
+      }
+    }
+
+    // Fixtures de PRUEBA del Módulo 05: transferencias PENDIENTES (sin
+    // asiento) sobre la cuenta principal sembrada SIN datos bancarios, una
+    // para confirmar y otra para rechazar por proyecto de Playwright. No
+    // hay sesión abierta: el efectivo sigue bloqueado.
+    for (const [project, action, amount] of [
+      ["chromium", "confirmar", "1500.00"],
+      ["chromium", "rechazar", "250.00"],
+      ["mobile-safari", "confirmar", "1200.00"],
+      ["mobile-safari", "rechazar", "300.00"],
+    ] as const) {
+      const ref = `e2e${randomBytes(8).toString("hex")}`
+      await db.query(
+        `INSERT INTO "bank_transfer_verifications" ("id", "kind", "paymentAccountId", "declaredAmount", "senderName",
+           "creditAccountKind", "referenceType", "referenceId", "idempotencyKey", "updatedAt")
+         SELECT $1, 'PLAYER_PAYMENT', "id", $2::numeric, $3, 'PLAYER_PURCHASES', 'E2EFixture', $1, $1, NOW()
+         FROM "payment_accounts" WHERE "isPrimary" AND "isActive"`,
+        [ref, amount, `E2E ${project} ${action}`]
+      )
+    }
+
     const make = (name: string, email: string): E2EUser => ({
       name,
       email,

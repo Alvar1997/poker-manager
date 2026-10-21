@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.mts",
+    "test:db:up": "docker start poker-test-pg 2>/dev/null || docker run -d --name poker-test-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=poker_test -p 127.0.0.1:55432:5432 postgres:16.4-alpine",
+    "test:db:down": "docker stop poker-test-pg",
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -18,7 +20,14 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx --env-file-if-exists=.env.local prisma/seed.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "ops": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts",
+    "backup:run": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts backup:run",
+    "backup:daily": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts backup:run --scheduled",
+    "restore:test": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts restore:test",
+    "restore:monthly": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts restore:test --scheduled",
+    "integrity:run": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts integrity:run",
+    "recovery:execute": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/ops.ts recovery:execute"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -31,6 +40,7 @@
     "clsx": "^2.1.1",
     "cn": "^0.4.0",
     "date-fns": "^4.4.0",
+    "exceljs": "4.4.0",
     "libphonenumber-js": "^1.13.14",
     "lucide-react": "^1.55.0",
     "next": "16.4.0",
@@ -70,5 +80,10 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   }
 }

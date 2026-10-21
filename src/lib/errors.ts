@@ -12,6 +12,7 @@ export type ErrorCode =
   | "CONFLICT"
   | "BUSINESS_RULE_ERROR"
   | "RATE_LIMITED"
+  | "SERVICE_UNAVAILABLE"
   | "INTERNAL_ERROR"
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
@@ -22,6 +23,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   CONFLICT: 409,
   BUSINESS_RULE_ERROR: 422,
   RATE_LIMITED: 429,
+  SERVICE_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 }
 
@@ -90,4 +92,14 @@ export function toAppError(error: unknown): AppError {
     "INTERNAL_ERROR",
     "Ocurrió un error inesperado. Intenta de nuevo más tarde."
   )
+}
+
+/** Modo mantenimiento (Módulo 15): la API rechaza escrituras de negocio. */
+export class MaintenanceError extends AppError {
+  constructor(
+    message = "El sistema está en mantenimiento (recuperación en curso). Las operaciones están suspendidas temporalmente."
+  ) {
+    super("SERVICE_UNAVAILABLE", message)
+    this.name = "MaintenanceError"
+  }
 }

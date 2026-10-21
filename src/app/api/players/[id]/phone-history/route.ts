@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic"
  */
 export const GET = withApiHandler<{ id: string }>(
   async (_req, { params, requestId }) => {
-    await requirePermission(PERMISSIONS.AUDIT_READ, {
+    await requirePermission(PERMISSIONS.PLAYERS_HISTORY_READ, {
       requestId,
       resource: "GET /api/players/:id/phone-history",
     })

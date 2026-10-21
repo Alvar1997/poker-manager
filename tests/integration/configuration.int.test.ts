@@ -66,7 +66,7 @@ describe("datos iniciales (seed)", () => {
     ).rejects.toThrow()
   })
 
-  it("mesa 25/25 y mesa 10/10 tienen cada una su juego físico, y son distintos", async () => {
+  it("mesa 25/25 y mesa 10/10 comparten UN inventario físico de fichas", async () => {
     const t25 = await prisma.pokerTable.findUniqueOrThrow({
       where: { code: "TABLE_25_25" },
       include: { defaultChipSet: true },
@@ -75,9 +75,13 @@ describe("datos iniciales (seed)", () => {
       where: { code: "TABLE_10_10" },
       include: { defaultChipSet: true },
     })
-    expect(t25.defaultChipSet.code).toBe("CHIPSET_25_25")
-    expect(t10.defaultChipSet.code).toBe("CHIPSET_10_10")
-    expect(t25.defaultChipSetId).not.toBe(t10.defaultChipSetId)
+    expect(t25.defaultChipSet.code).toBe("CHIPSET_MAIN")
+    expect(t10.defaultChipSetId).toBe(t25.defaultChipSetId)
+    expect(await prisma.chipSet.count({ where: { isActive: true } })).toBe(1)
+    // La base impide un segundo inventario activo.
+    await expect(
+      prisma.chipSet.create({ data: { code: "CHIPSET_OTRO", name: "Otro" } })
+    ).rejects.toThrow()
     expect(t25.smallBlind.toFixed(2)).toBe("25.00")
     expect(t10.bigBlind.toFixed(2)).toBe("10.00")
   })
@@ -109,11 +113,18 @@ describe("datos iniciales (seed)", () => {
     })
   })
 
-  it("métodos de pago: solo CASH y BANK_TRANSFER (sin MIXED ni CREDIT)", async () => {
+  it("métodos de pago: efectivo, transferencia y tarjetas por terminal (sin MIXED ni CREDIT)", async () => {
     const methods = await prisma.paymentMethod.findMany({
       orderBy: { sortOrder: "asc" },
     })
-    expect(methods.map((m) => m.code)).toEqual(["CASH", "BANK_TRANSFER"])
+    // Módulo 08: débito y crédito por terminal física. El crédito del
+    // jugador sigue sin ser un método de pago.
+    expect(methods.map((m) => m.code)).toEqual([
+      "CASH",
+      "BANK_TRANSFER",
+      "CARD_DEBIT",
+      "CARD_CREDIT",
+    ])
   })
 
   it("es idempotente y no pisa lo editado", async () => {
@@ -135,7 +146,7 @@ describe("datos iniciales (seed)", () => {
         prisma.chipDenomination.count(),
       ])
     const before = await counts()
-    expect(before).toEqual([1, 1, 2, 2, 2, 1, 7, 1, 1, 0])
+    expect(before).toEqual([1, 1, 1, 2, 4, 1, 13, 1, 1, 0]) // un solo inventario de fichas
 
     await seedConfiguration(prisma)
     await seedConfiguration(prisma)
@@ -160,6 +171,43 @@ describe("datos iniciales (seed)", () => {
       SELECT column_name FROM information_schema.columns
       WHERE table_schema = 'public'
         AND column_name ~* '(balance|saldo|quantity|stock|amount)'
+        -- Desde el Módulo 04 existen cantidades FÍSICAS de fichas (chip_*),
+        -- que no son dinero; ninguna otra tabla guarda saldos ni montos.
+        AND table_name NOT LIKE 'chip\_%'
+        -- Módulo 05: el libro financiero sí guarda importes y saldos.
+        AND table_name NOT IN ('financial_account_balances', 'cash_transaction_entries',
+                               'bank_transfer_verifications', 'cash_reconciliations',
+                               'cash_reconciliation_details', 'operational_settings',
+                               -- Módulo 06: evidencia de apertura con caja en $0 (CHECK = 0).
+                               'session_openings',
+                               -- Módulo 08: importes de compras, pagos, deudas y depósitos
+                               -- de terminal (referencias al libro, nunca saldos editables).
+                               'purchase_payments', 'purchase_credit_authorizations',
+                               'purchase_deliveries', 'player_debts', 'card_terminal_settlements',
+                               -- Módulo 09: importes HISTÓRICOS que vio el jugador al firmar.
+                               'signature_snapshots',
+                               -- Módulo 10: abonos, aplicaciones, fondos no aplicados y depósitos de
+                               -- custodia (registros del libro; los saldos se derivan).
+                               'receivable_payments', 'payment_allocations',
+                               'unapplied_player_funds', 'administrative_cash_deposits',
+                               -- Módulo 11: importes ACORDADOS de liquidaciones (inmutables tras la
+                               -- recepción; debtBalanceSnapshot es una fotografía histórica),
+                               -- cuentas por pagar y desembolsos (el pendiente se deriva) y
+                               -- aportaciones documentadas a custodia.
+                               'player_settlements', 'settlement_payables', 'settlement_payouts',
+                               'administrative_cash_contributions',
+                               -- Módulo 12: evidencias del cierre (diferencias de arqueo con su
+                               -- esperado/contado, ajustes autorizados, retiro final) y
+                               -- referencias a arqueos; ningún saldo editable.
+                               'closure_discrepancies', 'closure_adjustment_authorizations',
+                               'closure_cash_withdrawals', 'closure_approvals',
+                               -- Módulo 15: importe INFORMATIVO del evento auditado y de la
+                               -- solicitud de corrección (nunca un saldo ni un movimiento).
+                               'audit_logs', 'correction_requests',
+                               -- Módulo 16: importes de canjes, obligaciones y pagos especiales,
+                               -- reversos y correcciones (hechos; los saldos se derivan).
+                               'late_chip_redemptions', 'special_payables', 'special_payouts',
+                               'purchase_reversals', 'settlement_corrections')
     `
     expect(columns).toEqual([])
   })
@@ -191,7 +239,7 @@ describe("permisos de configuración", () => {
 
   it("PARTNER no modifica configuración crítica (403 y auditado)", async () => {
     await asRole("PARTNER")
-    const set = await chipSetByCode("CHIPSET_25_25")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     const table = await prisma.pokerTable.findUniqueOrThrow({
       where: { code: "TABLE_25_25" },
     })
@@ -285,7 +333,7 @@ describe("permisos de configuración", () => {
       (await call(tableByIdRoute.GET, { params: { id: t10.id } })).status
     ).toBe(404)
 
-    const set = await chipSetByCode("CHIPSET_25_25")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     expect(
       (await call(denominationsRoute.GET, { params: { id: set.id } })).status
     ).toBe(200)
@@ -375,32 +423,29 @@ describe("configuración general y caja (SUPERADMIN)", () => {
 })
 
 describe("juegos de fichas y denominaciones", () => {
-  it("el mismo valor puede existir en dos juegos distintos", async () => {
+  it("solo hay un inventario activo: un juego nuevo nace inactivo y no puede activarse", async () => {
     await asRole("SUPERADMIN")
-    const s25 = await chipSetByCode("CHIPSET_25_25")
-    const s10 = await chipSetByCode("CHIPSET_10_10")
-
-    const a = await call(denominationsRoute.POST, {
+    const created = await call(chipSetsRoute.POST, {
       method: "POST",
-      params: { id: s25.id },
-      body: { value: "25", color: "Verde" },
+      body: { code: "CHIPSET_FUTURO", name: "Juego futuro" },
     })
-    const b = await call(denominationsRoute.POST, {
-      method: "POST",
-      params: { id: s10.id },
-      body: { value: "25.00", color: "Azul" },
+    expect(created.status).toBe(201)
+    expect(created.json.data).toMatchObject({ isActive: false })
+    const activate = await call(chipSetStatusRoute.PATCH, {
+      method: "PATCH",
+      params: { id: (created.json.data as { id: string }).id },
+      body: { isActive: true },
     })
-    expect(a.status).toBe(201)
-    expect(b.status).toBe(201)
-    expect(a.json.data).toMatchObject({ value: "25.00", chipSetId: s25.id })
-    expect((a.json.data as { id: string }).id).not.toBe(
-      (b.json.data as { id: string }).id
+    expect(activate.status).toBe(422)
+    expect(activate.json.error?.message).toContain(
+      "Solo puede haber un inventario"
     )
+    expect(await prisma.chipSet.count({ where: { isActive: true } })).toBe(1)
   })
 
   it("no permite denominaciones duplicadas en el mismo juego (409)", async () => {
     await asRole("SUPERADMIN")
-    const set = await chipSetByCode("CHIPSET_25_25")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     await call(denominationsRoute.POST, {
       method: "POST",
       params: { id: set.id },
@@ -419,7 +464,7 @@ describe("juegos de fichas y denominaciones", () => {
     "rechaza el valor %j (debe ser > 0 con hasta 2 decimales)",
     async (value) => {
       await asRole("SUPERADMIN")
-      const set = await chipSetByCode("CHIPSET_25_25")
+      const set = await chipSetByCode("CHIPSET_MAIN")
       const res = await call(denominationsRoute.POST, {
         method: "POST",
         params: { id: set.id },
@@ -431,7 +476,7 @@ describe("juegos de fichas y denominaciones", () => {
 
   it("rechaza montos como number (nunca Float) y la base impide valores ≤ 0", async () => {
     await asRole("SUPERADMIN")
-    const set = await chipSetByCode("CHIPSET_25_25")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     const res = await call(denominationsRoute.POST, {
       method: "POST",
       params: { id: set.id },
@@ -447,7 +492,7 @@ describe("juegos de fichas y denominaciones", () => {
 
   it("edita, desactiva y reactiva una denominación sin borrarla", async () => {
     await asRole("SUPERADMIN")
-    const set = await chipSetByCode("CHIPSET_10_10")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     const created = await call(denominationsRoute.POST, {
       method: "POST",
       params: { id: set.id },
@@ -484,6 +529,7 @@ describe("juegos de fichas y denominaciones", () => {
     expect(res.json.data).toMatchObject({
       code: "CHIPSET_TORNEO",
       needsDenominations: true,
+      isActive: false,
     })
     const id = (res.json.data as { id: string }).id
 
@@ -508,7 +554,7 @@ describe("juegos de fichas y denominaciones", () => {
 
   it("no desactiva un juego asignado a una mesa activa", async () => {
     await asRole("SUPERADMIN")
-    const set = await chipSetByCode("CHIPSET_25_25")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     const res = await call(chipSetStatusRoute.PATCH, {
       method: "PATCH",
       params: { id: set.id },
@@ -519,12 +565,9 @@ describe("juegos de fichas y denominaciones", () => {
 })
 
 describe("mesas", () => {
-  it("SUPERADMIN crea una mesa con un juego propio, sin crear cajas", async () => {
+  it("SUPERADMIN crea una mesa que usa el inventario compartido, sin crear cajas", async () => {
     await asRole("SUPERADMIN")
-    const set = await call(chipSetsRoute.POST, {
-      method: "POST",
-      body: { code: "CHIPSET_50_50", name: "Fichas Mesa 50/50" },
-    })
+    const shared = await chipSetByCode("CHIPSET_MAIN")
     const res = await call(tablesRoute.POST, {
       method: "POST",
       body: {
@@ -532,7 +575,7 @@ describe("mesas", () => {
         name: "Mesa 50/50",
         smallBlind: "50",
         bigBlind: "100",
-        defaultChipSetId: (set.json.data as { id: string }).id,
+        defaultChipSetId: shared.id,
       },
     })
     expect(res.status).toBe(201)
@@ -546,12 +589,13 @@ describe("mesas", () => {
       ],
     })
     expect(await prisma.cashBox.count()).toBe(1)
+    expect(await prisma.chipSet.count({ where: { isActive: true } })).toBe(1)
     expect(await auditRows("TABLE_CREATED")).toHaveLength(1)
   })
 
-  it("un juego físico no puede asignarse a dos mesas activas", async () => {
+  it("varias mesas activas comparten el mismo inventario físico", async () => {
     await asRole("SUPERADMIN")
-    const set25 = await chipSetByCode("CHIPSET_25_25")
+    const shared = await chipSetByCode("CHIPSET_MAIN")
     const res = await call(tablesRoute.POST, {
       method: "POST",
       body: {
@@ -559,20 +603,15 @@ describe("mesas", () => {
         name: "Otra",
         smallBlind: "5",
         bigBlind: "5",
-        defaultChipSetId: set25.id,
+        defaultChipSetId: shared.id,
       },
     })
-    expect(res.status).toBe(422)
-
-    const t10 = await prisma.pokerTable.findUniqueOrThrow({
-      where: { code: "TABLE_10_10" },
-    })
-    const reassign = await call(tableByIdRoute.PATCH, {
-      method: "PATCH",
-      params: { id: t10.id },
-      body: { defaultChipSetId: set25.id },
-    })
-    expect(reassign.status).toBe(422)
+    expect(res.status).toBe(201)
+    expect(
+      await prisma.pokerTable.count({
+        where: { isActive: true, defaultChipSetId: shared.id },
+      })
+    ).toBe(3)
   })
 
   it("valida ciegas (> 0, grande ≥ chica) y no acepta juegos inactivos o inexistentes", async () => {
@@ -661,7 +700,7 @@ describe("mesas", () => {
 
   it("una mesa queda lista para sesión al tener denominaciones activas", async () => {
     await asRole("SUPERADMIN")
-    const set = await chipSetByCode("CHIPSET_25_25")
+    const set = await chipSetByCode("CHIPSET_MAIN")
     await call(denominationsRoute.POST, {
       method: "POST",
       params: { id: set.id },
@@ -684,19 +723,20 @@ describe("métodos de pago", () => {
     const cash = await prisma.paymentMethod.findUniqueOrThrow({
       where: { code: "CASH" },
     })
-    const transfer = await prisma.paymentMethod.findUniqueOrThrow({
-      where: { code: "BANK_TRANSFER" },
+    const others = await prisma.paymentMethod.findMany({
+      where: { code: { not: "CASH" } },
     })
-
-    expect(
-      (
-        await call(paymentMethodByIdRoute.PATCH, {
-          method: "PATCH",
-          params: { id: transfer.id },
-          body: { isActive: false },
-        })
-      ).status
-    ).toBe(200)
+    for (const other of others) {
+      expect(
+        (
+          await call(paymentMethodByIdRoute.PATCH, {
+            method: "PATCH",
+            params: { id: other.id },
+            body: { isActive: false },
+          })
+        ).status
+      ).toBe(200)
+    }
     expect(
       (
         await call(paymentMethodByIdRoute.PATCH, {
@@ -815,7 +855,7 @@ describe("folios", () => {
       preview: string
       locked: boolean
     }[]
-    expect(folios).toHaveLength(7)
+    expect(folios).toHaveLength(13) // Módulos 15–16: COR-, INC-, CAN-, REV-, AJL-, PES-
     expect(folios.find((f) => f.documentType === "SESSION")).toMatchObject({
       preview: "SES-000001",
       locked: false,
@@ -889,7 +929,7 @@ describe("WhatsApp pendiente y políticas", () => {
     ).rejects.toThrow()
   })
 
-  it("expone las políticas de fondo nuevo y retiro total, y las reglas fijas", async () => {
+  it("expone las políticas de apertura en $0 y retiro total, y las reglas fijas", async () => {
     await asRole("CASHIER")
     const res = await call(operationalRoute.GET)
     const data = res.json.data as {
@@ -897,9 +937,9 @@ describe("WhatsApp pendiente y políticas", () => {
       closingCashPolicy: string
       rules: { id: string }[]
     }
-    expect(data.initialCashPolicy).toBe("NEW_FUND_PER_SESSION")
+    expect(data.initialCashPolicy).toBe("ZERO_OPENING_BALANCE")
     expect(data.closingCashPolicy).toBe("FULL_WITHDRAWAL")
-    expect(data.rules).toHaveLength(16)
+    expect(data.rules).toHaveLength(24)
     expect("PATCH" in operationalRoute).toBe(false)
   })
 })

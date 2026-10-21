@@ -27,7 +27,7 @@ export default async function SettingsHubPage() {
   const chipSets = await listChipSets({ includeInactive: false })
   const withoutDenominations = chipSets.filter((s) => s.needsDenominations)
   if (withoutDenominations.length > 0) {
-    pending.fichas = `${withoutDenominations.length} juego(s) sin denominaciones`
+    pending.fichas = "El inventario de fichas no tiene denominaciones"
     pending.mesas = "Requieren denominaciones antes de abrir sesión"
   }
   if (canReadSettings) {

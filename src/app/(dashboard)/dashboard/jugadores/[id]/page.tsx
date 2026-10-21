@@ -48,9 +48,13 @@ export default async function PlayerProfilePage({
   })
 
   const canAudit = can(user, PERMISSIONS.AUDIT_READ)
-  const [phoneHistory, audit] = canAudit
-    ? await Promise.all([getPhoneHistory(id), getPlayerAudit(id)])
-    : [[], []]
+  // Módulo 15: el historial de TELÉFONOS (dato personal) tiene su propio
+  // permiso; la auditoría general la consultan los tres roles (DEC-03).
+  const canHistory = can(user, PERMISSIONS.PLAYERS_HISTORY_READ)
+  const [phoneHistory, audit] = await Promise.all([
+    canHistory ? getPhoneHistory(id) : Promise.resolve([]),
+    canAudit ? getPlayerAudit(id) : Promise.resolve([]),
+  ])
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -107,6 +111,30 @@ export default async function PlayerProfilePage({
               >
                 <Pencil />
                 Editar
+              </Link>
+            ) : null}
+            {can(user, PERMISSIONS.PURCHASES_READ) ? (
+              <Link
+                href={`/dashboard/jugadores/${player.id}/compras`}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-11 md:h-8"
+                )}
+                data-testid="player-purchases"
+              >
+                Compras
+              </Link>
+            ) : null}
+            {can(user, PERMISSIONS.CREDITS_READ) ? (
+              <Link
+                href={`/dashboard/creditos/jugadores/${player.id}`}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-11 md:h-8"
+                )}
+                data-testid="player-credits"
+              >
+                Créditos y deudas
               </Link>
             ) : null}
             {can(user, PERMISSIONS.PLAYERS_MANAGE) ? (
@@ -174,65 +202,64 @@ export default async function PlayerProfilePage({
 
       <PlayerHistoryPlaceholder />
 
-      {canAudit ? (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle role="heading" aria-level={2}>
-                Historial de teléfonos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {phoneHistory.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  Sin cambios de teléfono.
-                </p>
-              ) : (
-                <ul className="divide-y text-sm" data-testid="phone-history">
-                  {phoneHistory.map((h) => (
-                    <li key={h.id} className="py-2">
-                      <p className="tabular-nums">
-                        {formatPhone(h.previousPhone)} →{" "}
-                        {formatPhone(h.newPhone)}
-                      </p>
-                      <p className="text-muted-foreground text-xs">
-                        {formatDateTime(h.changedAt)}
-                        {h.changedBy ? ` · ${h.changedBy.name}` : ""}
-                        {h.reason ? ` · ${h.reason}` : ""}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle role="heading" aria-level={2}>
-                Auditoría
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="divide-y text-sm" data-testid="player-audit">
-                {audit.map((e) => (
-                  <li key={e.id} className="py-2">
-                    <p className="font-medium">
-                      {AUDIT_LABEL[e.action] ?? e.action}
+      {canHistory ? (
+        <Card>
+          <CardHeader>
+            <CardTitle role="heading" aria-level={2}>
+              Historial de teléfonos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {phoneHistory.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Sin cambios de teléfono.
+              </p>
+            ) : (
+              <ul className="divide-y text-sm" data-testid="phone-history">
+                {phoneHistory.map((h) => (
+                  <li key={h.id} className="py-2">
+                    <p className="tabular-nums">
+                      {formatPhone(h.previousPhone)} → {formatPhone(h.newPhone)}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      {formatDateTime(e.createdAt)}
-                      {e.actor ? ` · ${e.actor.name}` : ""}
+                      {formatDateTime(h.changedAt)}
+                      {h.changedBy ? ` · ${h.changedBy.name}` : ""}
+                      {h.reason ? ` · ${h.reason}` : ""}
                     </p>
                   </li>
                 ))}
               </ul>
-              <p className="text-muted-foreground pt-2 text-xs">
-                Los teléfonos se registran enmascarados (p. ej.{" "}
-                {maskPhone(player.phone)}).
-              </p>
-            </CardContent>
-          </Card>
-        </>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+      {canAudit ? (
+        <Card>
+          <CardHeader>
+            <CardTitle role="heading" aria-level={2}>
+              Auditoría
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y text-sm" data-testid="player-audit">
+              {audit.map((e) => (
+                <li key={e.id} className="py-2">
+                  <p className="font-medium">
+                    {AUDIT_LABEL[e.action] ?? e.action}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {formatDateTime(e.createdAt)}
+                    {e.actor ? ` · ${e.actor.name}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="text-muted-foreground pt-2 text-xs">
+              Los teléfonos se registran enmascarados (p. ej.{" "}
+              {maskPhone(player.phone)}).
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   )

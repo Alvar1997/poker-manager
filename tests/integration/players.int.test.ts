@@ -240,7 +240,7 @@ describe("autenticación y permisos", () => {
     }
   })
 
-  it("CASHIER no consulta historial telefónico ni auditoría del jugador (403)", async () => {
+  it("CASHIER no consulta el historial telefónico (403); sí la auditoría del jugador (Módulo 15, DEC-03)", async () => {
     const player = await createTestPlayer()
     await asRole("CASHIER")
     expect(
@@ -248,8 +248,8 @@ describe("autenticación y permisos", () => {
     ).toBe(403)
     expect(
       (await call(auditRoute.GET, { params: { id: player.id } })).status
-    ).toBe(403)
-    expect((await auditRows("AUTH_ACCESS_DENIED")).length).toBe(2)
+    ).toBe(200)
+    expect((await auditRows("AUTH_ACCESS_DENIED")).length).toBe(1)
   })
 
   it("con credencial temporal pendiente, ningún rol opera jugadores (403)", async () => {

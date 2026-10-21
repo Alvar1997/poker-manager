@@ -11,8 +11,9 @@ import type { RequestContext, SessionUser } from "@/modules/auth/auth.service"
 import type { UpdatePaymentMethodInput } from "@/modules/settings/settings.schemas"
 
 /**
- * Métodos por los que entra dinero real: CASH y BANK_TRANSFER (PAY-04: se
- * contabilizan por separado). Catálogo cerrado: no hay alta ni borrado
+ * Métodos por los que entra dinero real: CASH, BANK_TRANSFER y, desde el
+ * Módulo 08, CARD_DEBIT y CARD_CREDIT cobrados en terminal física (PAY-04:
+ * se contabilizan por separado). Catálogo cerrado: no hay alta ni borrado
  * (PAY-02), solo nombre, orden y activación (PAY-03).
  *
  * No existe "MIXED": un pago mixto será una operación con componentes de
@@ -23,7 +24,7 @@ import type { UpdatePaymentMethodInput } from "@/modules/settings/settings.schem
 
 export type PaymentMethodView = {
   id: string
-  code: "CASH" | "BANK_TRANSFER"
+  code: "CASH" | "BANK_TRANSFER" | "CARD_DEBIT" | "CARD_CREDIT"
   name: string
   isActive: boolean
   sortOrder: number

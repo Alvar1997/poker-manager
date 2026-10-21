@@ -103,22 +103,22 @@ npm run test:e2e          # E2E (Playwright) — primera vez: npx playwright ins
 
 ### Base de pruebas desechable (integración y E2E con sesión real)
 
-Las pruebas de integración y los E2E de login/usuarios **vacían tablas**, así que nunca usan tu Neon. Usan una base local que levanta el propio CLI de Prisma (sin Docker):
+Las pruebas de integración y los E2E con sesión real **vacían tablas**, así que nunca usan tu Neon. Usan un PostgreSQL 16 desechable en Docker (Docker Desktop debe estar abierto):
 
 ```bash
-npx prisma dev -n poker-test -d     # levanta Postgres local en segundo plano
-npx prisma dev ls                   # copia la URL "TCP" (postgres://postgres:postgres@localhost:<puerto>/template1?sslmode=disable)
-export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:<puerto>/template1?sslmode=disable"
+npm run test:db:up        # crea/arranca el contenedor poker-test-pg en 127.0.0.1:55432
+export TEST_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:55432/poker_test"
 
 npm run test:integration
 npm run test:e2e
-npx prisma dev stop poker-test      # al terminar
+npm run test:db:down      # al terminar
 ```
 
 - Las migraciones se aplican solas antes de cada corrida.
-- Por seguridad, `TEST_DATABASE_URL` debe ser `localhost` (salvo `ALLOW_REMOTE_TEST_DATABASE=1`, p. ej. para una rama desechable de Neon en CI).
-- Los E2E crean usuarios por rol con contraseñas **aleatorias** en cada corrida (`tests/e2e/.auth/users.json`, ignorado por git).
-- `prisma dev` (PGlite) atiende una sola sesión a la vez: con esa base Playwright corre en un solo worker.
+- Por seguridad, `TEST_DATABASE_URL` debe ser `localhost`/`127.0.0.1` (salvo `ALLOW_REMOTE_TEST_DATABASE=1`, p. ej. para una rama desechable de Neon en CI).
+- Los E2E crean usuarios por rol con contraseñas **aleatorias** y denominaciones de prueba en cada corrida (`tests/e2e/global-setup.ts`; credenciales en `tests/e2e/.auth/users.json`, ignorado por git).
+- **¿Por qué Docker y no `npx prisma dev`?** `prisma dev` (PGlite) atiende una sola sesión: mezcla consultas de conexiones simultáneas (error `08P01`) y serializa todo, así que no sirve para las pruebas de concurrencia del inventario (Módulo 04). Sigue funcionando para los Módulos 00–03, pero la base recomendada es la de Docker.
+- Con base de pruebas, Playwright corre en un solo worker (los E2E comparten la base).
 - Sin `TEST_DATABASE_URL`, `npm run test:e2e` corre solo los smoke tests que no necesitan base (los demás aparecen como _skipped_).
 
 ## Errores frecuentes

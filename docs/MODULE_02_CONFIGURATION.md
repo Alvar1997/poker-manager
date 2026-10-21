@@ -1,6 +1,8 @@
 # Módulo 02 — Configuración general
 
-Configuración del negocio, caja central, mesas, juegos físicos de fichas, denominaciones, métodos de pago, cuenta bancaria, folios, políticas operativas y WhatsApp (pendiente).
+Configuración del negocio, caja central, mesas, inventario de fichas, denominaciones, métodos de pago, cuenta bancaria, folios, políticas operativas y WhatsApp (pendiente).
+
+> **Corrección vigente (previa al Módulo 06):** hay **UN inventario físico de fichas compartido** por ambas mesas (`CHIPSET_MAIN`). La decisión original de este módulo —un juego físico distinto por mesa (`CHIPSET_25_25`, `CHIPSET_10_10`) y la regla de no asignar un juego a dos mesas— **quedó cancelada**. Esos juegos se conservan inactivos como historial. Ver `docs/MODULE_04_CHIP_INVENTORY.md` § «Inventario compartido».
 
 > **Este módulo solo configura.** No registra dinero, existencias de fichas, compras, deudas, sesiones, arqueos, liquidaciones ni folios emitidos. No hay ninguna tabla de movimientos ni columnas de saldo o cantidad. Las pruebas de integración lo verifican.
 
@@ -28,41 +30,41 @@ Moneda y zona horaria son reglas del negocio (ver `docs/BUSINESS_RULES.md`); `sr
 
 ## 3. Catálogo de mesas (`PokerTable`)
 
-| Código        | Nombre     | Ciegas  | Juego asignado  |
-| ------------- | ---------- | ------- | --------------- |
-| `TABLE_25_25` | Mesa 25/25 | 25 / 25 | `CHIPSET_25_25` |
-| `TABLE_10_10` | Mesa 10/10 | 10 / 10 | `CHIPSET_10_10` |
+| Código        | Nombre     | Ciegas  | Inventario de fichas |
+| ------------- | ---------- | ------- | -------------------- |
+| `TABLE_25_25` | Mesa 25/25 | 25 / 25 | `CHIPSET_MAIN`       |
+| `TABLE_10_10` | Mesa 10/10 | 10 / 10 | `CHIPSET_MAIN`       |
 
 Reglas aplicadas:
 
 - **TABLE-01**: código único e inmutable (solo se fija al crear).
 - **TABLE-02/03/04**: activar/desactivar; no hay borrado (no existe `DELETE`).
 - **TABLE-05**: el juego asignado debe existir y estar activo. La mesa muestra `readyForSession` y los requisitos pendientes (p. ej. "El juego de fichas no tiene denominaciones activas").
-- **CHIP-02/03**: un juego físico **no puede estar asignado a dos mesas activas** a la vez. Es una regla del servicio y se puede revisar si el negocio lo requiere.
+- **CHIP-02/03 (corregida)**: todas las mesas activas comparten el **mismo** inventario físico. La regla original («un juego no puede asignarse a dos mesas») se eliminó del servicio.
 - Ciegas en `Decimal(12,2)`, `0 < chica ≤ grande` (validación + `CHECK` en la base).
 - **TABLE-06/07, CHIP-09**: cambiar ciegas o juego no altera el pasado. Las sesiones (módulo posterior) deberán guardar una **fotografía** de ciegas y juego. Hoy no existen sesiones.
 - **TABLE-08**: crear una mesa no crea una caja.
 - **TABLE-09**: activar mesas en distintos momentos de una sesión es responsabilidad del módulo de sesiones.
 
-## 4. Juegos físicos independientes (`ChipSet`)
+## 4. Inventario de fichas (`ChipSet`)
 
-- Dos juegos iniciales: `CHIPSET_25_25` ("Fichas Mesa 25/25") y `CHIPSET_10_10` ("Fichas Mesa 10/10"), **físicamente distintos**.
-- `ChipSet` es independiente de `PokerTable`. La identidad del inventario será `(juego, denominación)`, nunca la mesa (**CHIP-05/06/10**).
-- Las fichas de un juego no se mezclan con otro. Pasar fichas entre juegos requerirá una **operación de conversión registrada** (módulo de movimientos de fichas), que no es una compra ni un cobro.
-- No hay borrado; un juego en uso se desactiva (**CHIP-07/08**). No se puede desactivar un juego asignado a una mesa activa.
+- Un solo inventario activo: `CHIPSET_MAIN` ("Inventario General de Fichas"), compartido por ambas mesas. La base lo garantiza con el índice único parcial `chip_sets_single_active`; un juego nuevo nace inactivo y no puede activarse mientras exista otro activo.
+- `ChipSet` es independiente de `PokerTable`. La identidad del inventario es la denominación del inventario común, nunca la mesa (**CHIP-05/06/10**).
+- No hay conversión de fichas entre mesas: un jugador que cambia de mesa conserva las mismas fichas.
+- No hay borrado; un juego en uso se desactiva (**CHIP-07/08**). No se puede desactivar el inventario si alguna mesa activa lo usa o si tiene fichas.
 
 ## 5. Denominaciones (`ChipDenomination`)
 
-- Pertenecen a un juego. `value` es `Decimal(12,2)` > 0 (validación + `CHECK`), nunca Float. La API recibe y devuelve montos como **string**.
-- Único `(chipSetId, value)`: no hay duplicados dentro de un juego (409), pero **sí** el mismo valor en juegos distintos (**DEN-05/06**).
+- Pertenecen al inventario (`ChipSet`). `value` es `Decimal(12,2)` > 0 (validación + `CHECK`), nunca Float. La API recibe y devuelve montos como **string**.
+- Único `(chipSetId, value)`: no hay duplicados en el inventario (409). Los juegos históricos inactivos pueden conservar valores iguales (**DEN-05/06**).
 - Nombre y color son opcionales y descriptivos: el color **no** determina el valor (**DEN-07/08**).
 - Sin cantidades (**DEN-12**). No hay borrado; se desactivan y se conservan (**DEN-09/10**).
-- **No se inventaron denominaciones.** Los dos juegos iniciales quedan **sin denominaciones** y la UI avisa "Requiere configurar denominaciones antes de abrir una sesión".
+- **No se inventaron denominaciones.** El inventario común queda **sin denominaciones** hasta capturarlas, y la UI avisa "Requiere configurar denominaciones antes de abrir una sesión". Las capturadas antes en los juegos por mesa no se copiaron (eran ambiguas): siguen inactivas como historial.
 - **DEN-11** (no cambiar el valor de una denominación con movimientos): hoy no existen movimientos de fichas. El módulo de inventario deberá bloquear el cambio de `value` cuando los haya.
 
 ## 6. Métodos de pago (`PaymentMethod`)
 
-- `CASH` (Efectivo) y `BANK_TRANSFER` (Transferencia bancaria). Catálogo cerrado (`enum`): no se crean ni se borran; se renombran, ordenan y activan/desactivan. Debe quedar al menos uno activo.
+- `CASH` (Efectivo) y `BANK_TRANSFER` (Transferencia bancaria); desde el Módulo 08 también `CARD_DEBIT` (Tarjeta de débito, terminal) y `CARD_CREDIT` (Tarjeta de crédito, terminal), agregados por el seed de forma idempotente (no se inventó ningún uso previo). Catálogo cerrado (`enum`): no se crean ni se borran; se renombran, ordenan y activan/desactivan. Debe quedar al menos uno activo. Un método inactivo no se acepta en compras nuevas. El crédito del jugador sigue sin ser un método de pago.
 - **No existe `MIXED`**: un pago mixto será una operación con componentes (p. ej. $500 efectivo + $1,000 transferencia + $500 crédito).
 - **No existe `CREDIT`**: el crédito es una cuenta por cobrar, no dinero, y nunca se suma al saldo (**PAY-06/07**).
 
@@ -77,6 +79,8 @@ Reglas aplicadas:
 - El saldo del banco no se reinicia entre sesiones (**BANK-05**); se calculará con los movimientos futuros.
 
 ## 8. Política de fondo inicial
+
+> **Reemplazada en el Módulo 05.** La política vigente es `ZERO_OPENING_BALANCE`: cada sesión abre con $0.00, sin fondo inicial ni arrastre (ver `docs/MODULE_05_CASH_BOX.md`). La migración `20261017120000_module05_cash_box` convirtió el valor almacenado sin borrar históricos. El texto siguiente se conserva como registro de la decisión original.
 
 `OperationalSettings.initialCashPolicy = NEW_FUND_PER_SESSION` (registro único `id = 1`).
 
@@ -94,9 +98,10 @@ Son reglas **fijas** de esta versión (`src/config/operational-rules.ts`), sin i
 
 - Compras a crédito permitidas, sin autorización externa.
 - Firma obligatoria en entregas de fichas.
-- Compensación automática de deudas al liquidar, **FIFO** (la más antigua primero).
+- ~~Compensación automática de deudas al liquidar~~ — **sustituida en el Módulo 11**: la compensación es **opcional** y la decide el cajero (`OPTIONAL_DEBT_COMPENSATION`); si se compensa, la distribución es **FIFO** (la más antigua primero, `FIFO_COMPENSATION`). Toda liquidación requiere firma (`SETTLEMENT_SIGNATURE_ALWAYS`).
 - Arqueos inicial y final obligatorios; una caja central; fondo nuevo; retiro total.
-- Notificación de compras a crédito por WhatsApp **después** de confirmar (pendiente).
+- Notificación de compras a crédito por WhatsApp **después** de confirmar (el Módulo 08 registra el evento en `notification_outbox`; el envío es del Módulo 13).
+- Todo crédito identifica al socio que lo autorizó; firma solo en compras con crédito; compras solo por importe; tarjetas por terminal (reglas fijas `CREDIT_PARTNER_AUTHORIZATION`, `SIGNATURE_ON_CREDIT_DELIVERY`, `PURCHASES_BY_NOMINAL_AMOUNT`, `CARD_TERMINAL_PAYMENTS`; ya no existe `CREDIT_NO_EXTERNAL_APPROVAL`; desde el Módulo 11 tampoco `AUTO_DEBT_COMPENSATION`). Total: 24 reglas fijas.
 - Hora local America/Monterrey; dinero y fichas por separado; operaciones confirmadas no editables; auditoría obligatoria.
 
 El Módulo 03 agregó la regla `NO_CREDIT_LIMIT` (crédito sin límite), con lo que son 16. Solo las políticas de efectivo se guardan en la base, como `enum` de un único valor. No se construyó un motor genérico de reglas.
@@ -192,5 +197,5 @@ Migración `20261014120000_module02_configuration` (aditiva; no altera tablas ex
 ## 17. Pruebas
 
 - **Unitarias:** permisos (`settings:read`, `catalogs:read`), secciones por rol, navegación, montos, CLABE, cifrado, schemas, folio y reglas fijas.
-- **Integración (Postgres real):** `tests/integration/configuration.int.test.ts` cubre los casos obligatorios 1–20 (caja única, mesas/juegos distintos, denominaciones, permisos por rol, cuenta única, idempotencia del seed, folios concurrentes, WhatsApp pendiente y ausencia de tablas o columnas de movimientos). Los 40 casos del Módulo 01 siguen pasando (caso 21).
+- **Integración (Postgres real):** `tests/integration/configuration.int.test.ts` cubre los casos obligatorios 1–20 (caja única, mesas con inventario compartido, denominaciones, permisos por rol, cuenta única, idempotencia del seed, folios concurrentes, WhatsApp pendiente y ausencia de tablas o columnas de movimientos). Los 40 casos del Módulo 01 siguen pasando (caso 21).
 - **E2E (Chrome + iPhone 14):** `tests/e2e/configuration.spec.ts` cubre el panel, mesas, denominaciones con duplicado, WhatsApp, banco/folios, PARTNER en solo lectura y CASHIER con catálogos, y verifica que no haya scroll horizontal en celular (caso 22).
