@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { can, PERMISSIONS, requirePagePermission } from "@/config/permissions"
 import { formatDateTime } from "@/lib/format"
+import { formatBusinessDateMx } from "@/modules/sessions/session-folio"
 import { cn } from "@/lib/utils"
 import {
   SESSIONS_BASE,
@@ -25,7 +26,7 @@ import {
 
 export const metadata = { title: "Sesiones — Poker Manager" }
 
-const FILTERS = ["status", "q", "from", "to", "sort"] as const
+const FILTERS = ["status", "kind", "q", "from", "to", "sort"] as const
 
 export default async function SessionsPage({
   searchParams,
@@ -65,6 +66,19 @@ export default async function SessionsPage({
           >
             <Plus />
             Nueva sesión
+          </Link>
+        ) : active && can(user, PERMISSIONS.SESSIONS_HISTORICAL_CREATE) ? (
+          // La captura histórica no ocupa la sesión vigente.
+          <Link
+            href={`${SESSIONS_BASE}/nueva?historica=1`}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "h-11 md:h-9"
+            )}
+            data-testid="new-historical-session-link"
+          >
+            <Plus />
+            Registrar sesión histórica
           </Link>
         ) : null}
       </div>
@@ -121,6 +135,16 @@ export default async function SessionsPage({
             </option>
           ))}
         </NativeSelect>
+        <NativeSelect
+          name="kind"
+          defaultValue={query.kind ?? ""}
+          aria-label="Tipo"
+          data-testid="filter-kind"
+        >
+          <option value="">Normales e históricas</option>
+          <option value="regular">Solo normales</option>
+          <option value="historical">Solo históricas</option>
+        </NativeSelect>
         <NativeSelect name="sort" defaultValue={query.sort} aria-label="Orden">
           <option value="desc">Más recientes</option>
           <option value="asc">Más antiguas</option>
@@ -129,14 +153,18 @@ export default async function SessionsPage({
           type="date"
           name="from"
           defaultValue={query.from ?? ""}
-          aria-label="Desde"
+          aria-label="Fecha operativa desde"
+          title="Fecha operativa desde"
+          data-testid="filter-from"
           className="h-11 md:h-9"
         />
         <Input
           type="date"
           name="to"
           defaultValue={query.to ?? ""}
-          aria-label="Hasta"
+          aria-label="Fecha operativa hasta"
+          title="Fecha operativa hasta"
+          data-testid="filter-to"
           className="h-11 md:h-9"
         />
         <Button type="submit" variant="secondary" className="h-11 md:h-9">
@@ -165,14 +193,25 @@ export default async function SessionsPage({
                       <span className="font-mono font-medium">{s.folio}</span>
                       <SessionStatusBadge status={s.status} />
                     </div>
+                    <p
+                      className="text-xs"
+                      data-testid="session-row-business-date"
+                    >
+                      Fecha operativa{" "}
+                      <strong>{formatBusinessDateMx(s.businessDate)}</strong>
+                      {s.isHistorical ? " · histórica" : ""}
+                      {s.previousFolio ? ` · antes ${s.previousFolio}` : ""}
+                    </p>
                     <p className="text-muted-foreground text-xs">
-                      Creada {formatDateTime(s.createdAt)} por{" "}
+                      Registrada {formatDateTime(s.createdAt)} por{" "}
                       {s.createdBy.name}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {s.openedAt
                         ? `Apertura ${formatDateTime(s.openedAt)}`
-                        : "Sin apertura"}
+                        : s.isHistorical
+                          ? "Captura histórica (sin operación en vivo)"
+                          : "Sin apertura"}
                       {s.closedAt
                         ? ` · Cierre ${formatDateTime(s.closedAt)}`
                         : ""}

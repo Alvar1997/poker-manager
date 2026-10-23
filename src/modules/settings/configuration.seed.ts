@@ -12,7 +12,8 @@ import type { PrismaClient } from "@/generated/prisma/client"
  */
 
 export const DEFAULT_FOLIO_PREFIXES = {
-  SESSION: "SES",
+  // Folio de sesión S-0001-YYYYMMDD (ver session-folio.ts).
+  SESSION: "S",
   PURCHASE: "CMP",
   DEBT_PAYMENT: "ABN",
   SETTLEMENT: "LIQ",
@@ -134,6 +135,7 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
       create: {
         documentType: documentType as keyof typeof DEFAULT_FOLIO_PREFIXES,
         prefix,
+        ...(documentType === "SESSION" ? { padding: 4 } : {}),
       },
       update: {},
     })

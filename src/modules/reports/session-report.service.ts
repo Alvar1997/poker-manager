@@ -10,7 +10,6 @@ import {
 } from "@/modules/reports/credit-report.service"
 import type { ReportFilters } from "@/modules/reports/report.filters"
 import {
-  businessDay,
   businessRange,
   dec,
   fmt,
@@ -269,14 +268,20 @@ export async function sessionMetrics(
 }
 
 export function sessionWhere(f: ReportFilters): Prisma.PokerSessionWhereInput {
-  const range = businessRange(f.from, f.to)
+  // Por JORNADA: fecha operativa de la sesión (columna DATE), no la fecha
+  // de captura ni la de movimientos posteriores.
+  const range =
+    f.from || f.to
+      ? {
+          ...(f.from && { gte: new Date(`${f.from}T00:00:00.000Z`) }),
+          ...(f.to && { lte: new Date(`${f.to}T00:00:00.000Z`) }),
+        }
+      : undefined
   return {
     ...(f.sessionId && { id: f.sessionId }),
     ...(f.status && { status: f.status as never }),
     ...(f.operatorId && { createdById: f.operatorId }),
-    ...(range && {
-      OR: [{ openedAt: range }, { openedAt: null, createdAt: range }],
-    }),
+    ...(range && { businessDate: range }),
     ...(f.tableId && { tables: { some: { tableId: f.tableId } } }),
     ...(f.playerId && { participations: { some: { playerId: f.playerId } } }),
   }
@@ -373,6 +378,9 @@ function closureSummary(s: ClosureRow) {
 const sessionListSelect = {
   id: true,
   folio: true,
+  previousFolio: true,
+  businessDate: true,
+  isHistorical: true,
   status: true,
   createdAt: true,
   openedAt: true,
@@ -387,13 +395,15 @@ type SessionListRow = Prisma.PokerSessionGetPayload<{
 }>
 
 function sessionHeader(s: SessionListRow) {
-  const operatedAt = s.openedAt ?? s.createdAt
   return {
     id: s.id,
     folio: s.folio,
+    /** Folio en el formato anterior (SES-000001), para conciliar. */
+    previousFolio: s.previousFolio,
+    isHistorical: s.isHistorical,
     status: s.status,
-    /** Fecha operativa (día de apertura en la zona del negocio). */
-    operatedDay: businessDay(operatedAt),
+    /** Fecha operativa de la sesión (businessDate), no la de captura. */
+    operatedDay: s.businessDate.toISOString().slice(0, 10),
     openedAt: s.openedAt?.toISOString() ?? null,
     closedAt: s.closedAt?.toISOString() ?? null,
     createdBy: s.createdBy,
@@ -408,7 +418,7 @@ export async function listSessionReports(f: ReportFilters, db: Db = prisma) {
     db.pokerSession.findMany({
       where,
       select: sessionListSelect,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ businessDate: "desc" }, { sequenceNumber: "desc" }],
       skip: (f.page - 1) * f.pageSize,
       take: f.pageSize,
     }),
@@ -438,7 +448,7 @@ export async function listAllSessionReports(
   const rows = await db.pokerSession.findMany({
     where: sessionWhere(f),
     select: sessionListSelect,
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    orderBy: [{ businessDate: "asc" }, { sequenceNumber: "asc" }],
     take: limit,
   })
   const metrics = await sessionMetrics(

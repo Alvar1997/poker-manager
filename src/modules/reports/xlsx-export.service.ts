@@ -385,6 +385,8 @@ async function sessionsWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
     "Sesiones",
     [
       text("Folio", (r) => r.folio),
+      text("Folio anterior", (r) => r.previousFolio ?? "—"),
+      text("Tipo", (r) => (r.isHistorical ? "Histórica" : "Normal")),
       day("Fecha operativa", (r) => r.operatedDay),
       dt("Apertura real", (r) => r.openedAt),
       dt("Cierre real", (r) => r.closedAt),

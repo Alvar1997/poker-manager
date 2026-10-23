@@ -97,6 +97,8 @@ model User {
   specialEvidence         SpecialOperationEvidence[] @relation("SpecialEvidenceCapturedBy")
   specialReceipts         SpecialOperationReceipt[]  @relation("SpecialReceiptCreatedBy")
 
+  sessionsHistoricalRecorded PokerSession[] @relation("SessionHistoricalRecordedBy")
+
   // Mesa interactiva: asientos y dealers.
   seatsAssigned     TableSeatAssignment[] @relation("SeatAssignedBy")
   seatsReleased     TableSeatAssignment[] @relation("SeatReleasedBy")
@@ -1473,34 +1475,52 @@ enum PokerSessionStatus {
   CLOSING
   CLOSED
   CANCELLED
+  /// Registro histórico (solo SUPERADMIN): fecha operativa anterior, sin
+  /// caja, inventario ni operación en vivo. No ocupa la sesión vigente.
+  HISTORICAL
 }
 
 /// Periodo de operación (puede cruzar medianoche). El folio, el creador y
 /// las fechas reales los fija el servidor y son inmutables (trigger).
 model PokerSession {
-  id                   String             @id @default(cuid())
-  folio                String             @unique
-  cashBoxId            String
-  cashBox              CashBox            @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
-  status               PokerSessionStatus @default(DRAFT)
+  id                     String             @id @default(cuid())
+  /// Folio público S-0001-YYYYMMDD (consecutivo global + fecha operativa).
+  /// Inmutable; las relaciones usan `id`.
+  folio                  String             @unique
+  /// Consecutivo global del folio (único; nunca se reutiliza ni renumera).
+  sequenceNumber         Int                @unique
+  /// Fecha operativa (día calendario en la zona del negocio) a la que
+  /// corresponde la sesión. NO es la fecha real de captura (`createdAt`).
+  businessDate           DateTime           @db.Date
+  /// Folio en el formato anterior (SES-000001), conservado al migrar.
+  previousFolio          String?            @unique
+  /// Captura histórica de una fecha anterior (solo SUPERADMIN).
+  isHistorical           Boolean            @default(false)
+  /// Momento REAL en que se capturó la sesión histórica.
+  historicalRecordedAt   DateTime?
+  historicalRecordedById String?
+  historicalRecordedBy   User?              @relation("SessionHistoricalRecordedBy", fields: [historicalRecordedById], references: [id], onDelete: Restrict)
+  cashBoxId              String
+  cashBox                CashBox            @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
+  status                 PokerSessionStatus @default(DRAFT)
   /// Responsable de la preparación (inmutable): solo él o SUPERADMIN la continúan.
-  createdById          String
-  createdBy            User               @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  openedById           String?
-  openedBy             User?              @relation("SessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  createdById            String
+  createdBy              User               @relation("SessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  openedById             String?
+  openedBy               User?              @relation("SessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
   /// Hora REAL de apertura (servidor, UTC con milisegundos).
-  openedAt             DateTime?
-  preparationStartedAt DateTime?
-  closingStartedAt     DateTime?
-  closedAt             DateTime?
-  cancelledAt          DateTime?
-  cancelledById        String?
-  cancelledBy          User?              @relation("SessionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
-  cancellationReason   String?
-  notes                String?
-  idempotencyKey       String             @unique
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  openedAt               DateTime?
+  preparationStartedAt   DateTime?
+  closingStartedAt       DateTime?
+  closedAt               DateTime?
+  cancelledAt            DateTime?
+  cancelledById          String?
+  cancelledBy            User?              @relation("SessionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancellationReason     String?
+  notes                  String?
+  idempotencyKey         String             @unique
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   opening            SessionOpening?
   statusHistory      SessionStatusHistory[]
@@ -1522,6 +1542,7 @@ model PokerSession {
   @@index([status])
   @@index([createdAt])
   @@index([createdById])
+  @@index([businessDate])
   @@map("poker_sessions")
 }
 

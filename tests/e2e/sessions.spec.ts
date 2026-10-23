@@ -51,7 +51,7 @@ test("el cajero crea la sesión desde la navegación y consulta su folio", async
   sessionId = page.url().split("/").at(-2)!
   await expect(
     page.getByRole("heading", { level: 1 }).filter({ visible: true })
-  ).toContainText(/SES-\d{6}/)
+  ).toContainText(/S-\d{4,}-\d{8}/)
   await noHorizontalScroll(page)
 })
 

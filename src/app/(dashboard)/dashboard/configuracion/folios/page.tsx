@@ -46,7 +46,10 @@ export default async function FoliosPage() {
                     En uso
                   </Badge>
                 ) : canManage ? (
-                  <FolioEditDialog folio={folio} />
+                  <FolioEditDialog
+                    folio={folio}
+                    fixedFormat={folio.documentType === "SESSION"}
+                  />
                 ) : null}
               </CardContent>
             </Card>

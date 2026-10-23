@@ -41,6 +41,7 @@ type Values = z.infer<typeof schema>
 
 export function FolioEditDialog({
   folio,
+  fixedFormat = false,
 }: {
   folio: {
     id: string
@@ -49,6 +50,8 @@ export function FolioEditDialog({
     padding: number
     nextNumber: number
   }
+  /** Sesiones: formato fijo S-0001-AAAAMMDD; solo el número inicial. */
+  fixedFormat?: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -63,22 +66,26 @@ export function FolioEditDialog({
   const values = useWatch({ control: form.control })
   const parsed = schema.safeParse(values)
   const preview = parsed.success
-    ? formatFolio(
-        parsed.data.prefix.toUpperCase(),
-        Number(parsed.data.nextNumber),
-        Number(parsed.data.padding)
-      )
+    ? fixedFormat
+      ? `${formatFolio("S", Number(parsed.data.nextNumber), 4)}-AAAAMMDD`
+      : formatFolio(
+          parsed.data.prefix.toUpperCase(),
+          Number(parsed.data.nextNumber),
+          Number(parsed.data.padding)
+        )
     : "—"
 
   async function onSubmit(v: Values) {
     try {
       await apiRequest(`/api/settings/folios/${folio.id}`, {
         method: "PATCH",
-        body: {
-          prefix: v.prefix.toUpperCase(),
-          padding: Number(v.padding),
-          nextNumber: Number(v.nextNumber),
-        },
+        body: fixedFormat
+          ? { nextNumber: Number(v.nextNumber) }
+          : {
+              prefix: v.prefix.toUpperCase(),
+              padding: Number(v.padding),
+              nextNumber: Number(v.nextNumber),
+            },
       })
       toast.success("Consecutivo actualizado")
       setOpen(false)
@@ -122,6 +129,7 @@ export function FolioEditDialog({
                         <Input
                           className="h-11 uppercase md:h-9"
                           autoCapitalize="characters"
+                          disabled={fixedFormat}
                           {...field}
                         />
                       </FormControl>
@@ -139,6 +147,7 @@ export function FolioEditDialog({
                         <Input
                           className="h-11 md:h-9"
                           inputMode="numeric"
+                          disabled={fixedFormat}
                           {...field}
                         />
                       </FormControl>

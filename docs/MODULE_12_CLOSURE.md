@@ -346,3 +346,7 @@ Los reportes (`docs/MODULE_14_REPORTS.md`) usan `ClosureReport.content` como **v
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 Cerrar el ciclo de una mesa libera al dealer (`CYCLE_CLOSED`) en la misma transacción; un trigger impide cerrar un ciclo con asientos ocupados o dealer vigente. Un jugador sentado sin compra debe retirarse (sin compra) o transferirse antes de cerrar. La métrica del ciclo agrega `playersWithdrawn`.
+
+## Folios de sesión y captura histórica — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
+
+Una sesión `HISTORICAL` no tiene cierre (no se abre, no tiene caja ni arqueos): no aparece en los flujos de cierre. Los reportes de cierre ya emitidos conservan el folio que tenían al emitirse (contenido inmutable); la sesión guarda el anterior en `previousFolio`.

@@ -95,8 +95,10 @@ export type DebtFact = {
   session: {
     id: string
     folio: string
-    /** Fecha operativa: apertura real (o creación si nunca abrió). */
+    /** Instante de operación: apertura real (o creación si nunca abrió). */
     operatedAt: Date
+    /** Fecha operativa de la sesión (businessDate, YYYY-MM-DD). */
+    businessDate?: string
     status: string
     closedAt: Date | null
   }
@@ -548,7 +550,7 @@ export function buildCreditTree(
           id: s.fact.id,
           folio: s.fact.folio,
           operatedAt: s.fact.operatedAt.toISOString(),
-          operatedDay: businessDay(s.fact.operatedAt),
+          operatedDay: s.fact.businessDate ?? businessDay(s.fact.operatedAt),
           status: s.fact.status,
           closedAt: s.fact.closedAt?.toISOString() ?? null,
         },

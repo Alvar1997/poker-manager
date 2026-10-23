@@ -225,3 +225,9 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 - Cambiar de asiento o de mesa no mueve dinero ni fichas; el jugador conserva compras, deuda y numeración.
 - Quien nunca recibió fichas puede retirarse sin compra (con motivo); quien recibió fichas sale con liquidación (firma obligatoria, compensación opcional FIFO, recepción física por separado). Al confirmar la recepción se libera su asiento; si falta pagarle, la obligación sigue en Liquidaciones.
 - El color del paño es solo visual y por mesa.
+
+## Folios de sesión y sesiones históricas — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
+
+- Cada sesión tiene un folio `S-0001-AAAAMMDD`: un consecutivo único que nunca se reinicia ni se reutiliza, más la fecha operativa (el día en que comenzó la jornada, aunque termine después de medianoche). El folio no cambia nunca.
+- La fecha operativa es distinta de la fecha real en que se registró, abrió o cerró la sesión y de las fechas de sus movimientos. Los reportes por jornada usan la fecha operativa; los pagos posteriores conservan su fecha real.
+- Solo SUPERADMIN puede registrar una sesión de una fecha anterior. Esa sesión histórica no tiene caja, inventario ni operación, no afecta a la sesión vigente y solo puede cancelarse. Las operaciones financieras de fechas pasadas no se capturan todavía.

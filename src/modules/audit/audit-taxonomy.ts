@@ -94,6 +94,7 @@ const RULES: [string, AuditModule][] = [
   ["SESSION_TABLE", "TABLES"],
   ["TABLE_", "TABLES"],
   ["SESSION_", "SESSIONS"],
+  ["HISTORICAL_SESSION_", "SESSIONS"],
   ["SETTLEMENT_", "SETTLEMENTS"],
   ["PURCHASE_", "PURCHASES"],
   ["TERMINAL_PAYMENT", "PURCHASES"],

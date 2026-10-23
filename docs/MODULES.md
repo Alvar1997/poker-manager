@@ -189,6 +189,12 @@ Detalle: [`docs/POKER_TABLE_UX_REDESIGN.md`](POKER_TABLE_UX_REDESIGN.md). La pan
 
 Pendientes conocidos: montos rápidos configurables desde la interfaz; pantalla de catálogo de dealers.
 
+## Folios de sesión y captura histórica — entregado
+
+Detalle: [`docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`](SESSION_FOLIO_AND_HISTORICAL_ENTRY.md). Folio `S-0001-YYYYMMDD` (consecutivo global + fecha operativa `businessDate`), migración segura de los folios `SES-…` y registro de sesiones de fechas anteriores exclusivo de SUPERADMIN (estado `HISTORICAL`, sin caja, inventario ni operación). Listados y reportes por fecha operativa. Migraciones `20261031120000_session_folio_enums` y `20261031130000_session_folio_historical`.
+
+Migraciones aplicadas en Neon el 2026-10-23. Pendientes conocidos: captura financiera histórica (compras, pagos, liquidaciones antiguas) no implementada por diseño.
+
 ## Notas
 
 - `src/modules/*` del árbol de referencia (`auth`, `users`, `sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) se reparten entre estos módulos numerados — `sessions`+`tables` corresponden al Módulo 02, `reports` al Módulo 14 y `audit` al Módulo 15, etc.

@@ -14,6 +14,7 @@ const STATUS_CLASS: Record<SessionStatusValue, string> = {
   CLOSING: "border-sky-500/50 text-sky-700 dark:text-sky-400",
   CLOSED: "text-muted-foreground",
   CANCELLED: "text-muted-foreground line-through",
+  HISTORICAL: "border-violet-500/50 text-violet-700 dark:text-violet-400",
 }
 
 export function SessionStatusBadge({ status }: { status: SessionStatusValue }) {

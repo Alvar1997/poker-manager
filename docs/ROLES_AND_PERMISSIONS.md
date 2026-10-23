@@ -182,3 +182,7 @@ Los tres roles consultan (`special-ops:read`) y operan (`special-ops:operate`): 
 ## Mesa interactiva — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 Sin permisos nuevos. Sentar, cambiar de asiento, retirar sin compra, asignar dealer, registrar dealers y cambiar el paño usan `sessions:manage` (como registrar y transferir jugadores en el Módulo 07); consultar la mesa y su historial, `sessions:read`; buscar jugadores para un asiento, `players:read`. Compras, firmas y liquidaciones conservan `purchases:create`, `signatures:capture` y `settlements:operate`. Los tres roles los tienen; el servidor valida cada endpoint.
+
+## Sesiones históricas — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
+
+`SESSIONS_HISTORICAL_CREATE` (`sessions:historical-create`): registrar (y cancelar) sesiones de fechas anteriores. **Exclusivo de SUPERADMIN** (en `ADMIN_ONLY_PERMISSIONS`). PARTNER y CASHIER conservan la creación normal (`sessions:manage`); un intento histórico sin el permiso responde 403 y se audita (`HISTORICAL_SESSION_CREATION_REJECTED`).

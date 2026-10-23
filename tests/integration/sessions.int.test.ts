@@ -13,6 +13,7 @@ import * as sessionsRoute from "@/app/api/sessions/route"
 import { Prisma } from "@/generated/prisma/client"
 import { businessDateOf } from "@/lib/format"
 import { prisma } from "@/lib/prisma"
+import { formatSessionFolio } from "@/modules/sessions/session-folio"
 import { registerStockEntry } from "@/modules/inventory/inventory.service"
 import {
   confirmNominalChipDelivery,
@@ -143,7 +144,10 @@ describe("creación y sesión vigente única", () => {
     const s = await newSession()
     expect(s).toMatchObject({
       status: "DRAFT",
-      folio: "SES-000001",
+      folio: formatSessionFolio(1, businessDateOf(new Date())),
+      sequenceNumber: 1,
+      businessDate: businessDateOf(new Date()),
+      isHistorical: false,
       createdBy: { id: cashier.id },
       openedAt: null,
     })
@@ -589,7 +593,7 @@ describe("cancelación", () => {
     ).toBe(adjustments)
     expect(await auditRows("SESSION_CANCELLED")).toHaveLength(1)
     const next = await newSession()
-    expect(next.folio).toBe("SES-000002")
+    expect(next.folio).toMatch(/^S-0002-\d{8}$/)
   })
 
   it("no cancela con diferencias pendientes, ni sesiones abiertas, ni la de otro usuario", async () => {
@@ -640,7 +644,7 @@ describe("permisos y consultas", () => {
       expect((c.json.data as { steps: unknown[] }).steps).toHaveLength(10)
     }
     const list = await call(sessionsRoute.GET, {
-      path: "/api/sessions?q=SES-000001",
+      path: "/api/sessions?q=S-0001",
     })
     expect((list.json.data as { total: number }).total).toBe(1)
   })

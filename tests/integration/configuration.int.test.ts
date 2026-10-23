@@ -856,18 +856,27 @@ describe("folios", () => {
       locked: boolean
     }[]
     expect(folios).toHaveLength(13) // Módulos 15–16: COR-, INC-, CAN-, REV-, AJL-, PES-
-    expect(folios.find((f) => f.documentType === "SESSION")).toMatchObject({
-      preview: "SES-000001",
+    // Sesiones: formato fijo S-0001-AAAAMMDD (fecha operativa al crear).
+    const session = folios.find((f) => f.documentType === "SESSION")!
+    expect(session).toMatchObject({
+      preview: "S-0001-AAAAMMDD",
       locked: false,
     })
-
-    const session = folios.find((f) => f.documentType === "SESSION")!
-    const res = await call(folioByIdRoute.PATCH, {
+    const fixed = await call(folioByIdRoute.PATCH, {
       method: "PATCH",
       params: { id: session.id },
-      body: { prefix: "ses", padding: 4 },
+      body: { prefix: "ses", padding: 6 },
     })
-    expect(res.json.data).toMatchObject({ preview: "SES-0001" })
+    expect(fixed.status).toBe(422)
+
+    const purchase = folios.find((f) => f.documentType === "PURCHASE")!
+    expect(purchase.preview).toBe("CMP-000001")
+    const res = await call(folioByIdRoute.PATCH, {
+      method: "PATCH",
+      params: { id: purchase.id },
+      body: { prefix: "cmp", padding: 4 },
+    })
+    expect(res.json.data).toMatchObject({ preview: "CMP-0001" })
     expect(await auditRows("FOLIO_SEQUENCE_UPDATED")).toHaveLength(1)
   })
 

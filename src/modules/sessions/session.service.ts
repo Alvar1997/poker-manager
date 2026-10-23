@@ -8,11 +8,17 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "@/lib/errors"
+import { can, PERMISSIONS } from "@/config/permissions"
+import { businessDateOf } from "@/lib/format"
 import { isUniqueViolation } from "@/lib/prisma-errors"
 import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
 import type { RequestContext, SessionUser } from "@/modules/auth/auth.service"
-import { issueFolio } from "@/modules/settings/folio.service"
+import { issueSessionFolio } from "@/modules/settings/folio.service"
+import {
+  checkHistoricalDate,
+  HISTORICAL_DATE_MESSAGE,
+} from "@/modules/sessions/session-folio"
 import type {
   CreateSessionInput,
   SessionsQuery,
@@ -49,6 +55,12 @@ const actorSel = {
 const sessionSelect = {
   id: true,
   folio: true,
+  sequenceNumber: true,
+  businessDate: true,
+  previousFolio: true,
+  isHistorical: true,
+  historicalRecordedAt: true,
+  historicalRecordedBy: actorSel,
   status: true,
   notes: true,
   createdAt: true,
@@ -87,6 +99,15 @@ function toView(s: SessionRecord, viewer?: { id: string; role: string }) {
   return {
     id: s.id,
     folio: s.folio,
+    sequenceNumber: s.sequenceNumber,
+    /** Fecha operativa YYYY-MM-DD (columna DATE: sin zona horaria). */
+    businessDate: s.businessDate.toISOString().slice(0, 10),
+    /** Folio en el formato anterior (SES-000001), si se migró. */
+    previousFolio: s.previousFolio,
+    isHistorical: s.isHistorical,
+    /** Momento REAL de la captura histórica (no la fecha operativa). */
+    historicalRecordedAt: iso(s.historicalRecordedAt),
+    historicalRecordedBy: actor(s.historicalRecordedBy),
     status: s.status,
     statusLabel: SESSION_STATUS_LABEL[s.status],
     notes: s.notes,
@@ -199,19 +220,64 @@ export async function createSession(
   input: CreateSessionInput,
   ctx: RequestContext = {}
 ): Promise<SessionView & { replayed: boolean }> {
+  const historical = input.historical === true
+  // Captura histórica: SOLO SUPERADMIN (capacidad), revalidado aquí aunque
+  // la pantalla oculte la opción. El rechazo se audita.
+  if (historical && !can(actor, PERMISSIONS.SESSIONS_HISTORICAL_CREATE)) {
+    await recordAudit({
+      action: AUDIT_ACTIONS.HISTORICAL_SESSION_CREATION_REJECTED,
+      entityType: "PokerSession",
+      actorUserId: actor.id,
+      result: "DENIED",
+      requestId: ctx.requestId,
+      metadata: {
+        requestedBusinessDate: input.businessDate ?? null,
+        reason: "Sin permiso de captura histórica",
+      },
+    })
+    throw new ForbiddenError(
+      "Solo un superadministrador puede registrar sesiones de fechas anteriores."
+    )
+  }
+  const today = businessDateOf(new Date())
+  const businessDate = historical ? (input.businessDate as string) : today
+  if (historical) {
+    const check = checkHistoricalDate(businessDate, today)
+    if (!check.ok) {
+      await recordAudit({
+        action: AUDIT_ACTIONS.HISTORICAL_SESSION_CREATION_REJECTED,
+        entityType: "PokerSession",
+        actorUserId: actor.id,
+        result: "FAILURE",
+        requestId: ctx.requestId,
+        metadata: {
+          requestedBusinessDate: businessDate,
+          today,
+          reason: check.reason,
+        },
+      })
+      throw new BusinessRuleError(HISTORICAL_DATE_MESSAGE[check.reason])
+    }
+  }
+
   const replay = async () => {
     const existing = await prisma.pokerSession.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
       select: sessionSelect,
     })
     if (!existing) return null
-    if (existing.createdById !== actor.id) {
+    const view = toView(existing, actor)
+    if (
+      existing.createdById !== actor.id ||
+      existing.isHistorical !== historical ||
+      (historical && view.businessDate !== businessDate)
+    ) {
       throw new AppError(
         "CONFLICT",
         "Esta clave de operación ya se usó para otra sesión"
       )
     }
-    return { ...toView(existing, actor), replayed: true }
+    return { ...view, replayed: true }
   }
   const previous = await replay()
   if (previous) return previous
@@ -226,14 +292,29 @@ export async function createSession(
         throw new BusinessRuleError(
           "No existe la caja central. Ejecuta `npm run db:seed`."
         )
-      const folio = await issueFolio(tx, "SESSION")
+      const { folio, sequenceNumber } = await issueSessionFolio(
+        tx,
+        businessDate
+      )
+      const now = new Date()
+      const status = historical ? "HISTORICAL" : "DRAFT"
       const created = await tx.pokerSession.create({
         data: {
           folio,
+          sequenceNumber,
+          businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+          status,
           cashBoxId: cashBox.id,
           createdById: actor.id,
           notes: input.notes ?? null,
           idempotencyKey: input.idempotencyKey,
+          ...(historical
+            ? {
+                isHistorical: true,
+                historicalRecordedAt: now,
+                historicalRecordedById: actor.id,
+              }
+            : {}),
         },
         select: { id: true },
       })
@@ -241,18 +322,42 @@ export async function createSession(
         data: {
           sessionId: created.id,
           fromStatus: null,
-          toStatus: "DRAFT",
+          toStatus: status,
           changedById: actor.id,
+          reason: historical
+            ? `Captura histórica de la fecha operativa ${businessDate}`
+            : null,
         },
       })
+      const metadata = {
+        sessionId: created.id,
+        folio,
+        sequenceNumber,
+        businessDate,
+        kind: historical ? "HISTORICAL" : "REGULAR",
+        ...(historical ? { recordedAt: now.toISOString() } : {}),
+      }
       await recordAudit(
         {
-          action: AUDIT_ACTIONS.SESSION_CREATED,
+          action: historical
+            ? AUDIT_ACTIONS.HISTORICAL_SESSION_CREATED
+            : AUDIT_ACTIONS.SESSION_CREATED,
           entityType: "PokerSession",
           entityId: created.id,
           actorUserId: actor.id,
           requestId: ctx.requestId,
-          metadata: { folio },
+          metadata,
+        },
+        tx
+      )
+      await recordAudit(
+        {
+          action: AUDIT_ACTIONS.SESSION_FOLIO_ASSIGNED,
+          entityType: "PokerSession",
+          entityId: created.id,
+          actorUserId: actor.id,
+          requestId: ctx.requestId,
+          metadata,
         },
         tx
       )
@@ -312,24 +417,24 @@ export async function listSessions(
 ) {
   const where: Prisma.PokerSessionWhereInput = {}
   if (query.status) where.status = query.status
-  if (query.q) where.folio = { contains: query.q.toUpperCase() }
+  if (query.kind) where.isHistorical = query.kind === "historical"
+  // Busca en el folio vigente y en el anterior (SES-000001), para conciliar.
+  if (query.q) {
+    const q = query.q.toUpperCase()
+    where.OR = [{ folio: { contains: q } }, { previousFolio: { contains: q } }]
+  }
+  // Rango por FECHA OPERATIVA (columna DATE), no por la fecha de captura.
   if (query.from || query.to) {
-    where.createdAt = {
+    where.businessDate = {
       ...(query.from ? { gte: new Date(`${query.from}T00:00:00.000Z`) } : {}),
-      ...(query.to
-        ? {
-            lt: new Date(
-              new Date(`${query.to}T00:00:00.000Z`).getTime() + 86_400_000
-            ),
-          }
-        : {}),
+      ...(query.to ? { lte: new Date(`${query.to}T00:00:00.000Z`) } : {}),
     }
   }
   const [total, rows] = await prisma.$transaction([
     prisma.pokerSession.count({ where }),
     prisma.pokerSession.findMany({
       where,
-      orderBy: [{ createdAt: query.sort }, { id: "asc" }],
+      orderBy: [{ sequenceNumber: query.sort }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
       select: sessionSelect,
@@ -414,6 +519,44 @@ export async function cancelSession(
   await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId)
     if (session.status === "CANCELLED") return
+    // Captura histórica registrada por error: solo SUPERADMIN la cancela
+    // (no tiene caja, inventario ni operaciones que revisar).
+    if (session.status === "HISTORICAL") {
+      if (!can(actor, PERMISSIONS.SESSIONS_HISTORICAL_CREATE))
+        throw new ForbiddenError(
+          "Solo un superadministrador puede cancelar una sesión histórica."
+        )
+      const now = new Date()
+      await transitionInTx(
+        tx,
+        session,
+        "CANCELLED",
+        actor,
+        {
+          cancelledAt: now,
+          cancelledById: actor.id,
+          cancellationReason: input.reason,
+        },
+        input.reason
+      )
+      await recordAudit(
+        {
+          action: AUDIT_ACTIONS.SESSION_CANCELLED,
+          entityType: "PokerSession",
+          entityId: session.id,
+          actorUserId: actor.id,
+          requestId: ctx.requestId,
+          metadata: {
+            sessionId: session.id,
+            folio: session.folio,
+            from: session.status,
+            reason: input.reason,
+          },
+        },
+        tx
+      )
+      return
+    }
     if (!canManagePreparation(actor, session)) {
       throw new ForbiddenError(
         "Solo quien creó la sesión o un superadministrador pueden cancelarla."

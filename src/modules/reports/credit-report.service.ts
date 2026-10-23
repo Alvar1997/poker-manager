@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma"
 import type { ReportFilters } from "@/modules/reports/report.filters"
 import {
   buildCreditTree,
-  businessDay,
   businessRange,
   creditTotals,
   dec,
@@ -57,6 +56,7 @@ const debtSelect = {
     select: {
       id: true,
       folio: true,
+      businessDate: true,
       openedAt: true,
       createdAt: true,
       status: true,
@@ -130,6 +130,7 @@ function toDebtFact(d: DebtRow): DebtFact {
       id: d.session.id,
       folio: d.session.folio,
       operatedAt: d.session.openedAt ?? d.session.createdAt,
+      businessDate: d.session.businessDate.toISOString().slice(0, 10),
       status: d.session.status,
       closedAt: d.session.status === "CLOSED" ? d.session.closedAt : null,
     },
@@ -377,6 +378,7 @@ export async function listCreditSessions(f: ReportFilters, db: Db = prisma) {
       folio: string
       status: string
       operatedAt: Date
+      businessDate: Date
       closedAt: Date | null
       debts: bigint
       players: bigint
@@ -386,7 +388,7 @@ export async function listCreditSessions(f: ReportFilters, db: Db = prisma) {
   >`
     ${debtsCte(f)}
     SELECT debts."sessionId", s."folio", s."status"::text AS "status",
-      COALESCE(s."openedAt", s."createdAt") AS "operatedAt", s."closedAt",
+      COALESCE(s."openedAt", s."createdAt") AS "operatedAt", s."businessDate", s."closedAt",
       ${AGG},
       COUNT(*) AS "debts",
       COUNT(DISTINCT debts."playerId") AS "players",
@@ -395,8 +397,8 @@ export async function listCreditSessions(f: ReportFilters, db: Db = prisma) {
     FROM debts
     JOIN "poker_sessions" s ON s."id" = debts."sessionId"
     LEFT JOIN "closure_reports" cr ON cr."sessionId" = s."id"
-    GROUP BY debts."sessionId", s."folio", s."status", s."openedAt", s."createdAt", s."closedAt"
-    ORDER BY "operatedAt" ASC, debts."sessionId" ASC
+    GROUP BY debts."sessionId", s."folio", s."status", s."openedAt", s."createdAt", s."businessDate", s."closedAt"
+    ORDER BY s."businessDate" ASC, "operatedAt" ASC, debts."sessionId" ASC
     LIMIT ${f.pageSize} OFFSET ${offset}
   `
   return {
@@ -409,7 +411,7 @@ export async function listCreditSessions(f: ReportFilters, db: Db = prisma) {
         folio: r.folio,
         status: r.status,
         operatedAt: r.operatedAt.toISOString(),
-        operatedDay: businessDay(r.operatedAt),
+        operatedDay: r.businessDate.toISOString().slice(0, 10),
         closedAt: r.closedAt?.toISOString() ?? null,
       },
       ...aggView(r),

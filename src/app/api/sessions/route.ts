@@ -21,8 +21,12 @@ export const GET = withApiHandler(async (req, { requestId }) => {
 })
 
 /**
- * POST /api/sessions — crea una sesión en DRAFT. El servidor asigna folio,
- * creador (usuario autenticado) y fechas. Una sola sesión vigente: 409.
+ * POST /api/sessions — crea una sesión en DRAFT. El servidor asigna folio
+ * (S-0001-YYYYMMDD), consecutivo, fecha operativa, creador y fechas reales.
+ * Una sola sesión vigente: 409. Con `historical: true` + `businessDate`
+ * registra una sesión HISTÓRICA de una fecha anterior: SOLO SUPERADMIN
+ * (`sessions:historical-create`, validado en el servicio; el rechazo se
+ * audita) y sin caja, inventario ni operación en vivo.
  */
 export const POST = withApiHandler(async (req, { requestId }) => {
   const actor = await requirePermission(PERMISSIONS.SESSIONS_MANAGE, {

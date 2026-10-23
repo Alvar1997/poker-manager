@@ -76,7 +76,10 @@ describe("máquina de estados de sesión (Módulo 06)", () => {
     ])
     expect(isActiveSessionStatus("CLOSED")).toBe(false)
     expect(isActiveSessionStatus("CANCELLED")).toBe(false)
-    expect(SESSION_STATUSES).toHaveLength(6)
+    // Captura histórica: no ocupa la sesión vigente y solo se cancela.
+    expect(isActiveSessionStatus("HISTORICAL")).toBe(false)
+    expect(SESSION_TRANSITIONS.HISTORICAL).toEqual(["CANCELLED"])
+    expect(SESSION_STATUSES).toHaveLength(7)
   })
 })
 

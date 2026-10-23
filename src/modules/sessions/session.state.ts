@@ -16,6 +16,7 @@ export const SESSION_STATUSES = [
   "CLOSING",
   "CLOSED",
   "CANCELLED",
+  "HISTORICAL",
 ] as const
 export type SessionStatusValue = (typeof SESSION_STATUSES)[number]
 
@@ -37,6 +38,8 @@ export const SESSION_TRANSITIONS: Record<
   CLOSING: ["OPEN", "CLOSED"],
   CLOSED: [],
   CANCELLED: [],
+  // Captura histórica: sin operación en vivo; solo se puede cancelar.
+  HISTORICAL: ["CANCELLED"],
 }
 
 export const SESSION_STATUS_LABEL: Record<SessionStatusValue, string> = {
@@ -46,6 +49,7 @@ export const SESSION_STATUS_LABEL: Record<SessionStatusValue, string> = {
   CLOSING: "En cierre",
   CLOSED: "Cerrada",
   CANCELLED: "Cancelada",
+  HISTORICAL: "Histórica",
 }
 
 export function canTransition(

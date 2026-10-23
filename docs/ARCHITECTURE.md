@@ -268,3 +268,11 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 - **Estado del asiento derivado** (compras confirmadas, compras en preparación, liquidaciones en curso) en una sola consulta del tablero; nunca columnas de estado editables.
 - **Geometría en porcentajes** con prueba unitaria de no superposición en varios anchos de pantalla (además de la E2E con cajas reales).
 - Detalle: `docs/POKER_TABLE_UX_REDESIGN.md`.
+
+## Decisiones de folios de sesión y captura histórica
+
+- **Consecutivo con el mecanismo existente**: `folio_sequences` (`UPDATE … RETURNING` atómico dentro de la transacción del documento) en lugar de una `SEQUENCE` de PostgreSQL: misma garantía de unicidad bajo concurrencia, sin huecos por transacciones fallidas y consistente con el resto de los folios. `sequenceNumber` además es `UNIQUE` y un CHECK ata el folio a consecutivo + fecha.
+- **Estado `HISTORICAL` en vez de reutilizar DRAFT/CLOSED**: un DRAFT ocuparía la sesión vigente y un CLOSED fingiría un cierre que no ocurrió; un estado explícito queda fuera de todos los flujos en vivo (todos exigen DRAFT/PREPARATION/OPEN) sin tocarlos.
+- **Fecha operativa como `DATE`**: el día de la jornada sin zona horaria; los instantes reales siguen en `timestamp` UTC.
+- **Permiso por capacidad** (`sessions:historical-create`), no comparación de rol.
+- Detalle: `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`.

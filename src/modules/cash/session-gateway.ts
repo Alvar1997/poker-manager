@@ -17,10 +17,18 @@ import { prisma } from "@/lib/prisma"
  *  - OPEN:        habilitada; admite cobros, aportaciones, retiros, traslados.
  *  - CLOSING:     cierre en curso; arqueo de cierre y retiro total (Módulo 12).
  *  - CLOSED / CANCELLED: sin operaciones de efectivo.
+ *  - HISTORICAL:  captura histórica de una fecha anterior; nunca tiene caja
+ *                 ni operaciones de efectivo.
  */
 
 export type SessionStatus =
-  "DRAFT" | "PREPARATION" | "OPEN" | "CLOSING" | "CLOSED" | "CANCELLED"
+  | "DRAFT"
+  | "PREPARATION"
+  | "OPEN"
+  | "CLOSING"
+  | "CLOSED"
+  | "CANCELLED"
+  | "HISTORICAL"
 
 export type OperationalSession = { id: string; status: SessionStatus }
 

@@ -158,3 +158,7 @@ Son Mobile First, con skeleton, manejo de errores y confirmaciones. Las acciones
 - **Cambio en la apertura por el Módulo 12:** el paso `NO_PENDING_CIRCULATION` ya NO bloquea por fichas en circulación de sesiones cerradas (se informan como valor pendiente de retorno, global y continuo); siguen bloqueando las reservas activas y la circulación por denominación del modelo anterior. Sin este cambio, una sola ficha no retornada impediría abrir cualquier sesión futura.
 - La regla del creador no aplica al cierre: cualquier rol con `sessions:manage` lo prepara y solo PARTNER/SUPERADMIN lo confirma.
 - El gateway de sesiones de la caja (`prismaSessionGateway`) ya lee `poker_sessions`.
+
+## Folios de sesión y captura histórica — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
+
+Folio `S-0001-YYYYMMDD` (consecutivo global `sequenceNumber` + fecha operativa `businessDate`) emitido por `issueSessionFolio` en la transacción de creación; inmutable. SUPERADMIN puede registrar sesiones de fechas anteriores (estado `HISTORICAL`, `isHistorical`, `historicalRecordedAt`/`By`): no ocupan la sesión vigente, no se preparan ni abren y solo pasan a CANCELLED. El listado filtra por fecha operativa y por tipo, y busca también por el folio anterior (`previousFolio`).

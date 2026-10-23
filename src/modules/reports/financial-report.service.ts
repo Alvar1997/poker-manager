@@ -6,7 +6,6 @@ import { getGlobalChipPosition } from "@/modules/closure/chip-circulation.servic
 import { getCreditSummary } from "@/modules/reports/credit-report.service"
 import type { ReportFilters } from "@/modules/reports/report.filters"
 import {
-  businessDay,
   businessRange,
   dec,
   fmt,
@@ -84,6 +83,7 @@ export async function sessionCashBooks(f: ReportFilters, db: Db = prisma) {
         status: true,
         openedAt: true,
         createdAt: true,
+        businessDate: true,
         closedAt: true,
         opening: { select: { openingCashAmount: true } },
       },
@@ -125,7 +125,7 @@ export async function sessionCashBooks(f: ReportFilters, db: Db = prisma) {
           id: s.id,
           folio: s.folio,
           status: s.status,
-          operatedDay: businessDay(s.openedAt ?? s.createdAt),
+          operatedDay: s.businessDate.toISOString().slice(0, 10),
           closedAt: s.closedAt?.toISOString() ?? null,
         },
         /** Siempre $0.00 por regla (ZERO_OPENING_BALANCE). */

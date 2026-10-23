@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -21,6 +21,10 @@ import { Label } from "@/components/ui/label"
 import { apiRequest, ApiClientError } from "@/lib/api-client"
 import { useIdempotencyKey } from "@/modules/inventory/components/use-idempotency-key"
 import { SESSIONS_BASE } from "@/modules/sessions/components/session-ui"
+import {
+  formatBusinessDateMx,
+  HISTORICAL_MIN_DATE,
+} from "@/modules/sessions/session-folio"
 
 const textareaClass =
   "border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 w-full rounded-lg border bg-transparent px-2.5 py-2 text-base outline-none focus-visible:ring-3 md:text-sm"
@@ -29,24 +33,72 @@ function errorMessage(e: unknown, fallback: string) {
   return e instanceof Error ? e.message : fallback
 }
 
-/** Crear sesión: el servidor asigna folio, creador y fechas. Sin mesas ni fondo inicial. */
-export function CreateSessionButton() {
+/** Día anterior a una fecha YYYY-MM-DD (para el máximo del selector). */
+function previousDay(day: string) {
+  const [y, m, d] = day.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
+}
+
+/**
+ * Crear sesión. El servidor asigna folio (S-0001-AAAAMMDD), consecutivo,
+ * creador y fechas reales. SUPERADMIN puede registrar una sesión HISTÓRICA
+ * de una fecha anterior (el servidor revalida permiso y fecha). La vista
+ * previa del folio es provisional: el definitivo llega en la respuesta.
+ */
+export function CreateSessionForm({
+  today,
+  canHistorical,
+  initialHistorical = false,
+  activeSession,
+}: {
+  today: string
+  canHistorical: boolean
+  initialHistorical?: boolean
+  activeSession: { id: string; folio: string } | null
+}) {
   const router = useRouter()
   const [key, renew] = useIdempotencyKey()
+  const [historical, setHistorical] = useState(initialHistorical)
+  const [businessDate, setBusinessDate] = useState("")
+  const [created, setCreated] = useState<{
+    id: string
+    folio: string
+    isHistorical: boolean
+  } | null>(null)
   const [error, setError] = useState<{
     message: string
     activeId: string | null
   } | null>(null)
+  const maxDate = previousDay(today)
+  const validDate =
+    /^\d{4}-\d{2}-\d{2}$/.test(businessDate) &&
+    businessDate <= maxDate &&
+    businessDate >= HISTORICAL_MIN_DATE
+  const previewDate = historical ? (validDate ? businessDate : null) : today
+  const preview = useQuery({
+    queryKey: ["session-folio-preview", previewDate],
+    queryFn: () =>
+      apiRequest<{ folio: string; nextSequenceNumber: number }>(
+        `/api/sessions/folio-preview?businessDate=${previewDate}`
+      ),
+    enabled: previewDate !== null && created === null,
+  })
   const mutation = useMutation({
     mutationFn: () =>
-      apiRequest<{ id: string; folio: string }>("/api/sessions", {
-        method: "POST",
-        body: { idempotencyKey: key },
-      }),
+      apiRequest<{ id: string; folio: string; isHistorical: boolean }>(
+        "/api/sessions",
+        {
+          method: "POST",
+          body: historical
+            ? { idempotencyKey: key, historical: true, businessDate }
+            : { idempotencyKey: key },
+        }
+      ),
     onSuccess: (s) => {
       renew()
+      setCreated(s)
       toast.success(`Sesión ${s.folio} creada`)
-      router.push(`${SESSIONS_BASE}/${s.id}/preparacion`)
+      if (!s.isHistorical) router.push(`${SESSIONS_BASE}/${s.id}/preparacion`)
     },
     onError: (e) => {
       const activeId =
@@ -60,16 +112,109 @@ export function CreateSessionButton() {
       })
     },
   })
+
+  if (created?.isHistorical)
+    return (
+      <div className="space-y-3" data-testid="historical-created">
+        <p className="rounded-lg border p-3 text-sm">
+          Sesión histórica registrada con el folio definitivo{" "}
+          <strong className="font-mono" data-testid="definitive-folio">
+            {created.folio}
+          </strong>
+          .
+        </p>
+        <Button
+          className="h-12 w-full text-base"
+          onClick={() => router.push(`${SESSIONS_BASE}/${created.id}`)}
+          data-testid="go-created-session"
+        >
+          Ver la sesión
+        </Button>
+      </div>
+    )
+
+  const blockedByActive = !historical && activeSession !== null
+  const ready =
+    !mutation.isPending && !blockedByActive && (!historical || validDate)
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {canHistorical ? (
+        <label className="flex min-h-11 items-center gap-3 rounded-lg border p-3 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-5"
+            checked={historical}
+            onChange={(e) => {
+              setHistorical(e.target.checked)
+              setError(null)
+            }}
+            data-testid="historical-toggle"
+          />
+          Registrar sesión de fecha anterior
+        </label>
+      ) : null}
+
+      {historical ? (
+        <div className="space-y-2">
+          <Label htmlFor="historical-date">Fecha original de la sesión</Label>
+          <Input
+            id="historical-date"
+            type="date"
+            className="h-12 text-base"
+            max={maxDate}
+            min={HISTORICAL_MIN_DATE}
+            value={businessDate}
+            onChange={(e) => setBusinessDate(e.target.value)}
+            data-testid="historical-date"
+          />
+          <p className="text-muted-foreground text-xs">
+            {validDate
+              ? `Fecha operativa: ${formatBusinessDateMx(businessDate)}`
+              : `Elige un día anterior a hoy (${formatBusinessDateMx(today)}).`}
+          </p>
+          <p
+            className="rounded-lg border border-violet-500/40 bg-violet-500/5 p-3 text-sm"
+            role="note"
+            data-testid="historical-warning"
+          >
+            Esta sesión se registrará como histórica. La fecha de captura real
+            quedará guardada en auditoría y no se modificarán automáticamente
+            caja ni inventario.
+          </p>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Fecha operativa: <strong>{formatBusinessDateMx(today)}</strong> (hoy).
+        </p>
+      )}
+
+      {previewDate ? (
+        <p className="text-sm" data-testid="folio-preview">
+          Folio provisional:{" "}
+          <span className="font-mono font-semibold">
+            {preview.data?.folio ?? "…"}
+          </span>
+          <span className="text-muted-foreground block text-xs">
+            El consecutivo definitivo lo asigna el sistema al confirmar.
+          </span>
+        </p>
+      ) : null}
+
+      {blockedByActive ? (
+        <p className="rounded-lg border p-3 text-sm" role="alert">
+          Ya existe una sesión vigente ({activeSession!.folio}). Termínala o
+          cancélala antes de crear otra.
+        </p>
+      ) : null}
+
       <Button
         className="h-12 w-full text-base"
         onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
+        disabled={!ready}
         data-testid="create-session"
       >
         {mutation.isPending ? <Loader2 className="animate-spin" /> : null}
-        Crear sesión
+        {historical ? "Registrar sesión histórica" : "Crear sesión"}
       </Button>
       {error ? (
         <div role="alert" className="text-destructive space-y-2 text-sm">

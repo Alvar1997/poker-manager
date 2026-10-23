@@ -152,7 +152,7 @@ test.describe("Configuración — SUPERADMIN", () => {
         .getByTestId("folio-card")
         .filter({ hasText: "Sesiones" })
         .getByTestId("folio-preview")
-    ).toHaveText(/^SES-\d{6}$/) // avanza si otras specs ya crearon sesiones
+    ).toHaveText(/^S-\d{4,}-AAAAMMDD$/) // avanza si otras specs ya crearon sesiones
   })
 })
 

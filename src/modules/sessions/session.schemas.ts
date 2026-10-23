@@ -28,10 +28,31 @@ const notes = z
   .nullable()
   .optional()
 
-export const createSessionSchema = z.strictObject({
-  idempotencyKey: idempotencyKeySchema,
-  notes,
-})
+const businessDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida (AAAA-MM-DD)")
+
+/**
+ * Crear sesión. Normal: el servidor fija la fecha operativa (hoy, zona del
+ * negocio). Histórica (`historical: true`, solo SUPERADMIN): la fecha
+ * ORIGINAL anterior a hoy. El cliente nunca envía folio ni consecutivo.
+ */
+export const createSessionSchema = z
+  .strictObject({
+    idempotencyKey: idempotencyKeySchema,
+    notes,
+    historical: z.boolean().optional(),
+    businessDate: businessDateSchema.optional(),
+  })
+  .refine((v) => !v.businessDate || v.historical === true, {
+    message:
+      "La fecha operativa solo se elige al registrar una sesión histórica",
+    path: ["businessDate"],
+  })
+  .refine((v) => v.historical !== true || Boolean(v.businessDate), {
+    message: "Indica la fecha original de la sesión",
+    path: ["businessDate"],
+  })
 export type CreateSessionInput = z.infer<typeof createSessionSchema>
 
 export const openSessionSchema = z.strictObject({
@@ -68,8 +89,15 @@ export const openingCashSchema = z
   )
 export type OpeningCashInput = z.infer<typeof openingCashSchema>
 
+/** Vista previa provisional del folio (no reserva el consecutivo). */
+export const folioPreviewQuerySchema = z.object({
+  businessDate: businessDateSchema.optional(),
+})
+
+/** `from`/`to` filtran por FECHA OPERATIVA (businessDate), no por captura. */
 export const sessionsQuerySchema = z.object({
   status: z.enum(SESSION_STATUSES).optional(),
+  kind: z.enum(["historical", "regular"]).optional(),
   q: z.string().trim().max(30).optional(),
   from: z
     .string()

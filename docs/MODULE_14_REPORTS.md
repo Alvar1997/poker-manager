@@ -192,3 +192,7 @@ Paginación en todos los listados; agregaciones en la base (`groupBy`, CTE SQL c
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 Las compras, créditos y liquidaciones registradas desde la mesa aparecen en los reportes sin cambios (mismas tablas). Asientos, dealer y paño no son movimientos financieros y no se reportan como tales.
+
+## Folios de sesión y captura histórica — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
+
+Los reportes por sesión filtran y muestran la **fecha operativa** (`businessDate`), no la de captura ni la de apertura; el XLSX de sesiones agrega «Folio anterior» y «Tipo» (normal/histórica). El reporte de créditos sigue agrupando por `sessionId` de origen y muestra la fecha operativa de esa sesión; los movimientos financieros conservan su fecha efectiva.

@@ -10,6 +10,7 @@ import {
   SESSIONS_BASE,
   SessionStatusBadge,
 } from "@/modules/sessions/components/session-ui"
+import { formatBusinessDateMx } from "@/modules/sessions/session-folio"
 import { getStatusHistory } from "@/modules/sessions/session.service"
 import { SESSION_STATUS_LABEL } from "@/modules/sessions/session.state"
 
@@ -52,6 +53,21 @@ export default async function SessionPage({
         <SessionStatusBadge status={session.status} />
       </div>
 
+      {session.isHistorical ? (
+        <p
+          className="rounded-lg border border-violet-500/40 bg-violet-500/5 p-3 text-sm"
+          data-testid="historical-notice"
+        >
+          <strong>Sesión histórica</strong> de la fecha operativa{" "}
+          {formatBusinessDateMx(session.businessDate)}. Se registró el{" "}
+          {session.historicalRecordedAt
+            ? formatDateTime(session.historicalRecordedAt)
+            : "—"}{" "}
+          por {session.historicalRecordedBy?.name ?? "—"}. No tiene caja ni
+          inventario propios y no admite operación en vivo.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
         {preparing ? (
           <Link
@@ -93,7 +109,9 @@ export default async function SessionPage({
                 : "Cierre de sesión"}
           </Link>
         ) : null}
-        {preparing && canManage && session.canManagePreparation ? (
+        {(preparing && canManage && session.canManagePreparation) ||
+        (session.status === "HISTORICAL" &&
+          can(user, PERMISSIONS.SESSIONS_HISTORICAL_CREATE)) ? (
           <CancelSessionButton sessionId={id} />
         ) : null}
       </div>
@@ -101,8 +119,24 @@ export default async function SessionPage({
       <Card>
         <CardContent>
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            {row(
+              "Fecha operativa",
+              formatBusinessDateMx(session.businessDate),
+              "session-business-date"
+            )}
+            {row(
+              "Registrada en el sistema (fecha real)",
+              formatDateTime(session.createdAt),
+              "session-created-at"
+            )}
             {row("Creada por (responsable)", session.createdBy.name)}
-            {row("Creada", formatDateTime(session.createdAt))}
+            {session.previousFolio
+              ? row(
+                  "Folio anterior",
+                  <span className="font-mono">{session.previousFolio}</span>,
+                  "session-previous-folio"
+                )
+              : null}
             {row(
               "Preparación iniciada",
               session.preparationStartedAt

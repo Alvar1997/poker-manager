@@ -63,6 +63,9 @@ export const PERMISSIONS = {
   // ajustes excepcionales de diferencias de arqueo (Módulo 12, DEC-04).
   // Solo PARTNER y SUPERADMIN: CASHIER prepara el cierre pero no lo confirma.
   SESSIONS_CLOSE_AUTHORIZE: "sessions:close-authorize",
+  // Registrar sesiones de una fecha operativa ANTERIOR (captura histórica).
+  // Exclusivo de SUPERADMIN: sin caja, inventario ni operación en vivo.
+  SESSIONS_HISTORICAL_CREATE: "sessions:historical-create",
 
   // Jugadores (Módulo 03). PLAYERS_MANAGE = activar/desactivar.
   // El historial de teléfonos y la auditoría del jugador (datos personales
@@ -150,6 +153,8 @@ export const ADMIN_ONLY_PERMISSIONS: readonly Permission[] = [
   PERMISSIONS.AUDIT_SECURITY_READ,
   // Recuperación de producción y modo mantenimiento (DEC-11).
   PERMISSIONS.RECOVERY_MANAGE,
+  // Captura de sesiones de fechas anteriores.
+  PERMISSIONS.SESSIONS_HISTORICAL_CREATE,
 ]
 
 const CASHIER_PERMISSIONS: readonly Permission[] = [
