@@ -47,7 +47,7 @@ La vista previa (`GET /api/sessions/folio-preview?businessDate=`) es **provision
 5. Guarda el folio anterior en `previousFolio` (único) y escribe el nuevo. Solo toca filas sin migrar.
 6. Aplica NOT NULL, índices únicos, CHECKs y las guardias nuevas; ajusta el consecutivo `SESSION` (prefijo `S`, 4 dígitos, siguiente número ≥ mayor + 1).
 
-No cambia ids, relaciones, estados, fechas reales, movimientos financieros, firmas ni comprobantes. Los comprobantes y reportes de cierre guardados (JSON inmutable) conservan el folio que tenían; la búsqueda de sesiones encuentra también por `previousFolio` y el detalle y el XLSX lo muestran para conciliar. En producción (verificado en solo lectura antes de aplicar y aplicado el 2026-10-23): `SES-000001` (creada el 22/10/2026 22:27 hora local) → `S-0001-20261022`; siguiente consecutivo 2.
+No cambia ids, relaciones, estados, fechas reales, movimientos financieros, firmas ni comprobantes. Los comprobantes y reportes de cierre guardados (JSON inmutable) conservan el folio que tenían; la búsqueda de sesiones encuentra también por `previousFolio` y el detalle y el XLSX lo muestran para conciliar. En producción (verificado en solo lectura antes de aplicar y aplicado el 2026-10-23): `SES-000001` (creada el 22/10/2026 22:27 hora local) → `S-0001-20261022`; siguiente consecutivo 2. Ese mismo día, a pedido del propietario, su fecha operativa se corrigió al 21/10/2026 (`S-0001-20261021`) con una corrección controlada en la base, auditada como `SESSION_BUSINESS_DATE_CORRECTED` (folio y fecha de antes y después). El folio y la fecha siguen siendo inmutables para la aplicación: este tipo de corrección no tiene endpoint y solo se hace de forma excepcional y auditada.
 
 ## 6. Auditoría
 
