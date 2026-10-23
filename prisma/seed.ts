@@ -32,6 +32,7 @@ import { PrismaClient } from "@/generated/prisma/client"
 import { seedFinancialAccounts } from "@/modules/cash/cash.seed"
 import { seedChipContainers } from "@/modules/inventory/inventory.seed"
 import { seedConfiguration } from "@/modules/settings/configuration.seed"
+import "@/lib/pg-deprecation-filter"
 import { PrismaPg } from "@prisma/adapter-pg"
 
 const MIN_PASSWORD_LENGTH = 12
