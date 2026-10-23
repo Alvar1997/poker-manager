@@ -169,9 +169,12 @@ type Method = "CASH" | "BANK_TRANSFER" | "CARD_DEBIT" | "CARD_CREDIT"
 export function AddPaymentForm({
   purchaseId,
   suggested,
+  onDone,
 }: {
   purchaseId: string
   suggested: string
+  /** Opcional (mesa interactiva): se llama tras registrar el pago. */
+  onDone?: () => void
 }) {
   const [method, setMethod] = useState<Method>("CASH")
   const [amount, setAmount] = useState(suggested === "0.00" ? "" : suggested)
@@ -194,7 +197,13 @@ export function AddPaymentForm({
   }
   const add = useAction<Record<string, unknown>>(
     `/api/purchases/${purchaseId}/payments`,
-    { success: "Pago registrado", onDone: reset }
+    {
+      success: "Pago registrado",
+      onDone: () => {
+        reset()
+        onDone?.()
+      },
+    }
   )
   const isCard = method === "CARD_DEBIT" || method === "CARD_CREDIT"
   const body = (): Record<string, unknown> => {
@@ -563,9 +572,11 @@ export function PaymentActions({
 export function CreditAuthorizationForm({
   purchaseId,
   partners,
+  onDone,
 }: {
   purchaseId: string
   partners: { id: string; name: string }[]
+  onDone?: () => void
 }) {
   const [partnerId, setPartnerId] = useState("")
   const [channel, setChannel] = useState<"" | "VERBAL" | "MESSAGE">("")
@@ -578,6 +589,7 @@ export function CreditAuthorizationForm({
       onDone: () => {
         renew()
         setNotes("")
+        onDone?.()
       },
     }
   )
@@ -697,10 +709,12 @@ export function ConfirmDeliveryForm({
   purchaseId,
   version,
   blocked,
+  onDone,
 }: {
   purchaseId: string
   version: number
   blocked: boolean
+  onDone?: () => void
 }) {
   const [delivered, setDelivered] = useState(false)
   const [key, renew] = useIdempotencyKey()
@@ -711,6 +725,7 @@ export function ConfirmDeliveryForm({
       onDone: () => {
         renew()
         setDelivered(false)
+        onDone?.()
       },
     }
   )
@@ -746,10 +761,16 @@ export function ConfirmDeliveryForm({
   )
 }
 
-export function CancelPurchaseButton({ purchaseId }: { purchaseId: string }) {
+export function CancelPurchaseButton({
+  purchaseId,
+  onDone,
+}: {
+  purchaseId: string
+  onDone?: () => void
+}) {
   const cancel = useAction<Record<string, unknown>>(
     `/api/purchases/${purchaseId}/cancel`,
-    { success: "Compra cancelada" }
+    { success: "Compra cancelada", onDone: () => onDone?.() }
   )
   return (
     <ReasonDialog

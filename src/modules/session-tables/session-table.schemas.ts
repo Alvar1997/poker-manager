@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { ValidationError } from "@/lib/errors"
 import { idempotencyKeySchema } from "@/modules/sessions/session.schemas"
+import { seatNumberSchema } from "@/modules/table-floor/table-floor.schemas"
 
 /**
  * Schemas del Módulo 07. El cliente nunca envía fechas, responsables,
@@ -24,19 +25,25 @@ export const closeTableSchema = z.strictObject({
 
 export const addPlayerSchema = z.strictObject({
   playerId: idSchema,
+  /** Opcional: asiento libre (1..9) que ocupa al registrarse. */
+  seatNumber: seatNumberSchema.optional(),
   idempotencyKey: idempotencyKeySchema,
 })
 
 export const transferSchema = z.strictObject({
   sourceParticipationId: idSchema,
   destinationTableId: idSchema,
+  /** Opcional: asiento libre de la mesa destino. */
+  destinationSeatNumber: seatNumberSchema.optional(),
   notes: z.string().trim().max(300).optional(),
   idempotencyKey: idempotencyKeySchema,
 })
 export type TransferInput = z.infer<typeof transferSchema>
 
 export const participationsQuerySchema = z.object({
-  status: z.enum(["ACTIVE", "TRANSFERRED", "SETTLED"]).optional(),
+  status: z
+    .enum(["ACTIVE", "TRANSFERRED", "SETTLING", "SETTLED", "WITHDRAWN"])
+    .optional(),
   tableId: idSchema.optional(),
 })
 

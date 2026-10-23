@@ -402,3 +402,7 @@ Pantallas Mobile First:
 ## Nota del Módulo 14 — reportes de liquidaciones
 
 `/dashboard/reportes/liquidaciones` (ver `docs/MODULE_14_REPORTS.md`) muestra devolución nominal, decisión y monto de compensación, pago neto, efectivo entregado, transferencias ejecutadas y **pendientes (no descuentan la obligación)**, obligación pendiente y fechas, aunque la sesión esté CLOSED. Las compensaciones se listan con las deudas y sesiones de origen afectadas y el saldo antes/después; no son abonos de efectivo ni ingresos bancarios, y cuentas por cobrar y por pagar nunca se netean en los reportes. Nuevo índice de lectura `player_settlements(cycleId)`.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+La liquidación desde el asiento reutiliza `SettlementAmountsForm` (`onCreated`), `SettlementSignatureCapture` y `ConfirmReturnForm` (`onDone`). `markParticipationSettlingInTx` y `completeParticipationFromSettlementInTx` liberan el asiento (`SETTLEMENT`) en su transacción. Los jugadores SETTLING aparecen bajo la mesa como «falta pagarles».

@@ -59,6 +59,7 @@ export const PARTICIPATION_LABEL: Record<string, string> = {
   TRANSFERRED: "Cambió de mesa",
   SETTLING: "En liquidación (falta pagar)",
   SETTLED: "Liquidado",
+  WITHDRAWN: "Retirado sin compra",
 }
 
 export function SettlementStatusBadge({ status }: { status: string }) {

@@ -178,3 +178,7 @@ DEC-01..03: los tres roles consultan la auditoría operativa y financiera (`audi
 ## Operaciones especiales (Módulo 16)
 
 Los tres roles consultan (`special-ops:read`) y operan (`special-ops:operate`): registrar canjes, confirmar recepciones físicas, ejecutar lo YA autorizado y registrar pagos reales. Solo PARTNER/SUPERADMIN autorizan: validan el valor de un canje (`special-ops:authorize`) y aprueban reversos de compra, correcciones de liquidación y devoluciones de fondos (`corrections:operate`). La opción de menú «Operaciones especiales» es visible para los tres roles. Ver `docs/MODULE_16_SPECIAL_OPERATIONS.md` §10.
+
+## Mesa interactiva — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+Sin permisos nuevos. Sentar, cambiar de asiento, retirar sin compra, asignar dealer, registrar dealers y cambiar el paño usan `sessions:manage` (como registrar y transferir jugadores en el Módulo 07); consultar la mesa y su historial, `sessions:read`; buscar jugadores para un asiento, `players:read`. Compras, firmas y liquidaciones conservan `purchases:create`, `signatures:capture` y `settlements:operate`. Los tres roles los tienen; el servidor valida cada endpoint.

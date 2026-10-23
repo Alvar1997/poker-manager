@@ -97,6 +97,14 @@ model User {
   specialEvidence         SpecialOperationEvidence[] @relation("SpecialEvidenceCapturedBy")
   specialReceipts         SpecialOperationReceipt[]  @relation("SpecialReceiptCreatedBy")
 
+  // Mesa interactiva: asientos y dealers.
+  seatsAssigned     TableSeatAssignment[] @relation("SeatAssignedBy")
+  seatsReleased     TableSeatAssignment[] @relation("SeatReleasedBy")
+  dealersCreated    Dealer[]              @relation("DealerCreatedBy")
+  dealersUpdated    Dealer[]              @relation("DealerUpdatedBy")
+  dealerAssignments DealerAssignment[]    @relation("DealerAssignedBy")
+  dealerReleases    DealerAssignment[]    @relation("DealerReleasedBy")
+
   // Trazabilidad de configuración (Módulo 02).
   businessSettingsUpdated BusinessSettings[] @relation("BusinessSettingsUpdatedBy")
   cashBoxesUpdated        CashBox[]          @relation("CashBoxUpdatedBy")
@@ -411,21 +419,24 @@ model ChipDenomination {
 /// (snapshot) de ciegas y juego de fichas: cambiar esta configuración no
 /// altera el histórico. No crea ninguna caja. Nunca se borra.
 model PokerTable {
-  id               String   @id @default(cuid())
-  code             String   @unique
+  id               String         @id @default(cuid())
+  code             String         @unique
   name             String
-  smallBlind       Decimal  @db.Decimal(12, 2)
-  bigBlind         Decimal  @db.Decimal(12, 2)
+  smallBlind       Decimal        @db.Decimal(12, 2)
+  bigBlind         Decimal        @db.Decimal(12, 2)
   defaultChipSetId String
-  defaultChipSet   ChipSet  @relation(fields: [defaultChipSetId], references: [id], onDelete: Restrict)
-  isActive         Boolean  @default(true)
-  sortOrder        Int      @default(0)
+  defaultChipSet   ChipSet        @relation(fields: [defaultChipSetId], references: [id], onDelete: Restrict)
+  isActive         Boolean        @default(true)
+  sortOrder        Int            @default(0)
+  /// Color del paño de la mesa interactiva. Solo visual: no afecta caja,
+  /// inventario, compras, deudas, liquidaciones ni reportes.
+  feltColor        TableFeltColor @default(CASINO_GREEN)
   createdById      String?
-  createdBy        User?    @relation("PokerTableCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy        User?          @relation("PokerTableCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedById      String?
-  updatedBy        User?    @relation("PokerTableUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  updatedBy        User?          @relation("PokerTableUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   cashTransactions CashTransaction[]
   bankTransfers    BankTransferVerification[]
@@ -650,6 +661,7 @@ model Player {
   settlementPayouts  SettlementPayout[]
   settlementSnaps    SettlementSignatureSnapshot[]
   settlementSigs     SettlementSignature[]
+  seatAssignments    TableSeatAssignment[]
 
   @@index([isActive, name])
   @@index([name])
@@ -1504,6 +1516,8 @@ model PokerSession {
   closures           SessionClosure[]
   closureReport      ClosureReport?
   lateRedemptions    LateChipRedemption[]   @relation("RedemptionOriginSession")
+  seatAssignments    TableSeatAssignment[]
+  dealerAssignments  DealerAssignment[]
 
   @@index([status])
   @@index([createdAt])
@@ -1570,11 +1584,14 @@ enum TableCycleStatus {
 /// SETTLING: dejó de jugar, sus fichas se recibieron y su liquidación está
 /// confirmada, pero falta pagarle (todo o parte). No ocupa silla.
 /// SETTLED: salida definitiva, SOLO con liquidación terminada (Módulo 11).
+/// WITHDRAWN: se retiró de la mesa SIN haber recibido fichas (nunca tuvo una
+/// compra confirmada en su cadena de participaciones); no requiere liquidación.
 enum ParticipationStatus {
   ACTIVE
   TRANSFERRED
   SETTLING
   SETTLED
+  WITHDRAWN
 }
 
 /// Una mesa del catálogo dentro de una sesión (una relación por par). No
@@ -1592,10 +1609,12 @@ model SessionTable {
 
   cycles         SessionTableCycle[]
   participations TableParticipation[]
-  transfersOut   TableTransfer[]      @relation("TransferSource")
-  transfersIn    TableTransfer[]      @relation("TransferDestination")
+  transfersOut   TableTransfer[]       @relation("TransferSource")
+  transfersIn    TableTransfer[]       @relation("TransferDestination")
   purchases      ChipPurchase[]
   settlements    PlayerSettlement[]
+  seats          TableSeatAssignment[]
+  dealers        DealerAssignment[]
 
   @@unique([sessionId, tableId])
   @@unique([id, sessionId])
@@ -1627,6 +1646,8 @@ model SessionTableCycle {
   participations TableParticipation[]
   purchases      ChipPurchase[]
   settlements    PlayerSettlement[]
+  seats          TableSeatAssignment[]
+  dealers        DealerAssignment[]
 
   @@unique([sessionTableId, cycleNumber])
   @@unique([id, sessionTableId])
@@ -1664,10 +1685,11 @@ model TableParticipation {
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
-  transferOut TableTransfer?     @relation("TransferSourceParticipation")
-  transferIn  TableTransfer?     @relation("TransferDestinationParticipation")
+  transferOut TableTransfer?        @relation("TransferSourceParticipation")
+  transferIn  TableTransfer?        @relation("TransferDestinationParticipation")
   purchases   ChipPurchase[]
-  settlements PlayerSettlement[] @relation("SettlementParticipation")
+  settlements PlayerSettlement[]    @relation("SettlementParticipation")
+  seats       TableSeatAssignment[]
 
   @@unique([id, sessionId])
   @@index([sessionId, status])
@@ -1706,6 +1728,126 @@ model TableTransfer {
   @@index([sessionId, transferredAt])
   @@index([playerId])
   @@map("table_transfers")
+}
+
+// ── Mesa interactiva: asientos, dealers y paño ────────────────────────
+// Ver docs/POKER_TABLE_UX_REDESIGN.md. Nada de esto mueve dinero ni fichas.
+
+/// Color del paño (paleta cerrada con contraste verificado).
+enum TableFeltColor {
+  CASINO_GREEN
+  NAVY
+  WINE
+  BLACK
+  GRAPHITE
+  PURPLE
+}
+
+enum SeatReleaseReason {
+  /// El jugador cambió a otro asiento de la misma mesa (misma participación).
+  SEAT_CHANGE
+  /// Se transfirió a otra mesa (Módulo 07).
+  TRANSFER
+  /// Liquidación con recepción confirmada (Módulo 11).
+  SETTLEMENT
+  /// Se retiró sin haber recibido fichas.
+  WITHDRAWAL
+}
+
+/// Asiento (1..9) que ocupa una participación ACTIVE en el ciclo vigente.
+/// Historial inmutable: un cambio de asiento libera la fila anterior y crea
+/// otra. Índices parciales: un ocupante por asiento y un asiento por
+/// participación mientras `releasedAt` es nulo.
+model TableSeatAssignment {
+  id                   String               @id @default(cuid())
+  sessionId            String
+  session              PokerSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  sessionTableId       String
+  sessionTable         SessionTable         @relation(fields: [sessionTableId], references: [id], onDelete: Restrict)
+  cycleId              String
+  cycle                SessionTableCycle    @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  participationId      String
+  participation        TableParticipation   @relation(fields: [participationId], references: [id], onDelete: Restrict)
+  playerId             String
+  player               Player               @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  seatNumber           Int
+  assignedAt           DateTime             @default(now())
+  assignedById         String
+  assignedBy           User                 @relation("SeatAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  releasedAt           DateTime?
+  releasedById         String?
+  releasedBy           User?                @relation("SeatReleasedBy", fields: [releasedById], references: [id], onDelete: Restrict)
+  releaseReason        SeatReleaseReason?
+  /// Asiento anterior cuando nace de un cambio de asiento.
+  previousAssignmentId String?              @unique
+  previous             TableSeatAssignment? @relation("SeatChange", fields: [previousAssignmentId], references: [id], onDelete: Restrict)
+  next                 TableSeatAssignment? @relation("SeatChange")
+  idempotencyKey       String               @unique
+  createdAt            DateTime             @default(now())
+
+  @@index([cycleId, releasedAt])
+  @@index([participationId])
+  @@index([sessionId, assignedAt])
+  @@map("table_seat_assignments")
+}
+
+/// Persona que reparte (dealer). NO es usuario del sistema ni jugador, no
+/// ocupa asiento y no tiene compras, deudas ni liquidaciones por su función.
+/// Sin borrado físico: se desactiva.
+model Dealer {
+  id          String   @id @default(cuid())
+  name        String
+  nickname    String?
+  isActive    Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation("DealerCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById String?
+  updatedBy   User?    @relation("DealerUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments DealerAssignment[]
+
+  @@index([isActive, name])
+  @@map("dealers")
+}
+
+enum DealerReleaseReason {
+  /// Lo reemplazó otro dealer.
+  CHANGED
+  /// Se liberó la mesa sin reemplazo.
+  RELEASED
+  /// El ciclo de la mesa se cerró.
+  CYCLE_CLOSED
+}
+
+/// Dealer asignado a un ciclo de mesa. Una asignación vigente por ciclo y
+/// por dealer (índices parciales). Historial inmutable.
+model DealerAssignment {
+  id                    String               @id @default(cuid())
+  dealerId              String
+  dealer                Dealer               @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  sessionId             String
+  session               PokerSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  sessionTableId        String
+  sessionTable          SessionTable         @relation(fields: [sessionTableId], references: [id], onDelete: Restrict)
+  cycleId               String
+  cycle                 SessionTableCycle    @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  assignedAt            DateTime             @default(now())
+  assignedById          String
+  assignedBy            User                 @relation("DealerAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  releasedAt            DateTime?
+  releasedById          String?
+  releasedBy            User?                @relation("DealerReleasedBy", fields: [releasedById], references: [id], onDelete: Restrict)
+  releaseReason         DealerReleaseReason?
+  idempotencyKey        String               @unique
+  releaseIdempotencyKey String?              @unique
+  createdAt             DateTime             @default(now())
+
+  @@index([cycleId, releasedAt])
+  @@index([dealerId, assignedAt])
+  @@index([sessionId])
+  @@map("dealer_assignments")
 }
 
 // ── Módulo 08: compras y recompras por IMPORTE NOMINAL ────────────────

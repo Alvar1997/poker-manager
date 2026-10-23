@@ -342,3 +342,7 @@ La circulación global no prueba que una persona tenga derecho a cobrar.
 ## Nota del Módulo 14 — deuda al cierre vs. deuda actual
 
 Los reportes (`docs/MODULE_14_REPORTS.md`) usan `ClosureReport.content` como **vista histórica** (DEC-15): `credits.outstanding` es la «deuda registrada al cierre» y nunca se recalcula ni se modifica. El desglose por jugador y compra al instante del cierre se reconstruye del libro inmutable de aplicaciones (`allocatedAt ≤ closedAt`). La **deuda actual originada en la sesión** sale de los movimientos vigentes, y la diferencia se explica por abonos, pagos vinculados, compensaciones y reversos posteriores (identidad verificada). Las cifras de fichas (diferencia física, neto no retornado, circulación global) se presentan igual que en el cierre, nunca como utilidad.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+Cerrar el ciclo de una mesa libera al dealer (`CYCLE_CLOSED`) en la misma transacción; un trigger impide cerrar un ciclo con asientos ocupados o dealer vigente. Un jugador sentado sin compra debe retirarse (sin compra) o transferirse antes de cerrar. La métrica del ciclo agrega `playersWithdrawn`.

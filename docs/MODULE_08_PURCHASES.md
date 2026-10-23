@@ -147,3 +147,7 @@ La verificación de transferencias usa los endpoints existentes del Módulo 05. 
 - **Módulo 12 (cierre, implementado):** las compras sin entrega resuelta (`DRAFT`/`READY_FOR_DELIVERY`, incluidas las que esperan firma) y las reservas activas BLOQUEAN el cierre de su mesa y de la sesión (se entregan o cancelan antes); las transferencias pendientes NO bloquean y conservan su estado real después del cierre (se verifican sin reabrir la caja). En `CLOSING` no se crean, pagan ni entregan compras.
 - **Módulo 13 (WhatsApp):** procesar `notification_outbox` con consentimiento y canal configurado.
 - Catálogo de terminales (identificador) y conciliación de comisiones de terminal: no existen todavía; no se inventan porcentajes.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+La compra rápida desde el asiento usa estos mismos endpoints (borrador → pagos → socio → firma → entrega). La numeración inicial/recompra sigue decidiéndose al confirmar; la mesa solo muestra la proyección. Los formularios `AddPaymentForm`, `CreditAuthorizationForm`, `ConfirmDeliveryForm` y `CancelPurchaseButton` aceptan un `onDone` opcional.

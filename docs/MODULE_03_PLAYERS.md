@@ -172,3 +172,7 @@ Atajo: `/jugadores/*` redirige a `/dashboard/jugadores/*`, siguiendo la misma co
 3. Si el teléfono ya existe, usa el enlace "Ver jugador existente".
 4. En el perfil: **Editar** para cambiar datos o teléfono, **Desactivar/Activar** para el estado, y **Registrar aceptación/Revocar** para WhatsApp.
 5. SUPERADMIN y PARTNER ven además el historial de teléfonos y la auditoría del jugador.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+Desde un asiento libre se busca al jugador por nombre, apodo o teléfono sin importar acentos (`GET …/seat-candidates`) y se puede dar de alta uno nuevo con el mismo `POST /api/players` (nombre, apodo, teléfono; el consentimiento de WhatsApp sigue en Jugadores). Un jugador inactivo no se puede sentar (`assertPlayerSelectable`).

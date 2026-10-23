@@ -130,9 +130,12 @@ export function SettlementAmountsForm({
   participationId,
   outstanding,
   edit,
+  onCreated,
 }: {
   participationId: string
   outstanding: string
+  /** Opcional (mesa interactiva): en vez de navegar a la firma. */
+  onCreated?: (settlementId: string) => void
   edit?: {
     settlementId: string
     version: number
@@ -193,7 +196,8 @@ export function SettlementAmountsForm({
           ? "Liquidación actualizada: el jugador debe firmar el nuevo resumen."
           : "Liquidación preparada. Ahora firma el jugador."
       )
-      router.push(`${BASE}/${s.id}/firma`)
+      if (onCreated) onCreated(s.id)
+      else router.push(`${BASE}/${s.id}/firma`)
     },
     onError: (e) =>
       toast.error(errorText(e, "No se pudo preparar la liquidación")),
@@ -384,10 +388,12 @@ export function SettlementSignatureCapture({
   settlementId,
   snapshotId,
   payloadHash,
+  onDone,
 }: {
   settlementId: string
   snapshotId: string
   payloadHash: string
+  onDone?: () => void
 }) {
   const router = useRouter()
   const [key, renew] = useIdempotencyKey()
@@ -401,12 +407,14 @@ export function SettlementSignatureCapture({
     onSuccess: () => {
       renew()
       toast.success("Firma registrada. El cajero debe confirmar la recepción.")
+      onDone?.()
       router.refresh()
     },
     onError: (e) => {
       toast.error(errorText(e, "No se pudo registrar la firma"))
       if (e instanceof ApiClientError && e.status === 409) {
         renew()
+        onDone?.()
         router.refresh()
       }
     },
@@ -442,11 +450,14 @@ export function ConfirmReturnForm({
   version,
   net,
   cashAvailable,
+  onDone,
 }: {
   settlementId: string
   version: number
   net: string
   cashAvailable: string
+  /** Opcional (mesa interactiva): en vez de navegar al comprobante o a pagos. */
+  onDone?: (status: string) => void
 }) {
   const router = useRouter()
   const [received, setReceived] = useState(false)
@@ -476,15 +487,22 @@ export function ConfirmReturnForm({
           ? "Recepción confirmada: liquidación pagada."
           : "Recepción confirmada: queda pago pendiente."
       )
-      router.push(
-        s.status === "COMPLETED"
-          ? `${BASE}/${settlementId}/comprobante`
-          : `${BASE}/${settlementId}/pagos`
-      )
+      if (onDone) {
+        onDone(s.status)
+        router.refresh()
+      } else
+        router.push(
+          s.status === "COMPLETED"
+            ? `${BASE}/${settlementId}/comprobante`
+            : `${BASE}/${settlementId}/pagos`
+        )
     },
     onError: (e) => {
       toast.error(errorText(e, "No se pudo confirmar la recepción"))
-      if (e instanceof ApiClientError && e.status === 409) router.refresh()
+      if (e instanceof ApiClientError && e.status === 409) {
+        onDone?.("CONFLICT")
+        router.refresh()
+      }
     },
   })
   const hasNet = net !== "0.00"

@@ -28,10 +28,13 @@ export function SignatureCapture({
   purchaseId,
   snapshotId,
   payloadHash,
+  onDone,
 }: {
   purchaseId: string
   snapshotId: string
   payloadHash: string
+  /** Opcional (mesa interactiva): tras registrar la firma o si el resumen cambió (409). */
+  onDone?: () => void
 }) {
   const router = useRouter()
   const [key, renew] = useIdempotencyKey()
@@ -45,6 +48,7 @@ export function SignatureCapture({
     onSuccess: () => {
       renew()
       toast.success("Firma registrada. El cajero debe confirmar la entrega.")
+      onDone?.()
       router.refresh()
     },
     onError: (e) => {
@@ -52,6 +56,7 @@ export function SignatureCapture({
       // Si la compra cambió, la página prepara un resumen nuevo.
       if (e instanceof ApiClientError && e.status === 409) {
         renew()
+        onDone?.()
         router.refresh()
       }
     },

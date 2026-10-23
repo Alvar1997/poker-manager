@@ -216,3 +216,12 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 - Corrección de liquidación: con firma del jugador; revertir la compensación restablece las deudas y crea lo que se le debe pagar, sin mover efectivo.
 - Fondos no aplicados: se devuelven por exactamente lo recibido; nunca son saldo a favor.
 - Nada cuenta como pagado sin un pago real ejecutado; las transferencias en trámite no pagan; no hay efectivo negativo ni pagos desde cajas cerradas.
+
+## Mesa interactiva — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+- Nueve asientos fijos por mesa; el dealer es una persona (no usuario ni asiento) que se muestra dentro de la mesa entre los asientos 7 y 6. No hay botón «D» ni rotación.
+- Sentar a un jugador no es una compra: queda pendiente de compra y no recibe fichas, crédito ni firma hasta su primera compra confirmada.
+- La primera compra confirmada del jugador en la sesión es la inicial; las siguientes son recompras, aunque cambie de asiento o de mesa.
+- Cambiar de asiento o de mesa no mueve dinero ni fichas; el jugador conserva compras, deuda y numeración.
+- Quien nunca recibió fichas puede retirarse sin compra (con motivo); quien recibió fichas sale con liquidación (firma obligatoria, compensación opcional FIFO, recepción física por separado). Al confirmar la recepción se libera su asiento; si falta pagarle, la obligación sigue en Liquidaciones.
+- El color del paño es solo visual y por mesa.

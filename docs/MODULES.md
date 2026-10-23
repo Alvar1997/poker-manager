@@ -183,6 +183,12 @@ Detalle: [`docs/MODULE_16_SPECIAL_OPERATIONS.md`](MODULE_16_SPECIAL_OPERATIONS.m
 
 Pendientes conocidos: reclamar dinero pagado de más en una liquidación (NOT_IMPLEMENTED). (Migraciones del Módulo 16 aplicadas en Neon el 2026-10-21.)
 
+## Rediseño de la mesa interactiva — entregado
+
+Detalle: [`docs/POKER_TABLE_UX_REDESIGN.md`](POKER_TABLE_UX_REDESIGN.md). La pantalla de mesa se vuelve el centro operativo: mesa ovalada con nueve asientos fijos, dealer como persona entre los asientos 7 y 6, paño configurable por mesa y paneles inferiores para sentar (pendiente de compra), compra inicial/recompra rápida (Módulos 08/09/10), liquidación (Módulo 11), cambio de asiento, transferencia con asiento destino (Módulo 07) y retiro sin compra. Módulo `src/modules/table-floor`; migraciones `20261030120000_table_floor_enums` y `20261030130000_table_floor` (aplicadas en Neon el 2026-10-23).
+
+Pendientes conocidos: montos rápidos configurables desde la interfaz; pantalla de catálogo de dealers.
+
 ## Notas
 
 - `src/modules/*` del árbol de referencia (`auth`, `users`, `sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) se reparten entre estos módulos numerados — `sessions`+`tables` corresponden al Módulo 02, `reports` al Módulo 14 y `audit` al Módulo 15, etc.

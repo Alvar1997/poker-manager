@@ -12,6 +12,11 @@ import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
 import type { RequestContext, SessionUser } from "@/modules/auth/auth.service"
 import { assertPlayerSelectable } from "@/modules/players/player.rules"
+import {
+  occupySeatInTx,
+  releaseSeatInTx,
+  SEAT_TAKEN_MESSAGE,
+} from "@/modules/table-floor/seat-core"
 import type { TransferInput } from "@/modules/session-tables/session-table.schemas"
 import {
   lockOpenSession,
@@ -97,7 +102,7 @@ export type ParticipationView = ReturnType<typeof toView>
 export async function listParticipations(
   sessionId: string,
   filters: {
-    status?: "ACTIVE" | "TRANSFERRED" | "SETTLING" | "SETTLED"
+    status?: "ACTIVE" | "TRANSFERRED" | "SETTLING" | "SETTLED" | "WITHDRAWN"
     tableId?: string
   },
   opts: { showPhone: boolean }
@@ -179,14 +184,32 @@ async function activeElsewhereMessage(
     : `Este jugador ya se encuentra activo en la ${active.sessionTable.table.name}. Utiliza la opción Cambiar de mesa.`
 }
 
+/** ¿El asiento del ciclo vigente de la mesa está ocupado? (mensajes tras una carrera). */
+async function seatTaken(tableId: string, seatNumber: number) {
+  const seat = await prisma.tableSeatAssignment.findFirst({
+    where: {
+      seatNumber,
+      releasedAt: null,
+      sessionTable: { tableId },
+      cycle: { status: "OPEN" },
+    },
+    select: { id: true },
+  })
+  return Boolean(seat)
+}
+
 // ── Registrar jugador ─────────────────────────────────────────────────
 
-/** Incorpora un jugador a la mesa (ciclo vigente). No compra, no entrega fichas, no cobra. */
+/**
+ * Incorpora un jugador a la mesa (ciclo vigente). No compra, no entrega
+ * fichas, no cobra. Con `seatNumber` ocupa además ese asiento en la misma
+ * transacción (queda «pendiente de compra» hasta su primera entrega).
+ */
 export async function addPlayerToTable(
   actor: SessionUser,
   sessionId: string,
   tableId: string,
-  input: { playerId: string; idempotencyKey: string },
+  input: { playerId: string; idempotencyKey: string; seatNumber?: number },
   ctx: RequestContext = {}
 ) {
   const replay = async () =>
@@ -273,6 +296,25 @@ export async function addPlayerToTable(
         },
         select: { id: true },
       })
+      if (input.seatNumber)
+        await occupySeatInTx(
+          tx,
+          actor,
+          {
+            participation: {
+              id: created.id,
+              sessionId,
+              sessionTableId: st.id,
+              cycleId: cycle.id,
+              playerId: player.id,
+            },
+            seatNumber: input.seatNumber,
+            idempotencyKey: `seat-${input.idempotencyKey}`,
+            tableName: table.table.name,
+            sessionFolio: session.folio,
+          },
+          ctx
+        )
       await recordAudit(
         {
           action: AUDIT_ACTIONS.TABLE_PLAYER_JOINED,
@@ -281,11 +323,14 @@ export async function addPlayerToTable(
           actorUserId: actor.id,
           requestId: ctx.requestId,
           metadata: {
+            sessionId,
+            cycleId: cycle.id,
             folio: session.folio,
             table: table.table.name,
             tableId,
             cycleNumber: cycle.cycleNumber,
             playerId: player.id,
+            ...(input.seatNumber ? { seatNumber: input.seatNumber } : {}),
           },
         },
         tx
@@ -297,6 +342,8 @@ export async function addPlayerToTable(
     if (isUniqueViolation(error)) {
       const again = await replay()
       if (again) return { participationId: again.id, replayed: true }
+      if (input.seatNumber && (await seatTaken(tableId, input.seatNumber)))
+        throw new ConflictError(SEAT_TAKEN_MESSAGE)
       const message = await activeElsewhereMessage(
         prisma,
         sessionId,
@@ -407,6 +454,8 @@ export async function transferPlayer(
       if (await activeSettlementOf(tx, source.id))
         throw new ConflictError(SETTLEMENT_IN_PROGRESS_MESSAGE)
       const now = new Date()
+      // El asiento de origen se libera antes de cerrar la participación.
+      await releaseSeatInTx(tx, actor, source.id, "TRANSFER", ctx)
       const { count } = await tx.tableParticipation.updateMany({
         where: { id: source.id, status: "ACTIVE" },
         data: {
@@ -434,6 +483,25 @@ export async function transferPlayer(
         },
         select: { id: true },
       })
+      if (input.destinationSeatNumber)
+        await occupySeatInTx(
+          tx,
+          actor,
+          {
+            participation: {
+              id: created.id,
+              sessionId,
+              sessionTableId: to.id,
+              cycleId: to.cycles[0].id,
+              playerId: source.playerId,
+            },
+            seatNumber: input.destinationSeatNumber,
+            idempotencyKey: `seat-transfer-${input.idempotencyKey}`,
+            tableName: to.table.name,
+            sessionFolio: session.folio,
+          },
+          ctx
+        )
       const transfer = await tx.tableTransfer.create({
         data: {
           sessionId,
@@ -457,12 +525,17 @@ export async function transferPlayer(
           actorUserId: actor.id,
           requestId: ctx.requestId,
           metadata: {
+            sessionId,
+            cycleId: to.cycles[0].id,
             folio: session.folio,
             playerId: source.playerId,
             from: from.table.name,
             to: to.table.name,
             sourceParticipationId: source.id,
             destinationParticipationId: created.id,
+            ...(input.destinationSeatNumber
+              ? { destinationSeatNumber: input.destinationSeatNumber }
+              : {}),
           },
         },
         tx
@@ -477,6 +550,11 @@ export async function transferPlayer(
     if (isUniqueViolation(error)) {
       const again = await replay()
       if (again) return { ...(await getTransfer(again.id)), replayed: true }
+      if (
+        input.destinationSeatNumber &&
+        (await seatTaken(input.destinationTableId, input.destinationSeatNumber))
+      )
+        throw new ConflictError(SEAT_TAKEN_MESSAGE)
       throw new ConflictError("El jugador ya tiene otra participación activa.")
     }
     throw error
@@ -678,6 +756,9 @@ export async function completeParticipationFromSettlementInTx(
   } else if (p.status !== "ACTIVE")
     throw new BusinessRuleError("La participación no está activa.")
   await verifier.assertConfirmedSettlement(tx, input.settlementId, p, "SETTLED")
+  // Desde ACTIVE deja la silla en la misma transacción (Módulo 11).
+  if (p.status === "ACTIVE")
+    await releaseSeatInTx(tx, actor, p.id, "SETTLEMENT", ctx)
   const { count } = await tx.tableParticipation.updateMany({
     where: { id: p.id, status: p.status },
     data:
@@ -745,6 +826,8 @@ export async function markParticipationSettlingInTx(
     p,
     "SETTLING"
   )
+  // SETTLING ya no ocupa silla: el asiento se libera en esta transacción.
+  await releaseSeatInTx(tx, actor, p.id, "SETTLEMENT", ctx)
   const { count } = await tx.tableParticipation.updateMany({
     where: { id: p.id, status: "ACTIVE" },
     data: {

@@ -259,3 +259,12 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 - **Autorización y ejecución separadas**: la ejecución bloquea la solicitud aprobada dentro de su transacción (`requireApprovedCorrectionInTx`) y la enlaza ahí mismo (`linkExecutionInTx`); si algo falla, nada queda (ni la solicitud EXECUTED).
 - **Defensa en la base**: triggers para la transición CONFIRMED → REVERSED, para cerrar la deuda de una compra revertida y para que los pagos nunca excedan la obligación; comprobaciones de integridad específicas en el diagnóstico.
 - **Constantes compartidas fuera de módulos `"use client"`** (`special.constants.ts`): importar un valor (no un componente) desde un módulo cliente en una página de servidor produce una referencia de cliente, no el valor.
+
+## Decisiones de la mesa interactiva
+
+- **Módulo `src/modules/table-floor`** sobre los existentes: reglas puras compartidas por servidor y cliente (`table-floor.math.ts`: geometría, paleta, estado derivado), núcleo transaccional sin dependencias circulares (`seat-core.ts`, `dealer-core.ts`, usados por participaciones, transferencias, liquidaciones y cierre de mesa) y servicios de asientos, dealers y paño.
+- **Reutilización por composición**: los paneles de compra y liquidación montan los formularios existentes del Módulo 08/09/11 (`AddPaymentForm`, `CreditAuthorizationForm`, `SignatureCapture`, `ConfirmDeliveryForm`, `SettlementAmountsForm`, `SettlementSignatureCapture`, `ConfirmReturnForm`) con un `onDone`/`onCreated` opcional; sin él conservan su navegación original.
+- **Bottom sheet propio** (`src/components/ui/sheet.tsx`) sobre el Dialog de Base UI ya instalado: sin dependencias nuevas.
+- **Estado del asiento derivado** (compras confirmadas, compras en preparación, liquidaciones en curso) en una sola consulta del tablero; nunca columnas de estado editables.
+- **Geometría en porcentajes** con prueba unitaria de no superposición en varios anchos de pantalla (además de la E2E con cajas reales).
+- Detalle: `docs/POKER_TABLE_UX_REDESIGN.md`.

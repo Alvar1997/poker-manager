@@ -188,3 +188,7 @@ Paginación en todos los listados; agregaciones en la base (`groupBy`, CTE SQL c
 - Las fechas de vencimiento de deudas no existen (no se inventan).
 - Módulo 16: la extinción por reverso de compra es una clase propia (`EXTINCTION`) en créditos —nunca un abono—; una compra REVERSED sigue contando como entrega histórica (con marca `reversed`) y la devolución aparece como movimiento de inventario; la posición financiera lista las obligaciones especiales pendientes por tipo (no son ingresos ni gastos).
 - Módulo 15 — Auditoría, administración y respaldos: consumirá `REPORT_EXPORTED` y la infraestructura de auditoría existente.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+Las compras, créditos y liquidaciones registradas desde la mesa aparecen en los reportes sin cambios (mismas tablas). Asientos, dealer y paño no son movimientos financieros y no se reportan como tales.

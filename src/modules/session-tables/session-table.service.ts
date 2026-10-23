@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
 import type { RequestContext, SessionUser } from "@/modules/auth/auth.service"
 import type { HistoryQuery } from "@/modules/session-tables/session-table.schemas"
+import { releaseDealerOfCycleInTx } from "@/modules/table-floor/dealer-core"
 
 /**
  * Mesas dentro de una sesión (Módulo 07).
@@ -318,12 +319,19 @@ export async function getTableHistory(
     if (p.leftAt) {
       events.push({
         at: p.leftAt.toISOString(),
-        kind: p.status === "TRANSFERRED" ? "TRANSFER_OUT" : "PLAYER_SETTLED",
+        kind:
+          p.status === "TRANSFERRED"
+            ? "TRANSFER_OUT"
+            : p.status === "WITHDRAWN"
+              ? "PLAYER_WITHDRAWN"
+              : "PLAYER_SETTLED",
         cycle: p.cycle.cycleNumber,
         text:
           p.status === "TRANSFERRED"
             ? `${who} se cambió a ${p.transferOut?.destinationSessionTable.table.name ?? "otra mesa"}`
-            : `${who} salió con liquidación confirmada`,
+            : p.status === "WITHDRAWN"
+              ? `${who} se retiró sin compra`
+              : `${who} salió con liquidación confirmada`,
         by: p.leftBy?.name ?? null,
       })
     }
@@ -594,6 +602,8 @@ export async function closeSessionTable(
         `No puedes cerrar esta mesa: tiene ${pendingSettlements} liquidación(es) sin recepción física confirmada. Confírmalas o cancélalas.`
       )
     }
+    // Mesa interactiva: el dealer vigente del ciclo se libera con el cierre.
+    await releaseDealerOfCycleInTx(tx, actor, cycle.id, "CYCLE_CLOSED", ctx)
     const now = new Date()
     const { count } = await tx.sessionTableCycle.updateMany({
       where: { id: cycle.id, status: "OPEN" },
@@ -731,6 +741,7 @@ export async function getCycleActivitySummary(db: Db, cycleId: string) {
       returnedNominal: returned.toFixed(2),
       playersFinished: partOf("SETTLED") + partOf("SETTLING"),
       playersTransferred: partOf("TRANSFERRED"),
+      playersWithdrawn: partOf("WITHDRAWN"),
       playersActive: partOf("ACTIVE"),
       settlementsCompleted: sOf("COMPLETED")?._count._all ?? 0,
       settlementsPendingPayout: sOf("PENDING_PAYOUT")?._count._all ?? 0,

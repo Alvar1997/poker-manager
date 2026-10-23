@@ -242,3 +242,7 @@ Los reportes (`docs/MODULE_14_REPORTS.md`) leen `player_debts` y `payment_alloca
 - Nueva fuente de aplicación `PURCHASE_REVERSAL` (enlazada a `purchase_reversals` por `purchaseReversalId`): extingue el saldo de una deuda cuya compra se revirtió con devolución física. No es pago ni dinero.
 - La deuda de una compra revertida queda CERRADA: el trigger rechaza aplicaciones y reversos nuevos, y `reversePaymentAllocationsInTx` rechaza revertir un abono aplicado a ella (su reembolso ya forma parte de la obligación del reverso).
 - Fondos no aplicados: siguen en `UNAPPLIED_PLAYER_FUNDS` hasta que una devolución autorizada los paga; su estado (PENDING_REVIEW / PENDING_REFUND / PARTIALLY_REFUNDED / REFUNDED) se deriva de la obligación y sus pagos.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+La mesa muestra, al tocar al jugador, su deuda global y la originada en la sesión actual (derivadas del libro de aplicaciones) y un indicador de crédito pendiente en el asiento. No crea ni modifica deudas.

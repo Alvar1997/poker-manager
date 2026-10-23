@@ -159,7 +159,18 @@ Detalle completo de decisiones técnicas: `docs/ARCHITECTURE.md`.
 - **Fondos no aplicados**: se devuelven por exactamente lo recibido; nunca son saldo a favor ni se aplican a deudas futuras.
 - Detalle: `docs/MODULE_16_SPECIAL_OPERATIONS.md`.
 
-Detalle completo: `docs/BUSINESS_RULES.md`, `docs/MODULE_05_CASH_BOX.md`, `docs/MODULE_06_SESSIONS.md`, `docs/MODULE_07_TABLES.md`, `docs/MODULE_08_PURCHASES.md`, `docs/MODULE_09_SIGNATURES_RECEIPTS.md`, `docs/MODULE_10_CREDITS.md`, `docs/MODULE_11_SETTLEMENTS.md`, `docs/MODULE_12_CLOSURE.md`, `docs/MODULE_14_REPORTS.md`, `docs/MODULE_15_AUDIT_ADMIN_BACKUP.md` y `docs/MODULE_16_SPECIAL_OPERATIONS.md` (más `docs/BACKUP_SETUP.md` y `docs/DISASTER_RECOVERY_RUNBOOK.md`).
+### Mesa interactiva — asientos, dealer y paño — reglas permanentes
+
+- **La mesa es el centro operativo, no un atajo**: sentar, comprar, recomprar, liquidar, cambiar de asiento y transferir desde la mesa usan los MISMOS servicios de los Módulos 07–11 (sin endpoints nuevos de compras, firmas, créditos ni liquidaciones). Lo que se ve lo decide el servidor (`GET …/tables/:tableId/seats`); el éxito se muestra solo con su respuesta.
+- **Nueve asientos fijos** (`SEAT_LAYOUT`): 1-2-3 arriba, 4-5 derecha, 6-7 abajo, 8-9 izquierda; numeración estable. `TableSeatAssignment` con índices únicos parciales (un ocupante por asiento del ciclo, un asiento por participación) e historial inmutable (cambiar de asiento = liberar + nueva fila enlazada). Toda salida de ACTIVE libera el asiento en la misma transacción (`releaseSeatInTx`; la base lo exige).
+- **Sentar no compra**: el jugador queda «pendiente de compra» (estado DERIVADO: sin compra CONFIRMED en su cadena de participaciones); sin compra, crédito, firma, fichas ni dinero. Inicial vs recompra lo decide el Módulo 08 al confirmar (`nextPurchaseNumber`, por sesión y jugador); la UI solo lo proyecta.
+- **Retiro sin compra** (`WITHDRAWN`) solo si nunca recibió fichas (trigger); si recibió fichas, su salida es una liquidación.
+- **Dealer = persona** (`Dealer`, sin usuario, rol ni asiento; sin compras, deudas ni liquidaciones). Asignación por ciclo (`DealerAssignment`): una vigente por ciclo y por dealer; cambiar = CHANGED + nueva; cerrar la mesa la libera (CYCLE_CLOSED). Va DENTRO del óvalo entre los asientos 7 y 6. **No** implementar botón «D», rotación, manos ni ciegas por dealer sin una decisión de negocio.
+- **Paño** (`PokerTable.feltColor`): paleta cerrada con contraste AA probado, por mesa, solo visual. Sin colores libres.
+- Permisos existentes (`sessions:manage` para asientos, dealer y paño); auditoría `SEAT_*`, `PLAYER_SEATED_PENDING_BUY`, `TABLE_PARTICIPATION_WITHDRAWN`, `DEALER_*`, `TABLE_FELT_COLOR_CHANGED` dentro de la transacción.
+- Detalle: `docs/POKER_TABLE_UX_REDESIGN.md`.
+
+Detalle completo: `docs/BUSINESS_RULES.md`, `docs/MODULE_05_CASH_BOX.md`, `docs/MODULE_06_SESSIONS.md`, `docs/MODULE_07_TABLES.md`, `docs/MODULE_08_PURCHASES.md`, `docs/MODULE_09_SIGNATURES_RECEIPTS.md`, `docs/MODULE_10_CREDITS.md`, `docs/MODULE_11_SETTLEMENTS.md`, `docs/MODULE_12_CLOSURE.md`, `docs/MODULE_14_REPORTS.md`, `docs/MODULE_15_AUDIT_ADMIN_BACKUP.md`, `docs/MODULE_16_SPECIAL_OPERATIONS.md` y `docs/POKER_TABLE_UX_REDESIGN.md` (más `docs/BACKUP_SETUP.md` y `docs/DISASTER_RECOVERY_RUNBOOK.md`).
 
 ## Reglas técnicas
 
@@ -206,4 +217,5 @@ No modifiques un módulo ya cerrado/entregado sin una razón técnica explícita
 - Pendiente operativo: capturar las denominaciones reales del inventario común y registrar su inventario inicial (sin eso no se puede abrir ninguna sesión).
 - Almacenamiento de evidencias: driver privado en PostgreSQL (no hay credenciales de almacenamiento de objetos; un driver S3/R2 se agrega con la misma interfaz cuando existan).
 - Pendientes reales: reclamar al jugador dinero pagado de más en una liquidación (NOT_IMPLEMENTED, requiere decisión de negocio). Migraciones de los Módulos 11, 12 y 14 aplicadas en Neon el 2026-10-20; y las del Módulo 15 (`20261028120000_module15_enums`, `20261028130000_module15_audit_admin_backup`) el 2026-10-21 (esquema verificado sin diferencias). Migraciones del Módulo 16 (`20261029120000_module16_enums`, `20261029130000_module16_special_operations`) aplicadas en Neon el 2026-10-21 (esquema verificado sin diferencias). Respaldos diarios: CONFIGURACIÓN PENDIENTE (destino, clave y tarea programada; ver `docs/BACKUP_SETUP.md`).
+- Rediseño de la mesa interactiva (asientos, dealer como persona, paño, compra/liquidación rápidas) implementado y probado localmente. Migraciones `20261030120000_table_floor_enums` y `20261030130000_table_floor` aplicadas en Neon el 2026-10-23 (esquema verificado sin diferencias).
 - Siguiente: el Módulo 13 — WhatsApp se retoma cuando exista el número exclusivo.

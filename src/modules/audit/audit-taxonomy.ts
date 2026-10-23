@@ -70,6 +70,9 @@ const RULES: [string, AuditModule][] = [
   ["TABLE_ACTIVATED", "CONFIGURATION"],
   ["TABLE_DEACTIVATED", "CONFIGURATION"],
   ["PLAYER_DEBT", "CREDITS"],
+  ["PLAYER_SEATED", "TABLES"],
+  ["SEAT_", "TABLES"],
+  ["DEALER_", "TABLES"],
   ["PLAYER_", "PLAYERS"],
   // Cierre (Módulo 12) antes que inventario/caja genéricos.
   ["TABLE_CYCLE_CLOSED", "CLOSURE"],

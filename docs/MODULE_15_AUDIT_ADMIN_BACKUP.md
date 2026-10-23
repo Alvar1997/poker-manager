@@ -182,3 +182,7 @@ Todos devuelven JSON con el resultado real y código de salida ≠ 0 al fallar o
 ## 27. Integración con el Módulo 16 (implementada)
 
 Los cuatro procesos se ejecutan en Operaciones especiales (`docs/MODULE_16_SPECIAL_OPERATIONS.md`). `CORRECTION_TYPE_META` declara su servicio (`PurchaseReversal`, `SettlementCorrection`, `UnappliedFundsRefund`, `LateChipRedemption`) y `verifyExecutionReference` solo acepta hechos EJECUTADOS. El ejecutor exige la solicitud aprobada (`requireApprovedCorrectionInTx`) y la enlaza en su misma transacción (`linkExecutionInTx`); estos tipos no se enlazan a mano. Solicitar y aprobar generan además `PURCHASE_REVERSAL_REQUESTED/APPROVED` y `SETTLEMENT_CORRECTION_REQUESTED/APPROVED`. El diagnóstico suma 7 comprobaciones (categoría `SPECIAL_OPERATIONS`, 55 en total).
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+Nuevos eventos clasificados en «Mesas (M07)»: `SEAT_ASSIGNED`, `SEAT_CHANGED`, `SEAT_RELEASED`, `PLAYER_SEATED_PENDING_BUY`, `TABLE_PARTICIPATION_WITHDRAWN`, `DEALER_CREATED`, `DEALER_UPDATED`, `DEALER_ASSIGNED`, `DEALER_CHANGED`, `DEALER_RELEASED` y `TABLE_FELT_COLOR_CHANGED`.

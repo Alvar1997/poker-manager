@@ -251,3 +251,7 @@ El reverso completo de compras es del Módulo 16: al ejecutarse llama a `voidRec
 ## Integración con el Módulo 12 (implementada)
 
 - El comprobante de cierre de sesión (`ClosureReport`) usa el mismo `renderDocumentPng` y las mismas acciones de compartición manual (`ReceiptActions`: descargar, menú nativo, copiar texto). Sin PDF, sin WhatsApp y sin enlaces públicos. Ver `docs/MODULE_12_CLOSURE.md` §22–23.
+
+## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
+
+La firma de una compra a crédito se captura dentro del panel de compra de la mesa con el mismo resumen preparado por el servidor y `SignatureCapture` (que acepta `onDone` opcional). Comprobantes accesibles desde el asiento.
