@@ -231,3 +231,12 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 - Cada sesión tiene un folio `S-0001-AAAAMMDD`: un consecutivo único que nunca se reinicia ni se reutiliza, más la fecha operativa (el día en que comenzó la jornada, aunque termine después de medianoche). El folio no cambia nunca.
 - La fecha operativa es distinta de la fecha real en que se registró, abrió o cerró la sesión y de las fechas de sus movimientos. Los reportes por jornada usan la fecha operativa; los pagos posteriores conservan su fecha real.
 - Solo SUPERADMIN puede registrar una sesión de una fecha anterior. Esa sesión histórica no tiene caja, inventario ni operación, no afecta a la sesión vigente y solo puede cancelarse. Las operaciones financieras de fechas pasadas no se capturan todavía.
+
+## Jugadores bancados por la casa (Módulo 17)
+
+- Información PRIVADA: nunca visible en la mesa ni en vistas compartidas; solo en la sección de bancaje con `banking:read`.
+- Ciclos de exactamente cuatro jugadas (sesiones distintas); cambiar de mesa no crea otra; sin fichas trasladadas entre sesiones (devolución física o retorno cero confirmado).
+- Las compras financiadas son operaciones nominales reales, sin cobro, crédito ni deuda ordinaria; el financiamiento de la casa no usa el FIFO de deudas.
+- Resultado = devuelto − financiado. Compensación: ganancias del ciclo → reserva → arrastre; solo la ganancia neta se reparte por porcentaje. Sin doble aplicación de pérdidas, reservas ni anticipos.
+- Cambios de porcentaje, cortes, distribución de pérdidas entre tramos y retiros de reserva: aprobación digital de PARTNER o SUPERADMIN. Anticipos: autorización verbal o por mensaje registrada por el cajero, dentro del límite conservador. Anticipos excedidos: caso por caso.
+- Ver `docs/MODULE_17_BANKED_PLAYERS.md`.

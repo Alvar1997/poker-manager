@@ -176,3 +176,7 @@ Atajo: `/jugadores/*` redirige a `/dashboard/jugadores/*`, siguiendo la misma co
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 Desde un asiento libre se busca al jugador por nombre, apodo o teléfono sin importar acentos (`GET …/seat-candidates`) y se puede dar de alta uno nuevo con el mismo `POST /api/players` (nombre, apodo, teléfono; el consentimiento de WhatsApp sigue en Jugadores). Un jugador inactivo no se puede sentar (`assertPlayerSelectable`).
+
+## Integración con el Módulo 17
+
+La condición de jugador bancado (Módulo 17) es PRIVADA: no es un campo del jugador ni aparece en su ficha; vive en `banking_agreements`.

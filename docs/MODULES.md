@@ -195,6 +195,12 @@ Detalle: [`docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`](SESSION_FOLIO_AND_HISTOR
 
 Migraciones aplicadas en Neon el 2026-10-23. Pendientes conocidos: captura financiera histórica (compras, pagos, liquidaciones antiguas) no implementada por diseño.
 
+## Módulo 17 — entregado
+
+Detalle: [`docs/MODULE_17_BANKED_PLAYERS.md`](MODULE_17_BANKED_PLAYERS.md). Jugadores bancados por la casa, PRIVADO (`/dashboard/administracion/bancaje`, `/api/admin/banking/*`): acuerdos con porcentajes versionados, ciclos de cuatro jugadas (una por sesión), compras financiadas sin dinero ni deuda (Módulo 08, `fundingSource = HOUSE`), conciliación física sin pago automático, motor de compensación (ganancias → reserva → arrastre) con tramos de porcentaje y distribución de pérdidas decidida por un socio, anticipos con autorización verbal/mensaje y límite conservador, cortes con aprobación digital por huella, reserva y retiros aprobados, pagos reales sobre las obligaciones del Módulo 16, regularizaciones caso por caso, XLSX privado, auditoría `BANKING_*` restringida y 3 comprobaciones de integridad. La mesa no muestra ninguna señal.
+
+Migraciones aplicadas en Neon el 2026-10-23. Pendientes conocidos: jugadas en sesiones históricas, regularización de ciclos cerrados y devolución de excedentes por transferencia (NOT_IMPLEMENTED).
+
 ## Notas
 
 - `src/modules/*` del árbol de referencia (`auth`, `users`, `sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) se reparten entre estos módulos numerados — `sessions`+`tables` corresponden al Módulo 02, `reports` al Módulo 14 y `audit` al Módulo 15, etc.

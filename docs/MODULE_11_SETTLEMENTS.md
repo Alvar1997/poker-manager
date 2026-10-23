@@ -406,3 +406,7 @@ Pantallas Mobile First:
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 La liquidación desde el asiento reutiliza `SettlementAmountsForm` (`onCreated`), `SettlementSignatureCapture` y `ConfirmReturnForm` (`onDone`). `markParticipationSettlingInTx` y `completeParticipationFromSettlementInTx` liberan el asiento (`SETTLEMENT`) en su transacción. Los jugadores SETTLING aparecen bajo la mesa como «falta pagarles».
+
+## Integración con el Módulo 17
+
+Módulo 17: una jugada financiada no se liquida con este módulo (se rechaza con mensaje neutro); su devolución física se concilia en la sección privada con la misma entrada nominal del inventario, sin pagar el valor devuelto.

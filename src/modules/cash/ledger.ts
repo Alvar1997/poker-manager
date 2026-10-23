@@ -69,6 +69,7 @@ export type LedgerTransactionInput = {
     | "REVERSAL"
     | "CASH_RECONCILIATION_ADJUSTMENT"
     | "CARD_TERMINAL_SETTLEMENT"
+    | "BANKING_FUNDS_RECEIVED"
   sessionId?: string | null
   tableId?: string | null
   playerId?: string | null

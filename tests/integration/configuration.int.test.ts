@@ -207,7 +207,17 @@ describe("datos iniciales (seed)", () => {
                                -- Módulo 16: importes de canjes, obligaciones y pagos especiales,
                                -- reversos y correcciones (hechos; los saldos se derivan).
                                'late_chip_redemptions', 'special_payables', 'special_payouts',
-                               'purchase_reversals', 'settlement_corrections')
+                               'purchase_reversals', 'settlement_corrections',
+                               -- Módulo 17: porcentajes, importes de jugadas, anticipos, cortes
+                               -- (snapshots), libro de reserva y regularizaciones (hechos
+                               -- inmutables o con saldo DERIVADO; ninguno es un saldo editable).
+                               'banking_agreement_versions', 'banking_percentage_segments',
+                               'banking_percentage_change_requests', 'banking_games',
+                               'banking_game_financial_sources', 'banking_game_adjustments',
+                               'banking_advances', 'banking_cycle_closings',
+                               'banking_reserve_movements', 'banking_reserve_withdrawals',
+                               'banking_regularizations', 'banking_regularization_recoveries',
+                               'banking_regularization_receipts')
     `
     expect(columns).toEqual([])
   })

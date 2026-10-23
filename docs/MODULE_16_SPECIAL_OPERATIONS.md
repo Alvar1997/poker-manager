@@ -143,3 +143,7 @@ Todos con `withApiHandler` (CSRF, mantenimiento 503), Zod `strictObject` (un cam
 - Reverso de una compra cuya participación ya se liquidó: se bloquea y se dirige a 16.3 (no se reabre la liquidación).
 - Sin integración bancaria (transferencias confirmadas manualmente).
 - WhatsApp: ninguno (Módulo 13). Sin PDF.
+
+## Integración con el Módulo 17
+
+Módulo 17: nuevos tipos de obligación `BANKING_ADVANCE`, `BANKING_CYCLE_PAYOUT` y `BANKING_RESERVE_WITHDRAWAL` (cuenta `BANKING_PLAYER_SHARE`, etiqueta neutra «pago administrativo»). Se pagan SOLO desde la sección privada con `registerSpecialPayoutInTx` / `resolveSpecialPayoutInTx` (variantes dentro de transacción); los endpoints generales las rechazan. El reverso de compra no aplica a compras financiadas.

@@ -69,33 +69,58 @@ model User {
   updatedById String?
   updatedBy   User?   @relation("UserUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  usersCreated            User[]                     @relation("UserCreatedBy")
-  usersUpdated            User[]                     @relation("UserUpdatedBy")
-  auditLogs               AuditLog[]                 @relation("AuditLogActor")
-  correctionsRequested    CorrectionRequest[]        @relation("CorrectionRequestedBy")
-  correctionsExecuted     CorrectionRequest[]        @relation("CorrectionExecutedBy")
-  correctionDecisions     CorrectionApproval[]       @relation("CorrectionDecidedBy")
-  correctionEvents        CorrectionEvent[]          @relation("CorrectionEventActor")
-  integrityRuns           IntegrityCheckRun[]        @relation("IntegrityRunTriggeredBy")
-  incidentsCreated        OperationalIncident[]      @relation("IncidentCreatedBy")
-  incidentsAssigned       OperationalIncident[]      @relation("IncidentAssignedTo")
-  incidentsResolved       OperationalIncident[]      @relation("IncidentResolvedBy")
-  incidentHistory         IncidentHistory[]          @relation("IncidentHistoryActor")
-  backupsTriggered        BackupExecution[]          @relation("BackupTriggeredBy")
-  restoreValidations      RestoreValidation[]        @relation("RestoreValidationRequestedBy")
-  restoreRequests         RestoreRequest[]           @relation("RestoreRequestedBy")
-  restoreApprovals        RestoreRequest[]           @relation("RestoreApprovedBy")
-  maintenanceChanges      SystemMaintenance[]        @relation("MaintenanceChangedBy")
-  redemptionsRequested    LateChipRedemption[]       @relation("RedemptionRequestedBy")
-  redemptionsReceived     LateChipRedemption[]       @relation("RedemptionReceivedBy")
-  specialPayablesCreated  SpecialPayable[]           @relation("SpecialPayableCreatedBy")
-  specialPayoutsRequested SpecialPayout[]            @relation("SpecialPayoutRequestedBy")
-  specialPayoutsResolved  SpecialPayout[]            @relation("SpecialPayoutResolvedBy")
-  specialPayoutsCustody   SpecialPayout[]            @relation("SpecialPayoutCustodian")
-  purchaseReversals       PurchaseReversal[]         @relation("PurchaseReversalExecutedBy")
-  settlementCorrections   SettlementCorrection[]     @relation("SettlementCorrectionExecutedBy")
-  specialEvidence         SpecialOperationEvidence[] @relation("SpecialEvidenceCapturedBy")
-  specialReceipts         SpecialOperationReceipt[]  @relation("SpecialReceiptCreatedBy")
+  usersCreated              User[]                           @relation("UserCreatedBy")
+  usersUpdated              User[]                           @relation("UserUpdatedBy")
+  auditLogs                 AuditLog[]                       @relation("AuditLogActor")
+  correctionsRequested      CorrectionRequest[]              @relation("CorrectionRequestedBy")
+  correctionsExecuted       CorrectionRequest[]              @relation("CorrectionExecutedBy")
+  correctionDecisions       CorrectionApproval[]             @relation("CorrectionDecidedBy")
+  correctionEvents          CorrectionEvent[]                @relation("CorrectionEventActor")
+  integrityRuns             IntegrityCheckRun[]              @relation("IntegrityRunTriggeredBy")
+  incidentsCreated          OperationalIncident[]            @relation("IncidentCreatedBy")
+  incidentsAssigned         OperationalIncident[]            @relation("IncidentAssignedTo")
+  incidentsResolved         OperationalIncident[]            @relation("IncidentResolvedBy")
+  incidentHistory           IncidentHistory[]                @relation("IncidentHistoryActor")
+  backupsTriggered          BackupExecution[]                @relation("BackupTriggeredBy")
+  restoreValidations        RestoreValidation[]              @relation("RestoreValidationRequestedBy")
+  restoreRequests           RestoreRequest[]                 @relation("RestoreRequestedBy")
+  restoreApprovals          RestoreRequest[]                 @relation("RestoreApprovedBy")
+  maintenanceChanges        SystemMaintenance[]              @relation("MaintenanceChangedBy")
+  redemptionsRequested      LateChipRedemption[]             @relation("RedemptionRequestedBy")
+  redemptionsReceived       LateChipRedemption[]             @relation("RedemptionReceivedBy")
+  specialPayablesCreated    SpecialPayable[]                 @relation("SpecialPayableCreatedBy")
+  specialPayoutsRequested   SpecialPayout[]                  @relation("SpecialPayoutRequestedBy")
+  specialPayoutsResolved    SpecialPayout[]                  @relation("SpecialPayoutResolvedBy")
+  specialPayoutsCustody     SpecialPayout[]                  @relation("SpecialPayoutCustodian")
+  purchaseReversals         PurchaseReversal[]               @relation("PurchaseReversalExecutedBy")
+  settlementCorrections     SettlementCorrection[]           @relation("SettlementCorrectionExecutedBy")
+  specialEvidence           SpecialOperationEvidence[]       @relation("SpecialEvidenceCapturedBy")
+  specialReceipts           SpecialOperationReceipt[]        @relation("SpecialReceiptCreatedBy")
+  // Módulo 17 — bancaje (privado)
+  bankingAgreementsCreated  BankingAgreement[]               @relation("BankingAgreementCreatedBy")
+  bankingAgreementsEnded    BankingAgreement[]               @relation("BankingAgreementEndedBy")
+  bankingVersionsCreated    BankingAgreementVersion[]        @relation("BankingVersionCreatedBy")
+  bankingVersionsApproved   BankingAgreementVersion[]        @relation("BankingVersionApprovedBy")
+  bankingCyclesCreated      BankingCycle[]                   @relation("BankingCycleCreatedBy")
+  bankingSegmentsCreated    BankingPercentageSegment[]       @relation("BankingSegmentCreatedBy")
+  bankingGamesStarted       BankingGame[]                    @relation("BankingGameStartedBy")
+  bankingGamesConfirmed     BankingGame[]                    @relation("BankingGameConfirmedBy")
+  bankingSourcesCreated     BankingGameFinancialSource[]     @relation("BankingSourceCreatedBy")
+  bankingAdjustmentsMade    BankingGameAdjustment[]          @relation("BankingAdjustmentApprovedBy")
+  bankingChangesRequested   BankingPercentageChangeRequest[] @relation("BankingChangeRequestedBy")
+  bankingChangesDecided     BankingPercentageChangeRequest[] @relation("BankingChangeDecidedBy")
+  bankingAdvancesAuthorized BankingAdvance[]                 @relation("BankingAdvanceAuthorizer")
+  bankingAdvancesRecorded   BankingAdvance[]                 @relation("BankingAdvanceRecordedBy")
+  bankingAdvancesClosed     BankingAdvance[]                 @relation("BankingAdvanceClosedBy")
+  bankingClosingsPrepared   BankingCycleClosing[]            @relation("BankingClosingPreparedBy")
+  bankingClosingsDecided    BankingCycleClosing[]            @relation("BankingClosingDecidedBy")
+  bankingReserveMovements   BankingReserveMovement[]         @relation("BankingReserveMovementCreatedBy")
+  bankingWithdrawalsReq     BankingReserveWithdrawal[]       @relation("BankingWithdrawalRequestedBy")
+  bankingWithdrawalsDecided BankingReserveWithdrawal[]       @relation("BankingWithdrawalDecidedBy")
+  bankingWithdrawalsClosed  BankingReserveWithdrawal[]       @relation("BankingWithdrawalClosedBy")
+  bankingRegsOpened         BankingRegularization[]          @relation("BankingRegularizationOpenedBy")
+  bankingRegsResolved       BankingRegularization[]          @relation("BankingRegularizationResolvedBy")
+  bankingRegReceipts        BankingRegularizationReceipt[]   @relation("BankingRegReceiptReceivedBy")
 
   sessionsHistoricalRecorded PokerSession[] @relation("SessionHistoricalRecordedBy")
 
@@ -664,6 +689,14 @@ model Player {
   settlementSnaps    SettlementSignatureSnapshot[]
   settlementSigs     SettlementSignature[]
   seatAssignments    TableSeatAssignment[]
+  // Módulo 17 — bancaje (privado: nunca en proyecciones compartidas)
+  bankingAgreements  BankingAgreement[]
+  bankingCycles      BankingCycle[]
+  bankingGames       BankingGame[]
+  bankingAdvances    BankingAdvance[]
+  bankingReserve     BankingReserveMovement[]
+  bankingWithdrawals BankingReserveWithdrawal[]
+  bankingRegs        BankingRegularization[]
 
   @@index([isActive, name])
   @@index([name])
@@ -1168,6 +1201,10 @@ enum FinancialAccountKind {
   /// Dinero real recibido que no pudo aplicarse a deudas (pendiente de
   /// devolución o conciliación). Nunca es saldo a favor del jugador.
   UNAPPLIED_PLAYER_FUNDS
+  /// Módulo 17: participaciones pagadas a jugadores bancados (anticipos,
+  /// pagos de corte, retiros de reserva) y devoluciones reales recibidas.
+  /// Cuenta técnica (no es dinero disponible).
+  BANKING_PLAYER_SHARE
 }
 
 enum FinancialAccountScope {
@@ -1232,6 +1269,8 @@ enum CashTransactionType {
   CASH_RECONCILIATION_ADJUSTMENT
   /// Depósito de la terminal al banco: banco + / por liquidar − (no es venta).
   CARD_TERMINAL_SETTLEMENT
+  /// Módulo 17: dinero REAL devuelto por un jugador bancado (regularización).
+  BANKING_FUNDS_RECEIVED
 }
 
 /// Destinos permitidos de un retiro. No incluye gastos.
@@ -1538,6 +1577,7 @@ model PokerSession {
   lateRedemptions    LateChipRedemption[]   @relation("RedemptionOriginSession")
   seatAssignments    TableSeatAssignment[]
   dealerAssignments  DealerAssignment[]
+  bankingGames       BankingGame[]
 
   @@index([status])
   @@index([createdAt])
@@ -1702,6 +1742,11 @@ model TableParticipation {
   /// presente en SETTLING (falta pagar) y SETTLED (terminada).
   settlementId          String?             @unique
   settlement            PlayerSettlement?   @relation("ParticipationSettlement", fields: [settlementId], references: [id], onDelete: Restrict)
+  /// Módulo 17 (privado): salida conciliada de una jugada financiada por la
+  /// casa (devolución física verificada, sin pago automático). Excluyente
+  /// con `settlementId`. Nunca se proyecta en vistas compartidas.
+  bankingGameId         String?             @unique
+  bankingGame           BankingGame?        @relation("BankingGameFinalParticipation", fields: [bankingGameId], references: [id], onDelete: Restrict)
   idempotencyKey        String              @unique
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -1889,6 +1934,14 @@ enum ChipPurchaseStatus {
 }
 
 /// Se asigna al CONFIRMAR (los borradores no consumen numeración).
+/// Origen del financiamiento de la compra (Módulo 17, privado).
+enum ChipPurchaseFunding {
+  /// El jugador paga (efectivo, transferencia, terminal) y/o queda a crédito.
+  PLAYER
+  /// La casa financia las fichas del jugador bancado: no hay cobro ni deuda.
+  HOUSE
+}
+
 enum ChipPurchaseType {
   INITIAL_PURCHASE
   REBUY
@@ -1922,24 +1975,24 @@ enum CreditAuthorizationStatus {
 }
 
 model ChipPurchase {
-  id                 String             @id @default(cuid())
-  folio              String             @unique
+  id                 String              @id @default(cuid())
+  folio              String              @unique
   sessionId          String
-  session            PokerSession       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  session            PokerSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sessionTableId     String
-  sessionTable       SessionTable       @relation(fields: [sessionTableId], references: [id], onDelete: Restrict)
+  sessionTable       SessionTable        @relation(fields: [sessionTableId], references: [id], onDelete: Restrict)
   cycleId            String
-  cycle              SessionTableCycle  @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  cycle              SessionTableCycle   @relation(fields: [cycleId], references: [id], onDelete: Restrict)
   participationId    String
-  participation      TableParticipation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+  participation      TableParticipation  @relation(fields: [participationId], references: [id], onDelete: Restrict)
   playerId           String
-  player             Player             @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  player             Player              @relation(fields: [playerId], references: [id], onDelete: Restrict)
   /// Mesa del catálogo (copia para trazabilidad en caja e inventario).
   tableId            String
-  table              PokerTable         @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  table              PokerTable          @relation(fields: [tableId], references: [id], onDelete: Restrict)
   /// Importe nominal solicitado (Decimal > 0). Sin denominaciones.
-  nominalAmount      Decimal            @db.Decimal(14, 2)
-  status             ChipPurchaseStatus @default(DRAFT)
+  nominalAmount      Decimal             @db.Decimal(14, 2)
+  status             ChipPurchaseStatus  @default(DRAFT)
   purchaseType       ChipPurchaseType?
   /// Orden de compra confirmada por (sesión, jugador): 1 = compra inicial.
   sequenceNumber     Int?
@@ -1947,22 +2000,26 @@ model ChipPurchase {
   rebuyNumber        Int?
   /// Versión del resumen: cambia con cada cambio material (firma y
   /// autorización se ligan a una versión exacta).
-  version            Int                @default(1)
+  version            Int                 @default(1)
   /// Reserva nominal vigente (READY_FOR_DELIVERY).
-  reservationId      String?            @unique
+  reservationId      String?             @unique
   notes              String?
+  /// Módulo 17 (privado): HOUSE = compra financiada por la casa (jugador
+  /// bancado): sin pagos, sin crédito ordinario, sin firma de crédito. Nunca
+  /// se proyecta en vistas compartidas.
+  fundingSource      ChipPurchaseFunding @default(PLAYER)
   createdById        String
-  createdBy          User               @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy          User                @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   confirmedById      String?
-  confirmedBy        User?              @relation("PurchaseConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  confirmedBy        User?               @relation("PurchaseConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
   confirmedAt        DateTime?
   cancelledById      String?
-  cancelledBy        User?              @relation("PurchaseCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancelledBy        User?               @relation("PurchaseCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
   cancelledAt        DateTime?
   cancellationReason String?
-  idempotencyKey     String             @unique
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  idempotencyKey     String              @unique
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   payments         PurchasePayment[]
   authorizations   PurchaseCreditAuthorization[]
@@ -1975,6 +2032,7 @@ model ChipPurchase {
   storedFiles      StoredFile[]
   receipt          PurchaseReceipt?
   reversal         PurchaseReversal?
+  bankingSource    BankingGameFinancialSource?
 
   @@index([sessionId, createdAt])
   @@index([sessionTableId, createdAt])
@@ -2071,6 +2129,9 @@ model PurchaseDelivery {
   confirmedPayments    Decimal            @db.Decimal(14, 2)
   pendingTransfers     Decimal            @db.Decimal(14, 2)
   outstandingAmount    Decimal            @db.Decimal(14, 2)
+  /// Módulo 17 (privado): parte financiada por la casa (no es cobro ni
+  /// deuda). pagos + por cobrar + financiado = importe.
+  houseFundedAmount    Decimal            @default(0) @db.Decimal(14, 2)
   summaryVersion       Int
   summaryHash          String
   /// Firma auténtica verificada por el Módulo 09 (obligatoria si hay crédito).
@@ -3727,6 +3788,10 @@ enum SpecialPayableKind {
   PURCHASE_REFUND
   SETTLEMENT_ADJUSTMENT
   UNAPPLIED_REFUND
+  /// Módulo 17 (privado): solo se pagan desde el módulo de bancaje.
+  BANKING_ADVANCE
+  BANKING_CYCLE_PAYOUT
+  BANKING_RESERVE_WITHDRAWAL
 }
 
 enum SpecialPayableStatus {
@@ -3895,4 +3960,529 @@ model SpecialOperationReceipt {
 
   @@index([kind, createdAt])
   @@map("special_operation_receipts")
+}
+
+// ── Módulo 17: jugadores bancados por la casa (PRIVADO) ───────────────
+// Ver docs/MODULE_17_BANKED_PLAYERS.md. Nada de esto se proyecta en la mesa
+// ni en vistas compartidas. Reutiliza compras (Módulo 08) con
+// `fundingSource = HOUSE`, la devolución nominal del inventario (Módulo 04),
+// las obligaciones y pagos especiales (Módulo 16) y el libro financiero
+// (Módulo 05). No hay caja ni inventario paralelos; los saldos de reserva,
+// pérdidas y participaciones se DERIVAN de hechos inmutables.
+
+enum BankingAgreementStatus {
+  ACTIVE
+  ENDED
+}
+
+/// Acuerdo privado de bancaje con un jugador (uno ACTIVO por jugador).
+model BankingAgreement {
+  id             String                 @id @default(cuid())
+  playerId       String
+  player         Player                 @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  status         BankingAgreementStatus @default(ACTIVE)
+  notes          String?
+  createdById    String
+  createdBy      User                   @relation("BankingAgreementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime               @default(now())
+  endedAt        DateTime?
+  endedById      String?
+  endedBy        User?                  @relation("BankingAgreementEndedBy", fields: [endedById], references: [id], onDelete: Restrict)
+  endReason      String?
+  idempotencyKey String                 @unique
+  updatedAt      DateTime               @updatedAt
+
+  versions       BankingAgreementVersion[]
+  cycles         BankingCycle[]
+  changeRequests BankingPercentageChangeRequest[]
+
+  @@index([playerId, status])
+  @@map("banking_agreements")
+}
+
+/// Versión (inmutable) de los porcentajes del acuerdo. Jugador + casa = 100.
+model BankingAgreementVersion {
+  id              String           @id @default(cuid())
+  agreementId     String
+  agreement       BankingAgreement @relation(fields: [agreementId], references: [id], onDelete: Restrict)
+  version         Int
+  playerPercent   Decimal          @db.Decimal(5, 2)
+  housePercent    Decimal          @db.Decimal(5, 2)
+  effectiveFrom   DateTime         @default(now())
+  reason          String
+  /// Solicitud de cambio que originó la versión (null en la versión 1).
+  changeRequestId String?          @unique
+  createdById     String
+  createdBy       User             @relation("BankingVersionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  /// PARTNER o SUPERADMIN que aprobó DIGITALMENTE (sesión iniciada).
+  approvedById    String
+  approvedBy      User             @relation("BankingVersionApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  createdAt       DateTime         @default(now())
+
+  segments BankingPercentageSegment[]
+
+  @@unique([agreementId, version])
+  @@map("banking_agreement_versions")
+}
+
+/// IN_PROGRESS: menos de 4 jugadas confirmadas. READY_FOR_REVIEW: 4/4, sin
+/// corte en revisión. UNDER_REVIEW: corte preparado esperando aprobación.
+/// UNDER_REGULARIZATION: hay una jugada en corrección o discrepancia.
+/// CLOSED: corte aprobado digitalmente (inmutable).
+enum BankingCycleStatus {
+  IN_PROGRESS
+  READY_FOR_REVIEW
+  UNDER_REVIEW
+  UNDER_REGULARIZATION
+  CLOSED
+}
+
+/// Ciclo de EXACTAMENTE cuatro jugadas (no días ni compras) por jugador.
+model BankingCycle {
+  id          String             @id @default(cuid())
+  playerId    String
+  player      Player             @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  agreementId String
+  agreement   BankingAgreement   @relation(fields: [agreementId], references: [id], onDelete: Restrict)
+  number      Int
+  status      BankingCycleStatus @default(IN_PROGRESS)
+  startedAt   DateTime           @default(now())
+  readyAt     DateTime?
+  closedAt    DateTime?
+  createdById String
+  createdBy   User               @relation("BankingCycleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedAt   DateTime           @updatedAt
+
+  games           BankingGame[]
+  segments        BankingPercentageSegment[]
+  closings        BankingCycleClosing[]
+  advances        BankingAdvance[]
+  changeRequests  BankingPercentageChangeRequest[]
+  regularizations BankingRegularization[]
+
+  @@unique([playerId, number])
+  @@index([status])
+  @@map("banking_cycles")
+}
+
+/// Tramo de porcentaje del ciclo (solo inserción). La jugada k usa el tramo
+/// creado MÁS RECIENTEMENTE con `fromGameNumber ≤ k`: «todo el ciclo» crea
+/// uno desde la jugada 1; «desde la siguiente», desde la próxima jugada.
+model BankingPercentageSegment {
+  id                 String                  @id @default(cuid())
+  cycleId            String
+  cycle              BankingCycle            @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  fromGameNumber     Int
+  agreementVersionId String
+  agreementVersion   BankingAgreementVersion @relation(fields: [agreementVersionId], references: [id], onDelete: Restrict)
+  playerPercent      Decimal                 @db.Decimal(5, 2)
+  housePercent       Decimal                 @db.Decimal(5, 2)
+  changeRequestId    String?                 @unique
+  createdById        String
+  createdBy          User                    @relation("BankingSegmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime                @default(now())
+
+  @@index([cycleId, createdAt])
+  @@map("banking_percentage_segments")
+}
+
+/// IN_PROGRESS: tiene compras financiadas y el jugador sigue jugando.
+/// PENDING_RECONCILIATION: discrepancia física reportada (bloquea).
+/// CONFIRMED: devolución física conciliada y resultado fijado.
+/// UNDER_CORRECTION: corrección autorizada en trámite (bloquea cortes y anticipos).
+enum BankingGameStatus {
+  IN_PROGRESS
+  PENDING_RECONCILIATION
+  CONFIRMED
+  UNDER_CORRECTION
+}
+
+/// Una JUGADA = una sesión distinta en la que el jugador bancado jugó con
+/// fichas de la casa (cambiar de mesa no crea otra). Única por (jugador, sesión).
+model BankingGame {
+  id                    String            @id @default(cuid())
+  cycleId               String
+  cycle                 BankingCycle      @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  playerId              String
+  player                Player            @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  sessionId             String
+  session               PokerSession      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  gameNumber            Int
+  status                BankingGameStatus @default(IN_PROGRESS)
+  /// Fijados al CONFIRMAR (devolución física real o cero confirmado).
+  financedNominal       Decimal?          @db.Decimal(14, 2)
+  returnedNominal       Decimal?          @db.Decimal(14, 2)
+  zeroReturnConfirmed   Boolean           @default(false)
+  /// devuelto − financiado (no es dinero: resultado económico de juego).
+  grossResult           Decimal?          @db.Decimal(14, 2)
+  /// Operación nominal de devolución (null si regresó $0).
+  returnOperationId     String?           @unique
+  discrepancyNotes      String?
+  incidentId            String?
+  version               Int               @default(1)
+  startedAt             DateTime          @default(now())
+  startedById           String
+  startedBy             User              @relation("BankingGameStartedBy", fields: [startedById], references: [id], onDelete: Restrict)
+  confirmedAt           DateTime?
+  confirmedById         String?
+  confirmedBy           User?             @relation("BankingGameConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  confirmIdempotencyKey String?           @unique
+  updatedAt             DateTime          @updatedAt
+
+  sources            BankingGameFinancialSource[]
+  adjustments        BankingGameAdjustment[]
+  finalParticipation TableParticipation?          @relation("BankingGameFinalParticipation")
+  enabledAdvances    BankingAdvance[]
+  regularizations    BankingRegularization[]
+
+  @@unique([playerId, sessionId])
+  @@unique([cycleId, gameNumber])
+  @@index([status])
+  @@map("banking_games")
+}
+
+/// Compra o recompra financiada por la casa que alimenta la jugada.
+model BankingGameFinancialSource {
+  id            String       @id @default(cuid())
+  gameId        String
+  game          BankingGame  @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  purchaseId    String       @unique
+  purchase      ChipPurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  nominalAmount Decimal      @db.Decimal(14, 2)
+  createdById   String
+  createdBy     User         @relation("BankingSourceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt     DateTime     @default(now())
+
+  @@index([gameId])
+  @@map("banking_game_financial_sources")
+}
+
+/// Ajuste auditado del resultado de una jugada confirmada (ciclo NO cerrado).
+/// El resultado original se conserva; efectivo = bruto + Σ ajustes.
+model BankingGameAdjustment {
+  id             String      @id @default(cuid())
+  gameId         String
+  game           BankingGame @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  amount         Decimal     @db.Decimal(14, 2)
+  reason         String
+  approvedById   String
+  approvedBy     User        @relation("BankingAdjustmentApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  createdAt      DateTime    @default(now())
+  idempotencyKey String      @unique
+
+  @@index([gameId])
+  @@map("banking_game_adjustments")
+}
+
+enum BankingChangeMode {
+  /// El nuevo porcentaje rige TODO el ciclo actual.
+  WHOLE_CYCLE
+  /// Rige desde la siguiente jugada (los tramos anteriores se conservan).
+  FROM_NEXT_GAME
+}
+
+enum BankingRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Solicitud de cambio de porcentaje: la aprueba DIGITALMENTE un PARTNER o
+/// SUPERADMIN (nunca CASHIER). Conserva el cálculo antes y después.
+model BankingPercentageChangeRequest {
+  id                String               @id @default(cuid())
+  agreementId       String
+  agreement         BankingAgreement     @relation(fields: [agreementId], references: [id], onDelete: Restrict)
+  cycleId           String?
+  cycle             BankingCycle?        @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  fromPlayerPercent Decimal              @db.Decimal(5, 2)
+  toPlayerPercent   Decimal              @db.Decimal(5, 2)
+  toHousePercent    Decimal              @db.Decimal(5, 2)
+  mode              BankingChangeMode
+  startGameNumber   Int?
+  reason            String
+  status            BankingRequestStatus @default(PENDING)
+  requestedById     String
+  requestedBy       User                 @relation("BankingChangeRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedAt       DateTime             @default(now())
+  decidedById       String?
+  decidedBy         User?                @relation("BankingChangeDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt         DateTime?
+  decisionNotes     String?
+  beforeCalculation Json?
+  afterCalculation  Json?
+  idempotencyKey    String               @unique
+
+  @@index([agreementId, status])
+  @@map("banking_percentage_change_requests")
+}
+
+/// AUTHORIZED → PARTIALLY_PAID → PAID. CLOSED: el remanente no pagado se
+/// liberó (lo pagado se conserva). Lo PAGADO se deriva de pagos EXECUTED.
+enum BankingAdvanceStatus {
+  AUTHORIZED
+  PARTIALLY_PAID
+  PAID
+  CLOSED
+}
+
+/// Anticipo tras una jugada GANADORA confirmada. La autorización la
+/// comunica un socio VERBALMENTE o por MENSAJE y la registra el cajero (no
+/// es aprobación digital). Cada desembolso real es una obligación especial
+/// (Módulo 16) pagada en la misma transacción.
+model BankingAdvance {
+  id                  String                     @id @default(cuid())
+  playerId            String
+  player              Player                     @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  cycleId             String
+  cycle               BankingCycle               @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  enablingGameId      String
+  enablingGame        BankingGame                @relation(fields: [enablingGameId], references: [id], onDelete: Restrict)
+  requestedAmount     Decimal                    @db.Decimal(14, 2)
+  authorizedAmount    Decimal                    @db.Decimal(14, 2)
+  /// Límite conservador calculado por el servidor al registrar.
+  limitAtRegistration Decimal                    @db.Decimal(14, 2)
+  authorizerId        String
+  authorizer          User                       @relation("BankingAdvanceAuthorizer", fields: [authorizerId], references: [id], onDelete: Restrict)
+  authorizerName      String
+  channel             CreditAuthorizationChannel
+  status              BankingAdvanceStatus       @default(AUTHORIZED)
+  notes               String?
+  recordedById        String
+  recordedBy          User                       @relation("BankingAdvanceRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedAt          DateTime                   @default(now())
+  closedAt            DateTime?
+  closedById          String?
+  closedBy            User?                      @relation("BankingAdvanceClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+  closeReason         String?
+  idempotencyKey      String                     @unique
+  version             Int                        @default(1)
+
+  @@index([playerId, status])
+  @@index([cycleId])
+  @@map("banking_advances")
+}
+
+/// UNDER_REVIEW: versión preparada esperando aprobación DIGITAL.
+/// APPROVED: aprobada (snapshot inmutable). REJECTED: rechazada con motivo.
+/// SUPERSEDED: sustituida por otra versión o por datos que cambiaron.
+enum BankingClosingStatus {
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+/// Corte de las cuatro jugadas. Cada preparación es una VERSIÓN con su
+/// snapshot y huella; la aprobación recalcula y exige la misma huella.
+model BankingCycleClosing {
+  id                    String               @id @default(cuid())
+  cycleId               String
+  cycle                 BankingCycle         @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  version               Int
+  status                BankingClosingStatus @default(UNDER_REVIEW)
+  snapshot              Json
+  snapshotHash          String
+  grossTotal            Decimal              @db.Decimal(14, 2)
+  previousCarriedLoss   Decimal              @db.Decimal(14, 2)
+  reserveBefore         Decimal              @db.Decimal(14, 2)
+  reserveConsumed       Decimal              @db.Decimal(14, 2)
+  playerShare           Decimal              @db.Decimal(14, 2)
+  houseShare            Decimal              @db.Decimal(14, 2)
+  advancesPaid          Decimal              @db.Decimal(14, 2)
+  recoveryApplied       Decimal              @db.Decimal(14, 2)
+  excessAdvance         Decimal              @db.Decimal(14, 2)
+  reserveAmount         Decimal              @db.Decimal(14, 2)
+  payAmount             Decimal              @db.Decimal(14, 2)
+  carriedLossOut        Decimal              @db.Decimal(14, 2)
+  lossAllocation        Json?
+  notes                 String?
+  preparedById          String
+  preparedBy            User                 @relation("BankingClosingPreparedBy", fields: [preparedById], references: [id], onDelete: Restrict)
+  preparedAt            DateTime             @default(now())
+  decidedById           String?
+  decidedBy             User?                @relation("BankingClosingDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt             DateTime?
+  decisionNotes         String?
+  /// Obligación por pagar del corte (Módulo 16), si hubo pago reconocido.
+  payableId             String?              @unique
+  idempotencyKey        String               @unique
+  approveIdempotencyKey String?              @unique
+
+  reserveMovements BankingReserveMovement[]
+  regularizations  BankingRegularization[]
+  recoveries       BankingRegularizationRecovery[]
+
+  @@unique([cycleId, version])
+  @@map("banking_cycle_closings")
+}
+
+enum BankingReserveMovementKind {
+  /// + Reserva creada en un corte aprobado.
+  CREATED
+  /// − Reserva que cubrió pérdidas en un corte (no se vuelve a descontar).
+  CONSUMED_BY_LOSS
+  /// − Reserva aplicada a una regularización de anticipo excedido.
+  CONSUMED_BY_REGULARIZATION
+  /// − Reserva comprometida por un retiro APROBADO (pasa a obligación).
+  RECLASSIFIED_TO_WITHDRAWAL
+  /// + Remanente no pagado de un retiro cerrado (regresa a la reserva).
+  RELEASED_FROM_WITHDRAWAL
+}
+
+/// Libro de la reserva positiva del jugador (solo inserción). Saldo =
+/// Σ(+) − Σ(−), nunca negativo (trigger). No es dinero nuevo en caja.
+model BankingReserveMovement {
+  id               String                     @id @default(cuid())
+  playerId         String
+  player           Player                     @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  kind             BankingReserveMovementKind
+  amount           Decimal                    @db.Decimal(14, 2)
+  closingId        String?
+  closing          BankingCycleClosing?       @relation(fields: [closingId], references: [id], onDelete: Restrict)
+  withdrawalId     String?
+  withdrawal       BankingReserveWithdrawal?  @relation(fields: [withdrawalId], references: [id], onDelete: Restrict)
+  regularizationId String?
+  regularization   BankingRegularization?     @relation(fields: [regularizationId], references: [id], onDelete: Restrict)
+  /// Origen único: una misma reserva nunca se aplica dos veces.
+  uniqueKey        String                     @unique
+  notes            String?
+  createdById      String
+  createdBy        User                       @relation("BankingReserveMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime                   @default(now())
+
+  @@index([playerId, createdAt])
+  @@map("banking_reserve_movements")
+}
+
+/// REQUESTED → APPROVED (aprobación DIGITAL; compromete la reserva) →
+/// PARTIALLY_PAID → PAID | CLOSED (remanente liberado). REJECTED/CANCELLED
+/// antes de aprobar.
+enum BankingWithdrawalStatus {
+  REQUESTED
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  CLOSED
+  REJECTED
+  CANCELLED
+}
+
+model BankingReserveWithdrawal {
+  id              String                  @id @default(cuid())
+  playerId        String
+  player          Player                  @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  requestedAmount Decimal                 @db.Decimal(14, 2)
+  approvedAmount  Decimal?                @db.Decimal(14, 2)
+  status          BankingWithdrawalStatus @default(REQUESTED)
+  reason          String
+  requestedById   String
+  requestedBy     User                    @relation("BankingWithdrawalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedAt     DateTime                @default(now())
+  decidedById     String?
+  decidedBy       User?                   @relation("BankingWithdrawalDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+  decidedAt       DateTime?
+  decisionNotes   String?
+  closedAt        DateTime?
+  closedById      String?
+  closedBy        User?                   @relation("BankingWithdrawalClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+  closeReason     String?
+  idempotencyKey  String                  @unique
+  version         Int                     @default(1)
+
+  movements BankingReserveMovement[]
+
+  @@index([playerId, status])
+  @@map("banking_reserve_withdrawals")
+}
+
+enum BankingRegularizationKind {
+  /// Anticipos pagados mayores que la participación definitiva del ciclo.
+  EXCESS_ADVANCE
+  /// Discrepancia física en la devolución de fichas de una jugada.
+  PHYSICAL_DISCREPANCY
+}
+
+enum BankingRegularizationStatus {
+  OPEN
+  /// Se acordó devolución: se espera el dinero REAL.
+  AWAITING_RETURN
+  /// Se recupera contra participaciones futuras.
+  RECOVERING
+  RESOLVED
+}
+
+enum BankingRegularizationResolution {
+  RECOVER_FROM_FUTURE
+  APPLY_RESERVE
+  MONEY_RETURNED
+  DOCUMENTED_WRITE_OFF
+  DISCREPANCY_CLEARED
+}
+
+/// Expediente privado caso por caso (lo decide PARTNER o SUPERADMIN).
+/// Nunca crea deuda ordinaria ni dinero ficticio.
+model BankingRegularization {
+  id              String                           @id @default(cuid())
+  playerId        String
+  player          Player                           @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  cycleId         String?
+  cycle           BankingCycle?                    @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  closingId       String?                          @unique
+  closing         BankingCycleClosing?             @relation(fields: [closingId], references: [id], onDelete: Restrict)
+  gameId          String?
+  game            BankingGame?                     @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  kind            BankingRegularizationKind
+  amount          Decimal                          @db.Decimal(14, 2)
+  status          BankingRegularizationStatus      @default(OPEN)
+  description     String
+  resolution      BankingRegularizationResolution?
+  resolutionNotes String?
+  incidentId      String?
+  openedById      String
+  openedBy        User                             @relation("BankingRegularizationOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  openedAt        DateTime                         @default(now())
+  resolvedById    String?
+  resolvedBy      User?                            @relation("BankingRegularizationResolvedBy", fields: [resolvedById], references: [id], onDelete: Restrict)
+  resolvedAt      DateTime?
+  version         Int                              @default(1)
+
+  reserveMovements BankingReserveMovement[]
+  recoveries       BankingRegularizationRecovery[]
+  receipts         BankingRegularizationReceipt[]
+
+  @@index([playerId, status])
+  @@map("banking_regularizations")
+}
+
+/// Recuperación de un anticipo excedido aplicada en un corte posterior.
+model BankingRegularizationRecovery {
+  id               String                @id @default(cuid())
+  regularizationId String
+  regularization   BankingRegularization @relation(fields: [regularizationId], references: [id], onDelete: Restrict)
+  closingId        String
+  closing          BankingCycleClosing   @relation(fields: [closingId], references: [id], onDelete: Restrict)
+  amount           Decimal               @db.Decimal(14, 2)
+  createdAt        DateTime              @default(now())
+
+  @@unique([regularizationId, closingId])
+  @@map("banking_regularization_recoveries")
+}
+
+/// Dinero REAL devuelto por el jugador (efectivo a custodia administrativa),
+/// con su asiento en el libro financiero. Nunca se registra por aprobar.
+model BankingRegularizationReceipt {
+  id                     String                @id @default(cuid())
+  regularizationId       String
+  regularization         BankingRegularization @relation(fields: [regularizationId], references: [id], onDelete: Restrict)
+  amount                 Decimal               @db.Decimal(14, 2)
+  financialTransactionId String                @unique
+  receivedById           String
+  receivedBy             User                  @relation("BankingRegReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
+  receivedAt             DateTime              @default(now())
+  idempotencyKey         String                @unique
+
+  @@index([regularizationId])
+  @@map("banking_regularization_receipts")
 }

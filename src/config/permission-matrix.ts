@@ -135,6 +135,16 @@ export const PERMISSIONS = {
 
   // Auditoría de operaciones (Módulo 15: los TRES roles, DEC-01..03).
   AUDIT_READ: "audit:read",
+
+  // Jugadores bancados por la casa (Módulo 17, PRIVADO). READ/OPERATE: los
+  // tres roles consultan lo necesario, registran compras financiadas,
+  // conciliaciones, anticipos con autorización verbal/mensaje, solicitudes
+  // y pagos reales, y preparan cortes. APPROVE (aprobación DIGITAL de
+  // acuerdos, cambios de porcentaje, cortes, retiros de reserva y
+  // regularizaciones): solo PARTNER y SUPERADMIN.
+  BANKING_READ: "banking:read",
+  BANKING_OPERATE: "banking:operate",
+  BANKING_APPROVE: "banking:approve",
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -191,6 +201,9 @@ const CASHIER_PERMISSIONS: readonly Permission[] = [
   // Módulo 16: solicita y ejecuta lo autorizado; nunca autoriza.
   PERMISSIONS.SPECIAL_OPS_READ,
   PERMISSIONS.SPECIAL_OPS_OPERATE,
+  // Módulo 17: opera el bancaje; nunca aprueba digitalmente.
+  PERMISSIONS.BANKING_READ,
+  PERMISSIONS.BANKING_OPERATE,
 ]
 
 export const ROLE_PERMISSIONS: Readonly<Record<Role, ReadonlySet<Permission>>> =

@@ -63,6 +63,7 @@ async function loadFacts(db: Tx | typeof prisma, purchaseId: string) {
       participationId: true,
       playerId: true,
       confirmedAt: true,
+      fundingSource: true,
       player: { select: { id: true, name: true } },
       session: { select: { id: true, folio: true, status: true } },
       table: { select: { name: true } },
@@ -86,6 +87,13 @@ async function loadFacts(db: Tx | typeof prisma, purchaseId: string) {
     },
   })
   if (!p) throw new NotFoundError("Compra no encontrada")
+  // Módulo 17: una compra financiada por la casa no se revierte con este
+  // proceso (reembolsaría dinero que el jugador no pagó); se corrige en la
+  // sección privada (ajuste auditado de la jugada).
+  if (p.fundingSource === "HOUSE")
+    throw new BusinessRuleError(
+      "Esta compra tiene un registro administrativo: su corrección se realiza desde Administración."
+    )
   const settlements = await db.playerSettlement.count({
     where: {
       participationId: p.participationId,

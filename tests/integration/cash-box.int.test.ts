@@ -156,8 +156,9 @@ describe("caja central única y cuentas", () => {
     await seedFinancialAccounts(prisma)
     await seedFinancialAccounts(prisma)
     const accounts = await prisma.financialAccount.findMany()
-    // + por liquidar (Módulo 08), custodia administrativa y no aplicados (Módulo 10)
-    expect(accounts).toHaveLength(12)
+    // + por liquidar (Módulo 08), custodia administrativa y no aplicados
+    // (Módulo 10) y participaciones de bancaje (Módulo 17, cuenta técnica).
+    expect(accounts).toHaveLength(13)
     expect(new Set(accounts.map((a) => a.cashBoxId)).size).toBe(1)
     expect(await prisma.cashTransaction.count()).toBe(0)
     expect(await prisma.financialAccountBalance.count()).toBe(0)

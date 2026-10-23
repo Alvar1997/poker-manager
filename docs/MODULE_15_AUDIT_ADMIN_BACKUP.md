@@ -186,3 +186,7 @@ Los cuatro procesos se ejecutan en Operaciones especiales (`docs/MODULE_16_SPECI
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 Nuevos eventos clasificados en «Mesas (M07)»: `SEAT_ASSIGNED`, `SEAT_CHANGED`, `SEAT_RELEASED`, `PLAYER_SEATED_PENDING_BUY`, `TABLE_PARTICIPATION_WITHDRAWN`, `DEALER_CREATED`, `DEALER_UPDATED`, `DEALER_ASSIGNED`, `DEALER_CHANGED`, `DEALER_RELEASED` y `TABLE_FELT_COLOR_CHANGED`.
+
+## Integración con el Módulo 17
+
+Módulo 17: módulo de auditoría `BANKING` (acciones `BANKING_*`) restringido a `banking:read`; tres comprobaciones de integridad con textos neutros (`ADMIN_FUNDED_PURCHASES`, `ADMIN_RECORD_RESULTS`, `ADMIN_RESERVE_NONNEGATIVE`).

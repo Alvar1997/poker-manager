@@ -19,6 +19,7 @@ export const GET = withApiHandler(async (req, { requestId }) => {
     await listAuditEvents(r.filters, {
       canSecurity: can(user, PERMISSIONS.AUDIT_SECURITY_READ),
       canInfrastructure: can(user, PERMISSIONS.BACKUPS_READ),
+      canBanking: can(user, PERMISSIONS.BANKING_READ),
     }),
     { requestId }
   )

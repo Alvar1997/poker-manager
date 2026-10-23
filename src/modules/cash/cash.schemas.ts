@@ -181,6 +181,7 @@ export const TRANSACTION_TYPES = [
   "REVERSAL",
   "CASH_RECONCILIATION_ADJUSTMENT",
   "CARD_TERMINAL_SETTLEMENT",
+  "BANKING_FUNDS_RECEIVED",
 ] as const
 export const TRANSACTION_TYPE_LABEL: Record<
   (typeof TRANSACTION_TYPES)[number],
@@ -197,6 +198,7 @@ export const TRANSACTION_TYPE_LABEL: Record<
   REVERSAL: "Reverso",
   CASH_RECONCILIATION_ADJUSTMENT: "Ajuste de arqueo",
   CARD_TERMINAL_SETTLEMENT: "Depósito de terminal",
+  BANKING_FUNDS_RECEIVED: "Devolución recibida (administrativa)",
 }
 
 const dateParam = z

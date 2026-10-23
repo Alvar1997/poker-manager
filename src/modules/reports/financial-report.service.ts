@@ -42,6 +42,7 @@ export const TRANSACTION_TYPE_LABEL: Record<string, string> = {
   REVERSAL: "Reverso",
   CASH_RECONCILIATION_ADJUSTMENT: "Ajuste de arqueo",
   CARD_TERMINAL_SETTLEMENT: "Depósito de terminal al banco (traslado)",
+  BANKING_FUNDS_RECEIVED: "Devolución recibida (administrativa)",
 }
 
 export const ACCOUNT_LABEL: Record<string, string> = {
@@ -365,7 +366,10 @@ export async function currentPositions(db: Db = prisma) {
     SELECT p."kind"::text AS kind, COUNT(*) AS n, SUM(p."originalAmount") AS original,
       SUM(COALESCE((SELECT SUM(x."amount") FROM "special_payouts" x
         WHERE x."payableId" = p."id" AND x."status" = 'EXECUTED'), 0)) AS paid
-    FROM "special_payables" p WHERE p."status" <> 'PAID' GROUP BY p."kind"`)
+    FROM "special_payables" p WHERE p."status" <> 'PAID'
+      -- Las obligaciones de bancaje (Módulo 17) son privadas: reporte propio.
+      AND p."kind"::text NOT LIKE 'BANKING_%'
+    GROUP BY p."kind"`)
   return {
     specialPayables: special.map((r) => ({
       kind: r.kind,

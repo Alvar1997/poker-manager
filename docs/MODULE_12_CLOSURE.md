@@ -350,3 +350,7 @@ Cerrar el ciclo de una mesa libera al dealer (`CYCLE_CLOSED`) en la misma transa
 ## Folios de sesión y captura histórica — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
 
 Una sesión `HISTORICAL` no tiene cierre (no se abre, no tiene caja ni arqueos): no aparece en los flujos de cierre. Los reportes de cierre ya emitidos conservan el folio que tenían al emitirse (contenido inmutable); la sesión guarda el anterior en `previousFolio`.
+
+## Integración con el Módulo 17
+
+Módulo 17: el cierre no cambia: un jugador bancado activo bloquea igual que cualquiera; los pagos de bancaje solo usan la caja de una sesión ABIERTA (nunca una cerrada).

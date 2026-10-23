@@ -246,3 +246,7 @@ Los reportes (`docs/MODULE_14_REPORTS.md`) leen `player_debts` y `payment_alloca
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 La mesa muestra, al tocar al jugador, su deuda global y la originada en la sesión actual (derivadas del libro de aplicaciones) y un indicador de crédito pendiente en el asiento. No crea ni modifica deudas.
+
+## Integración con el Módulo 17
+
+Módulo 17: el financiamiento de la casa NO es crédito ordinario: no crea `PlayerDebt` ni usa el FIFO (triggers lo impiden). Los anticipos excedidos se regularizan caso por caso en la sección privada.

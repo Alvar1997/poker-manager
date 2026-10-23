@@ -56,23 +56,53 @@ type PayableKind =
   | "PURCHASE_REFUND"
   | "SETTLEMENT_ADJUSTMENT"
   | "UNAPPLIED_REFUND"
+  | "BANKING_ADVANCE"
+  | "BANKING_CYCLE_PAYOUT"
+  | "BANKING_RESERVE_WITHDRAWAL"
+
+/**
+ * Obligaciones del Módulo 17 (PRIVADAS): solo se pagan desde el módulo de
+ * bancaje, que revalida su límite dentro de la misma transacción. Los
+ * endpoints generales de operaciones especiales las rechazan.
+ */
+export const BANKING_PAYABLE_KINDS = [
+  "BANKING_ADVANCE",
+  "BANKING_CYCLE_PAYOUT",
+  "BANKING_RESERVE_WITHDRAWAL",
+] as const
+export function isBankingPayableKind(kind: string): boolean {
+  return (BANKING_PAYABLE_KINDS as readonly string[]).includes(kind)
+}
+const BANKING_ONLY_MESSAGE =
+  "Esta obligación se administra desde su sección privada."
 
 /** Cuenta técnica que se descarga al pagar (la que registró la obligación). */
 const DEBIT_ACCOUNT: Record<
   PayableKind,
-  "PLAYER_SETTLEMENTS" | "PLAYER_PURCHASES" | "UNAPPLIED_PLAYER_FUNDS"
+  | "PLAYER_SETTLEMENTS"
+  | "PLAYER_PURCHASES"
+  | "UNAPPLIED_PLAYER_FUNDS"
+  | "BANKING_PLAYER_SHARE"
 > = {
   REDEMPTION: "PLAYER_SETTLEMENTS",
   SETTLEMENT_ADJUSTMENT: "PLAYER_SETTLEMENTS",
   PURCHASE_REFUND: "PLAYER_PURCHASES",
   UNAPPLIED_REFUND: "UNAPPLIED_PLAYER_FUNDS",
+  BANKING_ADVANCE: "BANKING_PLAYER_SHARE",
+  BANKING_CYCLE_PAYOUT: "BANKING_PLAYER_SHARE",
+  BANKING_RESERVE_WITHDRAWAL: "BANKING_PLAYER_SHARE",
 }
 
+// Las etiquetas de bancaje son NEUTRAS: el asiento y el comprobante se ven
+// en la caja general y no deben revelar la condición del jugador.
 const KIND_LABEL: Record<PayableKind, string> = {
   REDEMPTION: "canje posterior",
   PURCHASE_REFUND: "reembolso por reverso de compra",
   SETTLEMENT_ADJUSTMENT: "corrección de liquidación",
   UNAPPLIED_REFUND: "devolución de fondos no aplicados",
+  BANKING_ADVANCE: "pago administrativo",
+  BANKING_CYCLE_PAYOUT: "pago administrativo",
+  BANKING_RESERVE_WITHDRAWAL: "pago administrativo",
 }
 
 export async function lockPayableInTx(tx: Tx, id: string) {
@@ -239,6 +269,9 @@ export const PAYABLE_SLUG: Record<PayableKind, string> = {
   PURCHASE_REFUND: "purchase-refund",
   SETTLEMENT_ADJUSTMENT: "settlement-adjustment",
   UNAPPLIED_REFUND: "unapplied-refund",
+  BANKING_ADVANCE: "administrative",
+  BANKING_CYCLE_PAYOUT: "administrative",
+  BANKING_RESERVE_WITHDRAWAL: "administrative",
 }
 
 /** Anexo inmutable por cada pago EJECUTADO (lo pagado y lo pendiente reales). */
@@ -258,7 +291,9 @@ async function payoutReceiptInTx(
     kind: "SPECIAL_PAYOUT",
     sourceKey: `payout:${PAYABLE_SLUG[payable.kind]}:${payable.sourceId}:${payout.id}`,
     kicker: `Pago ${payout.folio}`,
-    title: `Pago de ${KIND_LABEL[payable.kind]}`,
+    title: isBankingPayableKind(payable.kind)
+      ? "Pago administrativo"
+      : `Pago de ${KIND_LABEL[payable.kind]}`,
     lines: [
       { label: "Beneficiario", value: payable.beneficiaryName },
       {
@@ -347,8 +382,124 @@ export type RegisterPayoutInput = {
 }
 
 /**
- * Registra un desembolso. Efectivo → EXECUTED con su asiento en la misma
- * transacción. Transferencia → PENDING (no paga hasta confirmarla).
+ * Registra un desembolso DENTRO de la transacción de quien llama (la
+ * obligación ya está bloqueada con `lockPayableInTx`). Efectivo → EXECUTED
+ * con su asiento en la misma transacción. Transferencia → PENDING (no paga
+ * hasta confirmarla). Lo usa también el Módulo 17 para revalidar su límite
+ * en la misma transacción.
+ */
+export async function registerSpecialPayoutInTx(
+  tx: Tx,
+  actor: SessionUser,
+  payable: Awaited<ReturnType<typeof lockPayableInTx>>,
+  input: RegisterPayoutInput,
+  ctx: RequestContext = {}
+) {
+  const payableId = payable.id
+  const amount = dec(input.amount)
+  try {
+    assertPayoutWithin(amount, payable.originalAmount, payable.payouts)
+  } catch (e) {
+    if (e instanceof PayoutExceedsError)
+      throw new BusinessRuleError(e.message, {
+        available: fmt(e.available),
+      })
+    throw new BusinessRuleError(
+      e instanceof Error ? e.message : "Importe inválido"
+    )
+  }
+  let funding: "SESSION_CASH" | "ADMIN_CUSTODY" | "BANK"
+  if (input.method === "BANK_TRANSFER") {
+    funding = "BANK"
+  } else {
+    funding = input.funding ?? "ADMIN_CUSTODY"
+    if (funding === "SESSION_CASH") {
+      if (
+        !payable.sessionId ||
+        (await sessionStatus(tx, payable.sessionId)) !== "OPEN"
+      )
+        throw new BusinessRuleError(
+          "Solo se paga con la caja de la sesión de origen mientras esté ABIERTA. Usa custodia administrativa o transferencia."
+        )
+    }
+  }
+  const folio = await issueFolio(tx, "SPECIAL_PAYOUT")
+  const payout = await tx.specialPayout.create({
+    data: {
+      folio,
+      payableId,
+      sequence: payable.payouts.length + 1,
+      amount,
+      method: input.method,
+      funding,
+      status: "PENDING",
+      sessionId: funding === "SESSION_CASH" ? payable.sessionId : null,
+      custodianUserId: funding === "ADMIN_CUSTODY" ? actor.id : null,
+      bankReference: input.bankReference ?? null,
+      notes: input.notes ?? null,
+      requestedById: actor.id,
+      idempotencyKey: input.idempotencyKey,
+    },
+  })
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.SPECIAL_PAYOUT_REGISTERED,
+      entityType: "SpecialPayout",
+      entityId: payout.id,
+      actorUserId: actor.id,
+      actorRole: actor.role,
+      requestId: ctx.requestId,
+      playerId: payable.playerId,
+      idempotencyKey: input.idempotencyKey,
+      amount: fmt(amount),
+      metadata: {
+        folio,
+        payableId,
+        kind: isBankingPayableKind(payable.kind)
+          ? "ADMINISTRATIVE"
+          : payable.kind,
+        method: input.method,
+        funding,
+        status: input.method === "CASH" ? "EXECUTED" : "PENDING",
+      },
+    },
+    tx
+  )
+  if (input.method === "CASH") {
+    const posted = await postPayoutInTx(
+      tx,
+      actor,
+      payable,
+      { ...payout, funding },
+      ctx
+    )
+    await tx.specialPayout.update({
+      where: { id: payout.id },
+      data: {
+        status: "EXECUTED",
+        financialTransactionId: posted.transactionId,
+        executedAt: new Date(),
+        resolvedById: actor.id,
+        resolvedAt: new Date(),
+      },
+    })
+  }
+  const { state } = await refreshPayableInTx(tx, payableId)
+  if (input.method === "CASH") {
+    await auditProgress(tx, actor, payable, state, ctx)
+    await payoutReceiptInTx(tx, actor, payable, payout, state)
+  }
+  return {
+    payoutId: payout.id,
+    folio,
+    status: input.method === "CASH" ? "EXECUTED" : "PENDING",
+    state,
+  }
+}
+
+/**
+ * Registra un desembolso de una obligación especial GENERAL (las del
+ * Módulo 17 se rechazan: se pagan desde su sección privada).
  */
 export async function registerSpecialPayout(
   actor: SessionUser,
@@ -365,101 +516,13 @@ export async function registerSpecialPayout(
       throw new ConflictError("Clave de operación reutilizada")
     return { payoutId: previous.id, replayed: true }
   }
-  const amount = dec(input.amount)
   try {
     return await prisma.$transaction(async (tx) => {
       const payable = await lockPayableInTx(tx, payableId)
-      try {
-        assertPayoutWithin(amount, payable.originalAmount, payable.payouts)
-      } catch (e) {
-        if (e instanceof PayoutExceedsError)
-          throw new BusinessRuleError(e.message, {
-            available: fmt(e.available),
-          })
-        throw new BusinessRuleError(
-          e instanceof Error ? e.message : "Importe inválido"
-        )
-      }
-      let funding: "SESSION_CASH" | "ADMIN_CUSTODY" | "BANK"
-      if (input.method === "BANK_TRANSFER") {
-        funding = "BANK"
-      } else {
-        funding = input.funding ?? "ADMIN_CUSTODY"
-        if (funding === "SESSION_CASH") {
-          if (
-            !payable.sessionId ||
-            (await sessionStatus(tx, payable.sessionId)) !== "OPEN"
-          )
-            throw new BusinessRuleError(
-              "Solo se paga con la caja de la sesión de origen mientras esté ABIERTA. Usa custodia administrativa o transferencia."
-            )
-        }
-      }
-      const folio = await issueFolio(tx, "SPECIAL_PAYOUT")
-      const payout = await tx.specialPayout.create({
-        data: {
-          folio,
-          payableId,
-          sequence: payable.payouts.length + 1,
-          amount,
-          method: input.method,
-          funding,
-          status: "PENDING",
-          sessionId: funding === "SESSION_CASH" ? payable.sessionId : null,
-          custodianUserId: funding === "ADMIN_CUSTODY" ? actor.id : null,
-          bankReference: input.bankReference ?? null,
-          notes: input.notes ?? null,
-          requestedById: actor.id,
-          idempotencyKey: input.idempotencyKey,
-        },
-      })
-      await recordAudit(
-        {
-          action: AUDIT_ACTIONS.SPECIAL_PAYOUT_REGISTERED,
-          entityType: "SpecialPayout",
-          entityId: payout.id,
-          actorUserId: actor.id,
-          actorRole: actor.role,
-          requestId: ctx.requestId,
-          playerId: payable.playerId,
-          idempotencyKey: input.idempotencyKey,
-          amount: fmt(amount),
-          metadata: {
-            folio,
-            payableId,
-            kind: payable.kind,
-            method: input.method,
-            funding,
-            status: input.method === "CASH" ? "EXECUTED" : "PENDING",
-          },
-        },
-        tx
-      )
-      if (input.method === "CASH") {
-        const posted = await postPayoutInTx(
-          tx,
-          actor,
-          payable,
-          { ...payout, funding },
-          ctx
-        )
-        await tx.specialPayout.update({
-          where: { id: payout.id },
-          data: {
-            status: "EXECUTED",
-            financialTransactionId: posted.transactionId,
-            executedAt: new Date(),
-            resolvedById: actor.id,
-            resolvedAt: new Date(),
-          },
-        })
-      }
-      const { state } = await refreshPayableInTx(tx, payableId)
-      if (input.method === "CASH") {
-        await auditProgress(tx, actor, payable, state, ctx)
-        await payoutReceiptInTx(tx, actor, payable, payout, state)
-      }
-      return { payoutId: payout.id, replayed: false }
+      if (isBankingPayableKind(payable.kind))
+        throw new BusinessRuleError(BANKING_ONLY_MESSAGE)
+      const r = await registerSpecialPayoutInTx(tx, actor, payable, input, ctx)
+      return { payoutId: r.payoutId, replayed: false }
     }, SPECIAL_TX)
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -475,16 +538,104 @@ export async function registerSpecialPayout(
   }
 }
 
+export type ResolvePayoutInput = {
+  outcome: "EXECUTED" | "FAILED" | "CANCELLED"
+  bankReference?: string
+  reason?: string
+  idempotencyKey: string
+}
+
+function assertResolveInput(input: ResolvePayoutInput) {
+  if (input.outcome === "EXECUTED" && !input.bankReference?.trim())
+    throw new BusinessRuleError(
+      "Captura la referencia bancaria de la transferencia realizada."
+    )
+  if (input.outcome !== "EXECUTED" && !input.reason?.trim())
+    throw new BusinessRuleError("Indica el motivo.")
+}
+
+/**
+ * Resuelve una transferencia PENDIENTE dentro de la transacción de quien
+ * llama (la obligación ya está bloqueada).
+ */
+export async function resolveSpecialPayoutInTx(
+  tx: Tx,
+  actor: SessionUser,
+  payable: Awaited<ReturnType<typeof lockPayableInTx>>,
+  payoutId: string,
+  input: ResolvePayoutInput,
+  ctx: RequestContext = {}
+) {
+  assertResolveInput(input)
+  const payout = payable.payouts.find((p) => p.id === payoutId)
+  if (!payout) throw new NotFoundError("Pago no encontrado")
+  if (payout.status !== "PENDING")
+    throw new BusinessRuleError("Este pago ya fue resuelto.")
+  if (payout.method !== "BANK_TRANSFER")
+    throw new BusinessRuleError(
+      "Solo las transferencias quedan pendientes de confirmar."
+    )
+  let financialTransactionId: string | null = null
+  if (input.outcome === "EXECUTED") {
+    const posted = await postPayoutInTx(
+      tx,
+      actor,
+      payable,
+      {
+        ...payout,
+        funding: "BANK",
+        bankReference: input.bankReference!.trim(),
+      },
+      ctx
+    )
+    financialTransactionId = posted.transactionId
+  }
+  const now = new Date()
+  await tx.specialPayout.update({
+    where: { id: payoutId },
+    data: {
+      status: input.outcome,
+      bankReference: input.bankReference?.trim() ?? payout.bankReference,
+      failureReason: input.outcome === "EXECUTED" ? null : input.reason,
+      financialTransactionId,
+      executedAt: input.outcome === "EXECUTED" ? now : null,
+      resolvedById: actor.id,
+      resolvedAt: now,
+      resolveIdempotencyKey: input.idempotencyKey,
+    },
+  })
+  if (input.outcome !== "EXECUTED")
+    await recordAudit(
+      {
+        action:
+          input.outcome === "FAILED"
+            ? AUDIT_ACTIONS.SPECIAL_PAYOUT_FAILED
+            : AUDIT_ACTIONS.SPECIAL_PAYOUT_CANCELLED,
+        entityType: "SpecialPayout",
+        entityId: payoutId,
+        actorUserId: actor.id,
+        actorRole: actor.role,
+        requestId: ctx.requestId,
+        playerId: payable.playerId,
+        reason: input.reason,
+        amount: fmt(payout.amount),
+        metadata: { folio: payout.folio, payableId: payable.id },
+      },
+      tx
+    )
+  const { state } = await refreshPayableInTx(tx, payable.id)
+  if (input.outcome === "EXECUTED") {
+    await auditProgress(tx, actor, payable, state, ctx)
+    await payoutReceiptInTx(tx, actor, payable, payout, state)
+  }
+  return { state }
+}
+
 /** Confirma (EXECUTED), marca fallida o cancela una transferencia PENDIENTE. */
 export async function resolveSpecialPayout(
   actor: SessionUser,
   payoutId: string,
-  input: {
-    outcome: "EXECUTED" | "FAILED" | "CANCELLED"
-    bankReference?: string
-    reason?: string
-    idempotencyKey: string
-  },
+  input: ResolvePayoutInput,
   ctx: RequestContext = {}
 ) {
   const previous = await prisma.specialPayout.findUnique({
@@ -496,12 +647,7 @@ export async function resolveSpecialPayout(
       throw new ConflictError("Clave de operación reutilizada")
     return { replayed: true }
   }
-  if (input.outcome === "EXECUTED" && !input.bankReference?.trim())
-    throw new BusinessRuleError(
-      "Captura la referencia bancaria de la transferencia realizada."
-    )
-  if (input.outcome !== "EXECUTED" && !input.reason?.trim())
-    throw new BusinessRuleError("Indica el motivo.")
+  assertResolveInput(input)
   try {
     return await prisma.$transaction(async (tx) => {
       const head = await tx.specialPayout.findUnique({
@@ -510,66 +656,9 @@ export async function resolveSpecialPayout(
       })
       if (!head) throw new NotFoundError("Pago no encontrado")
       const payable = await lockPayableInTx(tx, head.payableId)
-      const payout = payable.payouts.find((p) => p.id === payoutId)!
-      if (payout.status !== "PENDING")
-        throw new BusinessRuleError("Este pago ya fue resuelto.")
-      if (payout.method !== "BANK_TRANSFER")
-        throw new BusinessRuleError(
-          "Solo las transferencias quedan pendientes de confirmar."
-        )
-      let financialTransactionId: string | null = null
-      if (input.outcome === "EXECUTED") {
-        const posted = await postPayoutInTx(
-          tx,
-          actor,
-          payable,
-          {
-            ...payout,
-            funding: "BANK",
-            bankReference: input.bankReference!.trim(),
-          },
-          ctx
-        )
-        financialTransactionId = posted.transactionId
-      }
-      const now = new Date()
-      await tx.specialPayout.update({
-        where: { id: payoutId },
-        data: {
-          status: input.outcome,
-          bankReference: input.bankReference?.trim() ?? payout.bankReference,
-          failureReason: input.outcome === "EXECUTED" ? null : input.reason,
-          financialTransactionId,
-          executedAt: input.outcome === "EXECUTED" ? now : null,
-          resolvedById: actor.id,
-          resolvedAt: now,
-          resolveIdempotencyKey: input.idempotencyKey,
-        },
-      })
-      if (input.outcome !== "EXECUTED")
-        await recordAudit(
-          {
-            action:
-              input.outcome === "FAILED"
-                ? AUDIT_ACTIONS.SPECIAL_PAYOUT_FAILED
-                : AUDIT_ACTIONS.SPECIAL_PAYOUT_CANCELLED,
-            entityType: "SpecialPayout",
-            entityId: payoutId,
-            actorUserId: actor.id,
-            actorRole: actor.role,
-            requestId: ctx.requestId,
-            playerId: payable.playerId,
-            reason: input.reason,
-            amount: fmt(payout.amount),
-            metadata: { folio: payout.folio, payableId: payable.id },
-          },
-          tx
-        )
-      const { state } = await refreshPayableInTx(tx, payable.id)
-      if (input.outcome === "EXECUTED") {
-        await auditProgress(tx, actor, payable, state, ctx)
-        await payoutReceiptInTx(tx, actor, payable, payout, state)
-      }
+      if (isBankingPayableKind(payable.kind))
+        throw new BusinessRuleError(BANKING_ONLY_MESSAGE)
+      await resolveSpecialPayoutInTx(tx, actor, payable, payoutId, input, ctx)
       return { replayed: false }
     }, SPECIAL_TX)
   } catch (error) {

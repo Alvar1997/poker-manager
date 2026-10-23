@@ -40,6 +40,7 @@ export default async function AuditPage({
   const viewer = {
     canSecurity: can(user, PERMISSIONS.AUDIT_SECURITY_READ),
     canInfrastructure: can(user, PERMISSIONS.BACKUPS_READ),
+    canBanking: can(user, PERMISSIONS.BANKING_READ),
   }
   const [r, options] = await Promise.all([
     listAuditEvents(filters, viewer),
@@ -48,7 +49,8 @@ export default async function AuditPage({
   const modules = AUDIT_MODULES.filter(
     (m) =>
       (m !== "SECURITY" || viewer.canSecurity) &&
-      (m !== "INFRASTRUCTURE" || viewer.canInfrastructure)
+      (m !== "INFRASTRUCTURE" || viewer.canInfrastructure) &&
+      (m !== "BANKING" || viewer.canBanking)
   )
   const query = Object.fromEntries(
     Object.entries(raw).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])

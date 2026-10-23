@@ -163,6 +163,8 @@ const purchaseSelect = {
   version: true,
   reservationId: true,
   notes: true,
+  // Interno (Módulo 17): nunca se proyecta en `toView`.
+  fundingSource: true,
   createdAt: true,
   updatedAt: true,
   confirmedAt: true,
@@ -229,6 +231,7 @@ type PaymentRecord = PurchaseRecord["payments"][number]
 
 const dec = (v: Prisma.Decimal | string | number) => new Prisma.Decimal(v)
 const fmt = (v: Prisma.Decimal) => v.toFixed(2)
+const ZERO = new Prisma.Decimal(0)
 
 function toPaymentLike(p: {
   id: string
@@ -255,8 +258,34 @@ function toPaymentLike(p: {
 function financialsOf(p: {
   nominalAmount: Prisma.Decimal
   payments: Parameters<typeof toPaymentLike>[0][]
+  fundingSource?: "PLAYER" | "HOUSE"
 }): PurchaseFinancials {
-  return summarizePayments(dec(p.nominalAmount), p.payments.map(toPaymentLike))
+  const f = summarizePayments(
+    dec(p.nominalAmount),
+    p.payments.map(toPaymentLike)
+  )
+  // Módulo 17: la casa financia la compra → no hay saldo por cobrar al
+  // jugador (ni crédito, ni firma de crédito). No es un cobro.
+  if (p.fundingSource === "HOUSE")
+    return { ...f, outstanding: ZERO, uncoveredCredit: ZERO }
+  return f
+}
+
+/** Mensaje neutro: no revela por qué la operación va por otra sección. */
+export const ADMINISTRATIVE_FLOW_MESSAGE =
+  "Este jugador tiene un registro administrativo en esta sesión: la operación se realiza desde Administración."
+
+/** Módulo 17: ¿el jugador tiene una jugada administrada en la sesión? */
+export async function hasBankingGameInSession(
+  db: Tx | typeof prisma,
+  playerId: string,
+  sessionId: string
+) {
+  const g = await db.bankingGame.findUnique({
+    where: { playerId_sessionId: { playerId, sessionId } },
+    select: { id: true },
+  })
+  return g !== null
 }
 
 function activeAuthorization(p: PurchaseRecord) {
@@ -675,6 +704,8 @@ const listSelect = {
   id: true,
   folio: true,
   status: true,
+  // Interno (Módulo 17): solo para calcular el saldo; nunca se proyecta.
+  fundingSource: true,
   purchaseType: true,
   sequenceNumber: true,
   rebuyNumber: true,
@@ -782,10 +813,7 @@ export async function listPurchases(query: PurchasesQuery) {
   )
   return {
     items: rows.map((p) => {
-      const f = summarizePayments(
-        dec(p.nominalAmount),
-        p.payments.map(toPaymentLike)
-      )
+      const f = financialsOf(p)
       const methods = [
         ...new Set(
           p.payments
@@ -910,6 +938,9 @@ export async function createPurchase(
       )
       if (!table.cycles[0] || table.cycles[0].id !== ctxp.cycleId)
         throw new BusinessRuleError("La mesa debe estar abierta.")
+      // Módulo 17: una jugada financiada no se mezcla con compras pagadas.
+      if (await hasBankingGameInSession(tx, ctxp.playerId, ctxp.sessionId))
+        throw new BusinessRuleError(ADMINISTRATIVE_FLOW_MESSAGE)
       const player = await tx.player.findUniqueOrThrow({
         where: { id: ctxp.playerId },
         select: { id: true, name: true, isActive: true },
@@ -1594,6 +1625,8 @@ export async function confirmDelivery(
         select: { id: true, name: true, isActive: true },
       })
       assertPlayerSelectable(player)
+      if (await hasBankingGameInSession(tx, p.playerId, p.sessionId))
+        throw new BusinessRuleError(ADMINISTRATIVE_FLOW_MESSAGE)
 
       // Estado financiero real (con transferencias verificadas a la fecha).
       const f = financialsOf(p)
@@ -1931,6 +1964,191 @@ export async function confirmDelivery(
       )
     }
     throw error
+  }
+}
+
+// ── Entrega financiada por la casa (Módulo 17, PRIVADO) ───────────────
+
+/**
+ * Compra o recompra FINANCIADA POR LA CASA para un jugador bancado, en la
+ * transacción de quien llama (Módulo 17), que ya bloqueó sesión, mesa,
+ * participación y jugador. Reutiliza este módulo de punta a punta:
+ * folio, numeración por (sesión, jugador) → reserva nominal → salida nominal
+ * UNA vez → entrega → CONFIRMED, con la auditoría ordinaria.
+ *
+ * Diferencias legítimas (no hay dinero del jugador): sin pagos, sin
+ * asientos de caja, sin crédito, sin deuda, sin firma de crédito y sin
+ * evento de WhatsApp. `fundingSource = HOUSE` (la base impide cobros, crédito
+ * o deuda sobre ella) y nunca se proyecta en vistas compartidas: la mesa la
+ * ve como cualquier compra confirmada. Tampoco genera el comprobante
+ * compartible del Módulo 09 (revelaría el financiamiento); su evidencia es
+ * privada (Módulo 17).
+ */
+export async function deliverHouseFundedPurchaseInTx(
+  tx: Tx,
+  actor: SessionUser,
+  input: {
+    participationId: string
+    nominalAmount: Prisma.Decimal
+    notes?: string | null
+    idempotencyKey: string
+  },
+  ctx: RequestContext = {}
+) {
+  const amount = input.nominalAmount.toDecimalPlaces(2)
+  if (!amount.greaterThan(0))
+    throw new BusinessRuleError("El importe debe ser mayor que cero.")
+  const ctxp = await validateParticipationForPurchase(tx, input.participationId)
+  const player = await tx.player.findUniqueOrThrow({
+    where: { id: ctxp.playerId },
+    select: { id: true, name: true, isActive: true },
+  })
+  assertPlayerSelectable(player)
+  const pending = await tx.chipPurchase.count({
+    where: {
+      sessionId: ctxp.sessionId,
+      playerId: ctxp.playerId,
+      status: { in: ["DRAFT", "READY_FOR_DELIVERY"] },
+    },
+  })
+  if (pending > 0)
+    throw new BusinessRuleError(
+      "El jugador tiene una compra en preparación: termínala o cancélala primero."
+    )
+  const nominal = await readNominal(tx, await sharedChipSetId(tx))
+  if (nominal.available.lessThan(amount))
+    throw new InsufficientNominalError(nominal.available, amount)
+  const folio = await issueFolio(tx, "PURCHASE")
+  const created = await tx.chipPurchase.create({
+    data: {
+      folio,
+      sessionId: ctxp.sessionId,
+      sessionTableId: ctxp.sessionTableId,
+      cycleId: ctxp.cycleId,
+      participationId: ctxp.participationId,
+      playerId: ctxp.playerId,
+      tableId: ctxp.tableId,
+      nominalAmount: amount,
+      notes: input.notes ?? null,
+      fundingSource: "HOUSE",
+      createdById: actor.id,
+      idempotencyKey: input.idempotencyKey,
+    },
+    select: { id: true },
+  })
+  await recordStatus(tx, created.id, null, "DRAFT", actor.id)
+  const p = await lockPurchase(tx, created.id)
+  const f = financialsOf(p)
+  const summary = signableSummary(p, f)
+  const hash = summaryHash(summary)
+  const last = await tx.chipPurchase.aggregate({
+    where: { sessionId: p.sessionId, playerId: p.playerId },
+    _max: { sequenceNumber: true },
+  })
+  const number = nextPurchaseNumber(last._max.sequenceNumber)
+  const reservation = await reserveNominalAmountInTx(
+    tx,
+    actor,
+    {
+      amount,
+      referenceType: "ChipPurchase",
+      referenceId: p.id,
+      tableId: p.tableId,
+      sessionId: p.sessionId,
+      playerId: p.playerId,
+      expiresAt: new Date(Date.now() + RESERVATION_TTL_MS),
+      idempotencyKey: `purchase-reserve-${input.idempotencyKey}`,
+    },
+    ctx
+  )
+  const delivery = await confirmNominalChipDeliveryInTx(
+    tx,
+    actor,
+    reservation.id,
+    `purchase-delivery-${input.idempotencyKey}`,
+    ctx
+  )
+  const now = new Date()
+  await tx.purchaseDelivery.create({
+    data: {
+      purchaseId: p.id,
+      nominalAmount: amount,
+      inventoryOperationId: delivery.operationId,
+      reservationId: reservation.id,
+      confirmedPayments: ZERO,
+      pendingTransfers: ZERO,
+      outstandingAmount: ZERO,
+      houseFundedAmount: amount,
+      summaryVersion: p.version,
+      summaryHash: hash,
+      signatureId: null,
+      deliveredById: actor.id,
+      deliveredAt: now,
+      idempotencyKey: `house-${input.idempotencyKey}`,
+    },
+  })
+  const { count } = await tx.chipPurchase.updateMany({
+    where: { id: p.id, version: p.version, status: "DRAFT" },
+    data: {
+      status: "CONFIRMED",
+      purchaseType: number.purchaseType,
+      sequenceNumber: number.sequenceNumber,
+      rebuyNumber: number.rebuyNumber,
+      reservationId: reservation.id,
+      confirmedById: actor.id,
+      confirmedAt: now,
+    },
+  })
+  if (count !== 1) throw new ConflictError("La compra cambió de estado")
+  await recordStatus(tx, p.id, "DRAFT", "CONFIRMED", actor.id)
+  // Auditoría ORDINARIA (sin datos del financiamiento: es privado).
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.PURCHASE_CONFIRMED,
+      entityType: "ChipPurchase",
+      entityId: p.id,
+      actorUserId: actor.id,
+      requestId: ctx.requestId,
+      metadata: {
+        folio: p.folio,
+        purchaseType: number.purchaseType,
+        rebuyNumber: number.rebuyNumber,
+        nominalAmount: fmt(amount),
+        inventoryOperationId: delivery.operationId,
+        table: p.table.name,
+        sessionId: p.sessionId,
+        cycleId: p.cycleId,
+        playerId: p.playerId,
+        version: p.version,
+      },
+    },
+    tx
+  )
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.PURCHASE_DELIVERY_CONFIRMED,
+      entityType: "PurchaseDelivery",
+      entityId: p.id,
+      actorUserId: actor.id,
+      requestId: ctx.requestId,
+      metadata: {
+        purchaseId: p.id,
+        folio: p.folio,
+        playerId: p.playerId,
+        sessionId: p.sessionId,
+        summaryDigest: hash,
+      },
+    },
+    tx
+  )
+  return {
+    purchaseId: p.id,
+    folio: p.folio,
+    sessionId: p.sessionId,
+    playerId: p.playerId,
+    purchaseType: number.purchaseType,
+    rebuyNumber: number.rebuyNumber,
+    inventoryOperationId: delivery.operationId,
   }
 }
 

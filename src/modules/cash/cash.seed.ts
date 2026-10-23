@@ -95,6 +95,16 @@ export const FINANCIAL_ACCOUNTS = [
     nonNegative: false,
   },
   {
+    // Módulo 17: participaciones pagadas a jugadores bancados y
+    // devoluciones reales recibidas (cuenta técnica, no es dinero).
+    kind: "BANKING_PLAYER_SHARE",
+    code: "PARTICIPACIONES_BANCAJE",
+    name: "Participaciones de jugadores bancados",
+    isMoney: false,
+    scope: "GLOBAL",
+    nonNegative: false,
+  },
+  {
     kind: "RECONCILIATION_DIFFERENCES",
     code: "DIFERENCIAS_ARQUEO",
     name: "Diferencias de arqueo de efectivo",

@@ -39,6 +39,7 @@ export default async function AuditEventPage({
   const e = await getAuditEvent(id, {
     canSecurity: can(user, PERMISSIONS.AUDIT_SECURITY_READ),
     canInfrastructure: can(user, PERMISSIONS.BACKUPS_READ),
+    canBanking: can(user, PERMISSIONS.BANKING_READ),
   }).catch((err: unknown) => {
     if (err instanceof NotFoundError) notFound()
     throw err

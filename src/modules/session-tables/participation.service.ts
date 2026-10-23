@@ -856,3 +856,73 @@ export async function markParticipationSettlingInTx(
   )
   return { replayed: false }
 }
+
+/**
+ * CONTRATO (Módulo 17, PRIVADO): finaliza la participación ACTIVE como
+ * SETTLED cuando la jugada financiada por la casa quedó CONCILIADA
+ * (devolución física verificada o retorno cero confirmado). No hay pago al
+ * jugador: el resultado se administra en su sección privada. Libera la silla
+ * en la misma transacción. La base exige `bankingGameId` (excluyente con
+ * `settlementId`). La auditoría de la mesa es la ordinaria (sin datos del
+ * financiamiento).
+ */
+export async function completeParticipationFromBankingGameInTx(
+  tx: Tx,
+  actor: SessionUser,
+  input: { participationId: string; bankingGameId: string },
+  ctx: RequestContext = {}
+) {
+  await tx.$queryRaw`SELECT "id" FROM "table_participations" WHERE "id" = ${input.participationId} FOR UPDATE`
+  const p = await tx.tableParticipation.findUnique({
+    where: { id: input.participationId },
+    select: {
+      id: true,
+      playerId: true,
+      sessionId: true,
+      status: true,
+      bankingGameId: true,
+    },
+  })
+  if (!p) throw new NotFoundError("Participación no encontrada")
+  if (p.status === "SETTLED" && p.bankingGameId === input.bankingGameId)
+    return { replayed: true }
+  if (p.status !== "ACTIVE")
+    throw new BusinessRuleError("La participación no está activa.")
+  const game = await tx.bankingGame.findUnique({
+    where: { id: input.bankingGameId },
+    select: { playerId: true, sessionId: true, status: true },
+  })
+  if (
+    !game ||
+    game.playerId !== p.playerId ||
+    game.sessionId !== p.sessionId ||
+    game.status !== "CONFIRMED"
+  )
+    throw new BusinessRuleError(
+      "La salida requiere la conciliación confirmada del jugador."
+    )
+  await releaseSeatInTx(tx, actor, p.id, "SETTLEMENT", ctx)
+  const { count } = await tx.tableParticipation.updateMany({
+    where: { id: p.id, status: "ACTIVE" },
+    data: {
+      status: "SETTLED",
+      bankingGameId: input.bankingGameId,
+      leftAt: new Date(),
+      leftById: actor.id,
+      exitReason: "SETTLEMENT",
+    },
+  })
+  if (count !== 1) throw new ConflictError("La participación cambió de estado")
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.TABLE_PARTICIPATION_SETTLED,
+      entityType: "TableParticipation",
+      entityId: p.id,
+      actorUserId: actor.id,
+      requestId: ctx.requestId,
+      metadata: { playerId: p.playerId, sessionId: p.sessionId },
+    },
+    tx
+  )
+  return { replayed: false }
+}

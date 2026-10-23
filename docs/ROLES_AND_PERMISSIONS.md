@@ -186,3 +186,9 @@ Sin permisos nuevos. Sentar, cambiar de asiento, retirar sin compra, asignar dea
 ## Sesiones históricas — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
 
 `SESSIONS_HISTORICAL_CREATE` (`sessions:historical-create`): registrar (y cancelar) sesiones de fechas anteriores. **Exclusivo de SUPERADMIN** (en `ADMIN_ONLY_PERMISSIONS`). PARTNER y CASHIER conservan la creación normal (`sessions:manage`); un intento histórico sin el permiso responde 403 y se audita (`HISTORICAL_SESSION_CREATION_REJECTED`).
+
+## Módulo 17 — bancaje (privado)
+
+- `banking:read` y `banking:operate`: SUPERADMIN, PARTNER y CASHIER.
+- `banking:approve` (aprobación DIGITAL de acuerdos, cambios de porcentaje, cortes, distribución de pérdidas entre tramos, retiros de reserva, regularizaciones, discrepancias y ajustes): SUPERADMIN y PARTNER.
+- La auditoría general oculta el módulo `BANKING` a quien no tenga `banking:read`.

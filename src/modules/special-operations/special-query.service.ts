@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { displayStatus } from "@/modules/corrections/correction.rules"
 
 import { listUnappliedFunds } from "./unapplied-funds.service"
-import { payableView } from "./special-payout.service"
+import { isBankingPayableKind, payableView } from "./special-payout.service"
 import { fmt, payableState, ZERO } from "./special.math"
 
 /**
@@ -246,12 +246,17 @@ export async function getSpecialOperationsOverview() {
   }
 }
 
-export async function getPayable(id: string) {
+export async function getPayable(
+  id: string,
+  opts: { allowBanking?: boolean } = {}
+) {
   const p = await prisma.specialPayable.findUnique({
     where: { id },
     include: { payouts: { orderBy: { sequence: "asc" } } },
   })
-  if (!p) throw new NotFoundError("Obligación no encontrada")
+  // Las obligaciones del Módulo 17 son PRIVADAS: solo su sección las expone.
+  if (!p || (!opts.allowBanking && isBankingPayableKind(p.kind)))
+    throw new NotFoundError("Obligación no encontrada")
   return payableView(p)
 }
 

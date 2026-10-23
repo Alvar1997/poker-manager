@@ -25,6 +25,8 @@ import { businessRange } from "@/modules/reports/report.math"
 export type AuditViewer = {
   canSecurity: boolean
   canInfrastructure: boolean
+  /** Módulo 17: el bancaje es PRIVADO (`banking:read`). */
+  canBanking: boolean
 }
 
 const ALL_ACTIONS = Object.values(AUDIT_ACTIONS) as string[]
@@ -48,6 +50,11 @@ function restrictionWhere(v: AuditViewer): Prisma.AuditLogWhereInput[] {
       }
     )
   if (!v.canInfrastructure) out.push({ NOT: { module: "INFRASTRUCTURE" } })
+  if (!v.canBanking)
+    out.push(
+      { NOT: { action: { startsWith: "BANKING_" } } },
+      { NOT: { module: "BANKING" } }
+    )
   return out
 }
 
@@ -246,6 +253,7 @@ export async function auditFilterOptions(viewer: AuditViewer) {
     const m = moduleOfAction(a)
     if (m === "SECURITY" && !viewer.canSecurity) return false
     if (m === "INFRASTRUCTURE" && !viewer.canInfrastructure) return false
+    if (m === "BANKING" && !viewer.canBanking) return false
     return true
   }).sort()
   return {

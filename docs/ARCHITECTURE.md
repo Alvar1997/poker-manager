@@ -276,3 +276,7 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 - **Fecha operativa como `DATE`**: el día de la jornada sin zona horaria; los instantes reales siguen en `timestamp` UTC.
 - **Permiso por capacidad** (`sessions:historical-create`), no comparación de rol.
 - Detalle: `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`.
+
+## Módulo 17 — bancaje (privado)
+
+`src/modules/banking/*`: `banking.math.ts` (motor PURO: resultados, compensación, tramos, reparto, límite conservador, reserva), `banking-core.ts` (bloqueos y hechos derivados), servicios por proceso (`agreement`, `game`, `advance`, `payout`, `closing`, `reserve`, `regularization`), `banking-query.service.ts` y `banking-report.service.ts` (XLSX). Reutiliza el Módulo 08 (`deliverHouseFundedPurchaseInTx`), el inventario nominal (`confirmNominalChipReturnInTx`), el Módulo 07 (`completeParticipationFromBankingGameInTx`), el Módulo 16 (`registerSpecialPayoutInTx`/`resolveSpecialPayoutInTx`, obligaciones `BANKING_*`) y el libro financiero. Las páginas de servidor importan constantes desde `components/labels.ts` (puro), nunca desde módulos `"use client"`. Ver `docs/MODULE_17_BANKED_PLAYERS.md`.

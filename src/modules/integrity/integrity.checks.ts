@@ -1035,8 +1035,9 @@ export function integrityChecks(db: Db): CheckDefinition[] {
           SELECT s."id", s."folio", s."netPayoutAmount"::text AS net, p."originalAmount"::text AS payable
           FROM "player_settlements" s LEFT JOIN "settlement_payables" p ON p."settlementId" = s."id"
           WHERE s."status" IN ('PENDING_PAYOUT', 'COMPLETED')
-            AND ((COALESCE(s."netPayoutAmount", 0) > 0 AND (p."id" IS NULL OR p."originalAmount" <> s."netPayoutAmount"))
-              OR (COALESCE(s."netPayoutAmount", 0) = 0 AND p."id" IS NOT NULL))`)
+            -- El Módulo 11 crea la cuenta por pagar SIEMPRE, también por $0
+            -- (sin movimiento ficticio): debe existir y coincidir con el neto.
+            AND (p."id" IS NULL OR p."originalAmount" <> COALESCE(s."netPayoutAmount", 0))`)
         return rows(
           "PAYABLE_DERIVED",
           "SETTLEMENTS",
@@ -1679,6 +1680,92 @@ export function integrityChecks(db: Db): CheckDefinition[] {
               r.problem === "missing"
                 ? "Falta el archivo privado de una evidencia activa."
                 : "Alteración detectada: el contenido de la evidencia no coincide con su huella registrada.",
+          })
+        )
+      }
+    ),
+    // ── REGISTROS ADMINISTRATIVOS (Módulo 17, privado) ────────────────
+    // Textos NEUTROS: el diagnóstico general no revela quién está bancado.
+    def(
+      "ADMIN_FUNDED_PURCHASES",
+      "ADMINISTRATIVE_RECORDS",
+      "Entregas administrativas: sin cobros ni deuda y ligadas a su registro",
+      async () => {
+        const list = await q<{
+          id: string
+          folio: string
+          problem: string
+        }>(Prisma.sql`
+          SELECT p."id", p."folio", 'without-record' AS problem FROM "chip_purchases" p
+          WHERE p."fundingSource" = 'HOUSE' AND p."status" = 'CONFIRMED'
+            AND NOT EXISTS (SELECT 1 FROM "banking_game_financial_sources" s WHERE s."purchaseId" = p."id")
+          UNION ALL
+          SELECT p."id", p."folio", 'with-money' AS problem FROM "chip_purchases" p
+          WHERE p."fundingSource" = 'HOUSE'
+            AND (EXISTS (SELECT 1 FROM "purchase_payments" x WHERE x."purchaseId" = p."id")
+              OR EXISTS (SELECT 1 FROM "player_debts" d WHERE d."purchaseId" = p."id"))`)
+        return rows(
+          "ADMIN_FUNDED_PURCHASES",
+          "ADMINISTRATIVE_RECORDS",
+          "ERROR",
+          "HIGH",
+          list,
+          (r) => ({
+            entityType: "ChipPurchase",
+            entityId: r.id,
+            explanation:
+              r.problem === "without-record"
+                ? `La entrega ${r.folio} no está ligada a su registro administrativo.`
+                : `La entrega administrativa ${r.folio} tiene cobros o deuda (no debería).`,
+          })
+        )
+      }
+    ),
+    def(
+      "ADMIN_RECORD_RESULTS",
+      "ADMINISTRATIVE_RECORDS",
+      "Registros administrativos: resultado = devuelto − entregado y retorno físico único",
+      async () => {
+        const list = await q<{ id: string }>(Prisma.sql`
+          SELECT g."id" FROM "banking_games" g
+          WHERE g."status" IN ('CONFIRMED', 'UNDER_CORRECTION')
+            AND (g."financedNominal" <> COALESCE((SELECT SUM(s."nominalAmount") FROM "banking_game_financial_sources" s WHERE s."gameId" = g."id"), 0)
+              OR g."grossResult" <> g."returnedNominal" - g."financedNominal"
+              OR (g."returnedNominal" > 0 AND (SELECT COUNT(*) FROM "chip_inventory_operations" o
+                    WHERE o."referenceType" = 'BankingGame' AND o."referenceId" = g."id") <> 1))`)
+        return rows(
+          "ADMIN_RECORD_RESULTS",
+          "ADMINISTRATIVE_RECORDS",
+          "ERROR",
+          "HIGH",
+          list,
+          (r) => ({
+            entityType: "AdministrativeRecord",
+            entityId: r.id,
+            explanation:
+              "Un registro administrativo conciliado no cuadra con sus entregas o su devolución física.",
+          })
+        )
+      }
+    ),
+    def(
+      "ADMIN_RESERVE_NONNEGATIVE",
+      "ADMINISTRATIVE_RECORDS",
+      "Saldos contables administrativos nunca negativos",
+      async () => {
+        const list = await q<{ playerId: string }>(Prisma.sql`
+          SELECT m."playerId" FROM "banking_reserve_movements" m GROUP BY m."playerId"
+          HAVING SUM(CASE WHEN m."kind" IN ('CREATED', 'RELEASED_FROM_WITHDRAWAL') THEN m."amount" ELSE -m."amount" END) < 0`)
+        return rows(
+          "ADMIN_RESERVE_NONNEGATIVE",
+          "ADMINISTRATIVE_RECORDS",
+          "ERROR",
+          "HIGH",
+          list,
+          (r) => ({
+            entityType: "AdministrativeRecord",
+            entityId: r.playerId,
+            explanation: "Un saldo contable administrativo quedó negativo.",
           })
         )
       }

@@ -39,6 +39,10 @@ import {
 } from "@/modules/session-tables/session-table.service"
 import { issueFolio } from "@/modules/settings/folio.service"
 import {
+  ADMINISTRATIVE_FLOW_MESSAGE,
+  hasBankingGameInSession,
+} from "@/modules/purchases/purchase.service"
+import {
   bumpSettlementVersionInTx,
   dec,
   fmt,
@@ -359,6 +363,10 @@ export async function createSettlement(
         throw new ConflictError(
           `El jugador ya tiene la liquidación ${live.folio} en curso.`
         )
+      // Módulo 17: una jugada financiada por la casa NO se liquida pagando
+      // el valor devuelto: su salida se concilia en la sección privada.
+      if (await hasBankingGameInSession(tx, p.playerId, p.sessionId))
+        throw new BusinessRuleError(ADMINISTRATIVE_FLOW_MESSAGE)
       const pending = await tx.chipPurchase.findFirst({
         where: {
           participationId: p.id,

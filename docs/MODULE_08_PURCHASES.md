@@ -151,3 +151,7 @@ La verificación de transferencias usa los endpoints existentes del Módulo 05. 
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 La compra rápida desde el asiento usa estos mismos endpoints (borrador → pagos → socio → firma → entrega). La numeración inicial/recompra sigue decidiéndose al confirmar; la mesa solo muestra la proyección. Los formularios `AddPaymentForm`, `CreditAuthorizationForm`, `ConfirmDeliveryForm` y `CancelPurchaseButton` aceptan un `onDone` opcional.
+
+## Integración con el Módulo 17
+
+Módulo 17: `deliverHouseFundedPurchaseInTx` registra compras/recompras FINANCIADAS POR LA CASA (`fundingSource = HOUSE`, `houseFundedAmount` en la entrega): sin pagos, crédito, deuda, firma de crédito, WhatsApp ni comprobante compartible. Una compra ordinaria se rechaza (mensaje neutro) si el jugador tiene jugada financiada en la sesión.

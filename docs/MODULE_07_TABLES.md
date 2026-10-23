@@ -163,3 +163,7 @@ Abrir, cerrar, registrar y transferir reciben `idempotencyKey`. El reintento, in
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 Asientos (`TableSeatAssignment`, 1..9 por ciclo) y dealer por ciclo (`DealerAssignment`). `addPlayerToTable` acepta `seatNumber` y `transferPlayer` acepta `destinationSeatNumber` (opcionales, en la misma transacción). Toda salida de ACTIVE (transferencia, liquidación, retiro) libera el asiento antes de cambiar el estado; cerrar un ciclo libera al dealer. Nuevo estado `WITHDRAWN` (retiro sin compra, solo si nunca recibió fichas). Los eventos `TABLE_PLAYER_JOINED` y `TABLE_PLAYER_TRANSFERRED` incluyen `sessionId` y `cycleId`.
+
+## Integración con el Módulo 17
+
+Módulo 17: una participación con jugada financiada sale SETTLED por `completeParticipationFromBankingGameInTx` (con `bankingGameId`, sin liquidación ordinaria) y libera su asiento. La mesa no muestra ninguna señal del bancaje; cambiar de mesa no crea otra jugada.

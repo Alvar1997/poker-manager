@@ -25,6 +25,7 @@ export const AUDIT_MODULES = [
   "ADMINISTRATION",
   "INFRASTRUCTURE",
   "SPECIAL_OPERATIONS",
+  "BANKING",
 ] as const
 
 export type AuditModule = (typeof AUDIT_MODULES)[number]
@@ -47,10 +48,13 @@ export const AUDIT_MODULE_LABEL: Record<AuditModule, string> = {
   ADMINISTRATION: "Administración (M15)",
   INFRASTRUCTURE: "Respaldos y recuperación (M15)",
   SPECIAL_OPERATIONS: "Operaciones especiales (M16)",
+  BANKING: "Bancaje (M17, privado)",
 }
 
 /** Reglas ordenadas: el primer prefijo que coincide gana. */
 const RULES: [string, AuditModule][] = [
+  // Módulo 17 (privado) antes que cualquier prefijo genérico.
+  ["BANKING_", "BANKING"],
   // Módulo 16 antes que compras/liquidaciones/créditos genéricos.
   ["LATE_REDEMPTION_", "SPECIAL_OPERATIONS"],
   ["PURCHASE_REVERSAL_", "SPECIAL_OPERATIONS"],
@@ -126,9 +130,13 @@ export function moduleOfAction(action: string): AuditModule {
 
 /** Módulos fuera de la autorización GENERAL de auditoría (DEC-01..03, §8). */
 export const RESTRICTED_MODULES: Record<
-  "SECURITY" | "INFRASTRUCTURE",
-  "security" | "infrastructure"
-> = { SECURITY: "security", INFRASTRUCTURE: "infrastructure" }
+  "SECURITY" | "INFRASTRUCTURE" | "BANKING",
+  "security" | "infrastructure" | "banking"
+> = {
+  SECURITY: "security",
+  INFRASTRUCTURE: "infrastructure",
+  BANKING: "banking",
+}
 
 const MONEY = /^-?\d{1,12}(\.\d{1,2})?$/
 

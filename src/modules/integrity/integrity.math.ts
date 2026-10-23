@@ -136,4 +136,5 @@ export const CATEGORY_LABEL: Record<string, string> = {
   EVIDENCE: "Evidencias",
   AUDIT: "Auditoría",
   SPECIAL_OPERATIONS: "Operaciones especiales",
+  ADMINISTRATIVE_RECORDS: "Registros administrativos",
 }
