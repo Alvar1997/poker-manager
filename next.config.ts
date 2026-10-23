@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   // ExcelJS (exportación XLSX del Módulo 14) se carga desde node_modules en
   // el servidor, sin empaquetar.
   serverExternalPackages: ["exceljs"],
+  // Actualizaciones asistidas de Next.js: solo parches de seguridad.
+  experimental: {
+    agentUpgrade: "security",
+  },
   // cacheComponents/partialPrefetching (nuevos en Next 16) exigen anotar
   // explícitamente qué se cachea vs. qué es dinámico, e son incompatibles
   // con `export const dynamic` en Route Handlers (p. ej. los health
