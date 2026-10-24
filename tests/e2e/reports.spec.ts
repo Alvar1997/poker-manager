@@ -129,6 +129,7 @@ async function settleZero(page: Page, participationId: string) {
   await api(page, "post", `/api/settlements/${created.id}/confirm-return`, {
     expectedVersion: view.version,
     chipsReceived: true,
+    zeroReturnConfirmed: true,
     idempotencyKey: randomUUID(),
   })
 }
@@ -203,6 +204,24 @@ async function closeSessionViaApi(
   const users = requireE2EUsers()
   await logout(page)
   await login(page, users.partner)
+  // Escenario con fichas no devueltas a propósito: la conciliación global
+  // exige que el socio documente y autorice la diferencia antes de cerrar.
+  const outstanding = await api<{ reconciliation: { status: string } }>(
+    page,
+    "get",
+    `/api/sessions/${sessionId}/closure/outstanding-chips`
+  )
+  if (outstanding.reconciliation.status === "UNEXPLAINED_DIFFERENCE")
+    await api(
+      page,
+      "post",
+      `/api/sessions/${sessionId}/closure/chip-reconciliation`,
+      {
+        kind: "UNRECOVERED_AUTHORIZED",
+        reason: "Escenario de prueba: fichas no devueltas documentadas",
+        idempotencyKey: randomUUID(),
+      }
+    )
   const preview = await api<{ previewHash: string }>(
     page,
     "get",

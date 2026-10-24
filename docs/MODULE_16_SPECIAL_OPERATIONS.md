@@ -147,3 +147,7 @@ Todos con `withApiHandler` (CSRF, mantenimiento 503), Zod `strictObject` (un cam
 ## Integración con el Módulo 17
 
 Módulo 17: nuevos tipos de obligación `BANKING_ADVANCE`, `BANKING_CYCLE_PAYOUT` y `BANKING_RESERVE_WITHDRAWAL` (cuenta `BANKING_PLAYER_SHARE`, etiqueta neutra «pago administrativo»). Se pagan SOLO desde la sección privada con `registerSpecialPayoutInTx` / `resolveSpecialPayoutInTx` (variantes dentro de transacción); los endpoints generales las rechazan. El reverso de compra no aplica a compras financiadas.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

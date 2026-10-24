@@ -146,7 +146,7 @@ export default async function ClosurePendingPage({
       <Card>
         <CardHeader>
           <CardTitle role="heading" aria-level={2}>
-            Fichas pendientes de retorno
+            Conciliación global de fichas
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -160,8 +160,20 @@ export default async function ClosurePendingPage({
               value={chips.session.returned}
             />
             <MoneyRow
-              label="No retornadas (sesión)"
-              value={chips.session.netNotReturned}
+              label="Diferencias autorizadas (no recuperadas)"
+              value={chips.reconciliation.authorizedUnrecovered}
+            />
+            <MoneyRow
+              label={
+                chips.reconciliation.status === "IN_PLAY"
+                  ? `En juego (${chips.reconciliation.activeParticipants} jugador(es) activo(s))`
+                  : chips.reconciliation.status === "RECONCILED"
+                    ? "Diferencia por conciliar (conciliada)"
+                    : chips.reconciliation.status === "UNEXPLAINED_DIFFERENCE"
+                      ? "Diferencia nominal por conciliar"
+                      : "Devuelto de circulación anterior"
+              }
+              value={chips.reconciliation.difference}
               strong
               testId="pending-chips-session"
             />
@@ -176,8 +188,8 @@ export default async function ClosurePendingPage({
           {chips.attributionByPlayer.length ? (
             <div>
               <p className="text-xs font-medium">
-                Atribución informativa por jugador (no prueba quién tiene las
-                fichas)
+                Resultado individual por jugador (devuelto − entregado; no es
+                faltante)
               </p>
               <ul className="divide-y text-sm">
                 {chips.attributionByPlayer.map((p) => (
@@ -187,8 +199,8 @@ export default async function ClosurePendingPage({
                   >
                     <span>{p.player.name}</span>
                     <span className="tabular-nums">
-                      {formatNominal(p.delivered)} − {formatNominal(p.returned)}{" "}
-                      = {formatNominal(p.net)}
+                      {formatNominal(p.returned)} − {formatNominal(p.delivered)}{" "}
+                      = {formatNominal(p.result)}
                     </span>
                   </li>
                 ))}

@@ -266,6 +266,9 @@ async function settle(
   await confirmReturn(cashier, settlementId, {
     expectedVersion: s.version,
     chipsReceived: true,
+    ...(Number(s.returnedNominalAmount) === 0
+      ? { zeroReturnConfirmed: true as const }
+      : {}),
     ...(immediateCashAmount
       ? { immediateCashAmount, cashDelivered: true }
       : {}),

@@ -740,6 +740,9 @@ describe("16.3 corrección de liquidación", () => {
     await confirmReturn(cashier, created.settlementId, {
       expectedVersion: s.version,
       chipsReceived: true,
+      ...(Number(s.returnedNominalAmount) === 0
+        ? { zeroReturnConfirmed: true as const }
+        : {}),
       idempotencyKey: key(),
     })
     await registerPayout(cashier, created.settlementId, {
@@ -831,6 +834,9 @@ describe("16.3 corrección de liquidación", () => {
     await confirmReturn(cashier, created.settlementId, {
       expectedVersion: s.version,
       chipsReceived: true,
+      ...(Number(s.returnedNominalAmount) === 0
+        ? { zeroReturnConfirmed: true as const }
+        : {}),
       idempotencyKey: key(),
     })
     s = await getSettlement(created.settlementId)

@@ -217,7 +217,9 @@ describe("datos iniciales (seed)", () => {
                                'banking_advances', 'banking_cycle_closings',
                                'banking_reserve_movements', 'banking_reserve_withdrawals',
                                'banking_regularizations', 'banking_regularization_recoveries',
-                               'banking_regularization_receipts')
+                               'banking_regularization_receipts',
+                               -- Conciliación global de fichas: importe del hecho autorizado.
+                               'session_chip_reconciliations')
     `
     expect(columns).toEqual([])
   })

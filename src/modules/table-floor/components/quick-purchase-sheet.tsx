@@ -49,11 +49,29 @@ const METHODS: { value: QuickMethod; label: string }[] = [
   { value: "MIXED", label: "Pago mixto" },
 ]
 
+/** Modalidad que se guarda en la compra (el servidor valida los cobros). */
+const MODE_OF: Record<QuickMethod, string> = {
+  CASH: "CASH",
+  BANK_TRANSFER: "BANK_TRANSFER",
+  CARD_DEBIT: "CARD",
+  CARD_CREDIT: "CARD",
+  CREDIT: "CREDIT",
+  MIXED: "MIXED",
+}
+
 const METHOD_LABEL: Record<string, string> = {
   CASH: "Efectivo",
   BANK_TRANSFER: "Transferencia",
   CARD_DEBIT: "Terminal débito",
   CARD_CREDIT: "Terminal crédito",
+}
+
+const MODE_LABEL: Record<string, string> = {
+  CASH: "Efectivo",
+  BANK_TRANSFER: "Transferencia",
+  CARD: "Terminal",
+  CREDIT: "Crédito total",
+  MIXED: "Pago mixto",
 }
 
 export function purchaseKindLabel(o: Pick<Occupant, "nextPurchase">) {
@@ -153,6 +171,7 @@ function QuickPurchaseForm({
         body: {
           participationId: occupant.participationId,
           nominalAmount: amount,
+          paymentMode: MODE_OF[method],
           idempotencyKey: draftKey,
         },
       })
@@ -467,7 +486,14 @@ function PurchaseProgress({
       <dl
         className="bg-muted/50 divide-y rounded-xl p-3 text-sm"
         data-testid="purchase-progress"
+        data-payment-mode={p.paymentMode ?? "NONE"}
       >
+        {p.paymentMode ? (
+          <div className="flex justify-between py-1">
+            <dt>Forma de pago</dt>
+            <dd data-testid="progress-mode">{MODE_LABEL[p.paymentMode]}</dd>
+          </div>
+        ) : null}
         <div className="flex justify-between py-1">
           <dt>Compra {p.folio}</dt>
           <dd className="font-semibold tabular-nums">
@@ -518,7 +544,13 @@ function PurchaseProgress({
         </div>
       </dl>
 
-      {outstanding !== "0.00" ? (
+      {/* Solo PAGO MIXTO (o compras anteriores sin modalidad) agrega componentes;
+          un CRÉDITO TOTAL nunca muestra campos de efectivo. */}
+      {outstanding !== "0.00" &&
+      (p.paymentMode === null ||
+        p.paymentMode === "MIXED" ||
+        (p.paymentMode !== "CREDIT" &&
+          !p.payments.some((x) => x.effect !== "VOID"))) ? (
         <AddPaymentToggle
           purchaseId={p.id}
           suggested={outstanding}

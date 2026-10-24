@@ -137,6 +137,7 @@ export default async function NewSettlementPage({
                 <SettlementAmountsForm
                   participationId={p.id}
                   outstanding={ctx.outstandingDebt}
+                  purchased={ctx.purchasedInSession.nominal}
                 />
               </CardContent>
             </Card>

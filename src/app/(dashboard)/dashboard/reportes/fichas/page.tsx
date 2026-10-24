@@ -36,7 +36,7 @@ export default async function ChipsReportPage({
     <>
       <ReportHeader
         title="Inventario y fichas en circulación"
-        description="Faltante físico de arqueo, fichas no retornadas y utilidad son conceptos distintos."
+        description="Diferencia física de arqueo, diferencia nominal de la sesión, resultados individuales y utilidad son conceptos distintos. Nadie se lleva fichas: los resultados individuales se compensan entre jugadores."
         actions={<ExportButton report="chips" filters={filters} />}
       />
       <RefreshOnFocus generatedAt={new Date().toISOString()} />
@@ -67,7 +67,7 @@ export default async function ChipsReportPage({
             <Stat label="Entregado en el periodo" value={r.flows.delivered} />
             <Stat label="Devuelto en el periodo" value={r.flows.returned} />
             <Stat
-              label="Neto no retornado (periodo)"
+              label="Diferencia nominal (periodo)"
               value={r.flows.netNotReturned}
             />
             <Stat
@@ -200,7 +200,7 @@ export default async function ChipsReportPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Neto no retornado por sesión
+            Diferencia nominal por sesión
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -210,7 +210,7 @@ export default async function ChipsReportPage({
               "Fecha operativa",
               "Entregado",
               "Devuelto",
-              "Neto no retornado",
+              "Diferencia nominal",
             ]}
             testId="chips-by-session"
           >

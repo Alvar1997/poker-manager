@@ -188,6 +188,8 @@ export function seatActions(state: SeatState) {
     buy: state === "PENDING_BUY" || state === "PLAYING",
     continuePurchase: state === "PURCHASE_IN_PROGRESS",
     settle: state === "PLAYING" || state === "SETTLING",
+    /** OUT: perdió todas sus fichas (liquidación simplificada con $0). */
+    out: state === "PLAYING",
     withdraw: state === "PENDING_BUY",
     move: state === "PENDING_BUY" || state === "PLAYING",
   }

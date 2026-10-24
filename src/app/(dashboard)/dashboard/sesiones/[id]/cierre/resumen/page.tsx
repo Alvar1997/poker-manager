@@ -40,7 +40,7 @@ export default async function ClosureSummaryPage({
         status={session.status}
         title="Resumen y confirmación"
         current="resumen"
-        description="Indicadores basados en operaciones reales. La diferencia entre compras y fichas devueltas NO es utilidad: las fichas no retornadas son valor pendiente de retorno."
+        description="Indicadores basados en operaciones reales. La diferencia entre compras y fichas devueltas de un jugador es su resultado individual, NO utilidad ni faltante: se compensa con los demás jugadores y el balance global de fichas se concilia."
       />
       {noActivity ? (
         <p

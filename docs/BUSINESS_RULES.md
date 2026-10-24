@@ -240,3 +240,7 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 - Resultado = devuelto − financiado. Compensación: ganancias del ciclo → reserva → arrastre; solo la ganancia neta se reparte por porcentaje. Sin doble aplicación de pérdidas, reservas ni anticipos.
 - Cambios de porcentaje, cortes, distribución de pérdidas entre tramos y retiros de reserva: aprobación digital de PARTNER o SUPERADMIN. Anticipos: autorización verbal o por mensaje registrada por el cajero, dentro del límite conservador. Anticipos excedidos: caso por caso.
 - Ver `docs/MODULE_17_BANKED_PLAYERS.md`.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

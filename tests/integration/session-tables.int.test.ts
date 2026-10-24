@@ -607,6 +607,7 @@ describe("salida definitiva y contratos", () => {
     await confirmReturn(cashier, settlementId, {
       expectedVersion: signed.version,
       chipsReceived: true,
+      zeroReturnConfirmed: true,
       idempotencyKey: randomUUID(),
     })
     const again = await prisma.$transaction((tx) =>

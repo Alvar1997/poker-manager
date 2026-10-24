@@ -280,3 +280,7 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 ## Módulo 17 — bancaje (privado)
 
 `src/modules/banking/*`: `banking.math.ts` (motor PURO: resultados, compensación, tramos, reparto, límite conservador, reserva), `banking-core.ts` (bloqueos y hechos derivados), servicios por proceso (`agreement`, `game`, `advance`, `payout`, `closing`, `reserve`, `regularization`), `banking-query.service.ts` y `banking-report.service.ts` (XLSX). Reutiliza el Módulo 08 (`deliverHouseFundedPurchaseInTx`), el inventario nominal (`confirmNominalChipReturnInTx`), el Módulo 07 (`completeParticipationFromBankingGameInTx`), el Módulo 16 (`registerSpecialPayoutInTx`/`resolveSpecialPayoutInTx`, obligaciones `BANKING_*`) y el libro financiero. Las páginas de servidor importan constantes desde `components/labels.ts` (puro), nunca desde módulos `"use client"`. Ver `docs/MODULE_17_BANKED_PLAYERS.md`.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

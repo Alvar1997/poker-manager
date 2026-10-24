@@ -227,6 +227,35 @@ export function nextPurchaseNumber(lastSequence: number | null) {
       }
 }
 
+/**
+ * Clasificación compra inicial / recompra POR MESA (regla vigente):
+ *  - el consecutivo (`sequenceNumber`) sigue siendo por (sesión, jugador),
+ *    único y en orden real (nunca se reinicia);
+ *  - es RECOMPRA solo si el jugador ya tuvo una compra entregada en ESA
+ *    mesa lógica (`tableId` del catálogo; una mesa cerrada y reabierta es la
+ *    misma) durante la sesión, o en su cadena de transferencias (llegó con
+ *    sus fichas desde otra mesa sin liquidarse);
+ *  - si hizo OUT/CASHOUT en una mesa y entra a OTRA, su primera compra ahí es
+ *    COMPRA INICIAL. `priorInScope` = compras previas en ese alcance.
+ */
+export function classifyPurchase(
+  lastSequence: number | null,
+  priorInScope: number
+) {
+  const sequenceNumber = (lastSequence ?? 0) + 1
+  return priorInScope <= 0
+    ? {
+        sequenceNumber,
+        purchaseType: "INITIAL_PURCHASE" as const,
+        rebuyNumber: null,
+      }
+    : {
+        sequenceNumber,
+        purchaseType: "REBUY" as const,
+        rebuyNumber: priorInScope,
+      }
+}
+
 export function purchaseTypeLabel(
   purchaseType: "INITIAL_PURCHASE" | "REBUY" | null,
   rebuyNumber: number | null

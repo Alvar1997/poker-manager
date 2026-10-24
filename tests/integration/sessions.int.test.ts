@@ -518,7 +518,7 @@ describe("controles de apertura", () => {
     const step = c.steps.find((x) => x.id === "NO_PENDING_CIRCULATION")
     // El arqueo cuenta solo lo que está bajo custodia: 9 fichas = esperado.
     expect(step).toMatchObject({ status: "DONE" })
-    expect(step?.message).toMatch(/en circulación/)
+    expect(step?.message).toMatch(/fuera de custodia/)
     expect(c.ready).toBe(true)
     const adjustmentsBefore = await prisma.chipInventoryOperation.count({
       where: { type: "INVENTORY_ADJUSTMENT" },

@@ -9,6 +9,7 @@ import { sharedChipSetId } from "@/modules/inventory/inventory.core"
 import {
   getGlobalChipPosition,
   getSessionChipFlows,
+  getSessionChipReconciliation,
 } from "@/modules/closure/chip-circulation.service"
 import {
   cashFromEntries,
@@ -322,7 +323,7 @@ export async function computePrecheck(db: Db, sessionId: string) {
   const [debts, payables, flows, global, cash, lastCount] = await Promise.all([
     sessionDebtsOf(db, sessionId),
     payablesPendingOf(db, sessionId),
-    getSessionChipFlows(db, sessionId),
+    getSessionChipReconciliation(db, sessionId),
     getGlobalChipPosition(db),
     cashBalanceRow(db, sessionId),
     db.chipStockCount.findFirst({
@@ -524,13 +525,42 @@ export async function computePrecheck(db: Db, sessionId: string) {
       amount: fmt(dec(unapplied._sum.amount)),
     })
   }
-  if (flows.netNotReturned.greaterThan(0)) {
+  // Conciliación GLOBAL de fichas (ambas mesas). Ningún jugador se lleva
+  // fichas: los resultados individuales (uno pierde, otro gana) se anulan
+  // entre sí; solo una diferencia GLOBAL con todos terminados es anómala.
+  const chipBase = `Entregado $${fmt(flows.delivered)} · devuelto $${fmt(flows.returned)}`
+  if (flows.status === "IN_PLAY") {
     add({
-      code: "CHIPS_NOT_RETURNED",
+      code: "CHIPS_IN_PLAY",
+      severity: "INFO",
+      title: "Fichas en juego",
+      detail: `${chipBase}: $${fmt(flows.grossDifference)} siguen en la mesa con ${flows.activeParticipants} jugador(es) activo(s); regresan en sus liquidaciones.`,
+      amount: fmt(flows.grossDifference),
+    })
+  } else if (flows.status === "RECONCILED") {
+    add({
+      code: "CHIPS_RECONCILED",
+      severity: "INFO",
+      title: "Fichas de la sesión conciliadas",
+      detail: `${chipBase}${flows.authorizedUnrecovered.greaterThan(0) ? ` · diferencia autorizada $${fmt(flows.authorizedUnrecovered)}` : ""}. Las ganancias y pérdidas individuales se compensan entre jugadores.`,
+    })
+  } else if (flows.status === "UNEXPLAINED_DIFFERENCE") {
+    // En CIERRE bloquea la confirmación; antes (OPEN) se advierte para poder
+    // iniciar el cierre y hacer el arqueo que permite conciliarla.
+    add({
+      code: "SESSION_NOMINAL_DIFFERENCE",
+      severity: session.status === "CLOSING" ? "BLOCKING" : "WARNING",
+      title: "Diferencia nominal pendiente de conciliación",
+      detail: `${chipBase}: faltan $${fmt(flows.difference)} por regresar aunque todos los jugadores ya terminaron. Ningún jugador se lleva fichas: revisa las devoluciones capturadas contra el arqueo físico. Si las fichas están en la caja, un socio registra el retorno identificado en el arqueo; si no aparecen, un socio documenta y autoriza la diferencia.`,
+      amount: fmt(flows.difference),
+    })
+  } else {
+    add({
+      code: "SESSION_RETURNED_PRIOR_CIRCULATION",
       severity: "WARNING",
-      title: "Fichas no retornadas en la sesión",
-      detail: `$${fmt(flows.netNotReturned)} entregados en esta sesión no regresaron: quedan como valor nominal EN CIRCULACIÓN (pendiente de retorno). No es faltante de arqueo ni utilidad.`,
-      amount: fmt(flows.netNotReturned),
+      title: "Se devolvieron fichas de sesiones anteriores",
+      detail: `${chipBase}: $${fmt(flows.difference.abs())} más de lo entregado en esta sesión provienen de circulación anterior (registro histórico).`,
+      amount: fmt(flows.difference.abs()),
     })
   }
   add({
@@ -625,10 +655,11 @@ export async function getInventoryStatus(db: Db, sessionId: string) {
   const session = await loadSessionHead(db, sessionId)
   const closure = await currentClosure(db, sessionId)
   const active = closure?.status === "IN_PROGRESS" ? closure : null
-  const [global, flows, count] = await Promise.all([
+  const [global, flows, count, chipRec] = await Promise.all([
     getGlobalChipPosition(db),
     getSessionChipFlows(db, sessionId),
     closureChipCount(db, sessionId, active),
+    getSessionChipReconciliation(db, sessionId),
   ])
   const openingCount = session.opening
     ? await db.chipStockCount.findUnique({
@@ -732,7 +763,18 @@ export async function getInventoryStatus(db: Db, sessionId: string) {
       globalCustody: fmt(global.custody),
       recognizedAsIncome: fmt(position.recognizedAsIncome),
     },
-    /** Atribución INFORMATIVA (no prueba quién tiene las fichas). */
+    /** Conciliación GLOBAL de la sesión (ambas mesas). */
+    reconciliation: {
+      status: chipRec.status,
+      delivered: fmt(chipRec.delivered),
+      returned: fmt(chipRec.returned),
+      grossDifference: fmt(chipRec.grossDifference),
+      authorizedUnrecovered: fmt(chipRec.authorizedUnrecovered),
+      identifiedInCount: fmt(chipRec.identifiedInCount),
+      difference: fmt(chipRec.difference),
+      activeParticipants: chipRec.activeParticipants,
+    },
+    /** Resultado individual por jugador (INFORMATIVO, no es faltante). */
     attribution: { byPlayer: flows.byPlayer, byTable: flows.byTable },
   }
 }
@@ -1001,7 +1043,7 @@ export async function getFinancialSummary(db: Db, sessionId: string) {
   const [debts, payables, flows, global, cash] = await Promise.all([
     sessionDebtsOf(db, sessionId),
     payablesPendingOf(db, sessionId),
-    getSessionChipFlows(db, sessionId),
+    getSessionChipReconciliation(db, sessionId),
     getGlobalChipPosition(db),
     cashBalanceRow(db, sessionId),
   ])
@@ -1091,7 +1133,13 @@ export async function getFinancialSummary(db: Db, sessionId: string) {
     chips: {
       delivered: fmt(flows.delivered),
       returned: fmt(flows.returned),
-      netNotReturned: fmt(flows.netNotReturned),
+      netNotReturned: fmt(flows.grossDifference),
+      /** Conciliación global: estado y diferencia por investigar/autorizada. */
+      reconciliationStatus: flows.status,
+      authorizedUnrecovered: fmt(flows.authorizedUnrecovered),
+      unexplainedDifference: fmt(
+        flows.difference.greaterThan(0) ? flows.difference : ZERO
+      ),
       globalCirculation: fmt(global.circulation),
     },
     credits: {

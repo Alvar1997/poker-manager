@@ -60,7 +60,7 @@ export default async function SessionsReportPage({
               "Jugadores",
               "Compras (nominal)",
               "Recompras (nominal)",
-              "No retornado",
+              "Diferencia nominal",
               "Créditos originados",
               "Deuda actual",
               "Cobros confirmados",
@@ -128,9 +128,11 @@ export default async function SessionsReportPage({
       </Card>
       <Note>
         Fecha operativa = día de apertura (America/Monterrey); una sesión puede
-        cruzar la medianoche. «No retornado» es valor nominal pendiente de
-        retorno: no es faltante ni utilidad. «Deuda actual» es lo que sigue
-        pendiente HOY de los créditos nacidos en la sesión.
+        cruzar la medianoche. «Diferencia nominal» = entregado − devuelto (ambas
+        mesas): nadie se lleva fichas, así que con la sesión terminada debe ser
+        $0; si no, se concilió o se autorizó en el cierre. No es utilidad.
+        «Deuda actual» es lo que sigue pendiente HOY de los créditos nacidos en
+        la sesión.
       </Note>
     </>
   )

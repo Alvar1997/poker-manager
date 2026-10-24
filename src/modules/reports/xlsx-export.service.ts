@@ -76,7 +76,7 @@ export const EXPORT_TITLES: Record<ReportKind, string> = {
 const RULE_CREDITS =
   "Toda deuda debe poder consultarse de forma global por jugador, desglosada por sesión de origen y finalmente por cada compra o recompra. Los pagos posteriores se aplican a las obligaciones originales y no trasladan la deuda a la fecha o sesión del pago."
 const RULE_CHIPS =
-  "Las fichas que no regresan al cierre se muestran como valor nominal pendiente de retorno o en circulación. No constituyen automáticamente un faltante físico de arqueo ni utilidad definitiva y no se pagan sin una presentación y validación física posterior."
+  "Ningún jugador se lleva fichas: al terminar entrega todas las que tiene (o confirma $0). Los resultados individuales (devuelto − comprado) se compensan entre jugadores y no son faltante. Una diferencia nominal GLOBAL de la sesión se concilia en el cierre (retorno identificado en el arqueo o diferencia autorizada); la circulación de sesiones anteriores es un registro histórico por revisar y nunca se paga sin presentación y validación física."
 const RULE_NO_PROFIT =
   "Este reporte no declara utilidad neta: no existe una fórmula contable validada. Las cifras nominales, monetarias, por cobrar y por pagar se presentan por separado."
 
@@ -401,7 +401,7 @@ async function sessionsWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
       money("Nominal entregado", (r) => r.metrics.deliveredNominal),
       money("Nominal devuelto", (r) => r.metrics.returnedNominal),
       money(
-        "Neto no retornado (pendiente de retorno)",
+        "Diferencia nominal (entregado − devuelto)",
         (r) => r.metrics.netNotReturned
       ),
       money("Créditos originados", (r) => r.metrics.creditsOriginated),
@@ -617,7 +617,7 @@ async function financialWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
       value: r.nominal.returned,
     },
     {
-      label: "Neto no retornado en el periodo",
+      label: "Diferencia nominal en el periodo",
       value: r.nominal.netNotReturned,
     },
     {
@@ -781,13 +781,13 @@ async function chipsWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
   type S = (typeof r.bySession)[number]
   addTable<S>(
     wb,
-    "No retornado por sesión",
+    "Diferencia nominal por sesión",
     [
       text("Sesión", (s) => s.session.folio),
       day("Fecha operativa", (s) => s.session.operatedDay),
       money("Entregado", (s) => s.delivered),
       money("Devuelto", (s) => s.returned),
-      money("Neto no retornado", (s) => s.netNotReturned),
+      money("Diferencia nominal", (s) => s.netNotReturned),
     ],
     r.bySession
   )

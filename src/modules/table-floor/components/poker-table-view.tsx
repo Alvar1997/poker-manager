@@ -15,6 +15,7 @@ import { SeatChangeSheet, TableTransferSheet } from "./move-sheets"
 import { PlayerSearchSheet } from "./player-search-sheet"
 import { DealerPersonCard, PokerSeat, PokerTableFelt } from "./poker-table-felt"
 import { QuickPurchaseSheet } from "./quick-purchase-sheet"
+import { OutSheet } from "./out-sheet"
 import { QuickSettlementSheet } from "./quick-settlement-sheet"
 import {
   SeatActionSheet,
@@ -228,6 +229,17 @@ export function PokerTableView({
           occupant={occupant}
           tableName={board.table.name}
           cashAvailable={board.cashAvailable}
+          onChanged={() => void refresh()}
+        />
+      ) : null}
+
+      {occupant && panel?.kind === "out" ? (
+        <OutSheet
+          open
+          onOpenChange={(o) => !o && close()}
+          occupant={occupant}
+          tableName={board.table.name}
+          session={{ id: board.session.id, folio: board.session.folio }}
           onChanged={() => void refresh()}
         />
       ) : null}

@@ -284,6 +284,9 @@ async function confirm(
   return confirmReturn(cashier, settlementId, {
     expectedVersion: s.version,
     chipsReceived: true,
+    ...(Number(s.returnedNominalAmount) === 0
+      ? { zeroReturnConfirmed: true as const }
+      : {}),
     ...(extra.immediateCashAmount
       ? { immediateCashAmount: extra.immediateCashAmount, cashDelivered: true }
       : {}),

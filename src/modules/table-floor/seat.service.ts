@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
 import type { RequestContext, SessionUser } from "@/modules/auth/auth.service"
 import { appliedByReceivable } from "@/modules/credits/receivable.service"
-import { nextPurchaseNumber } from "@/modules/purchases/purchase.math"
+import { nextPurchaseNumberInTx } from "@/modules/purchases/purchase.service"
 import {
   activeSettlementOf,
   addPlayerToTable,
@@ -123,18 +123,13 @@ export async function getTableBoard(
   const participationIds = participations.map((p) => p.id)
   const playerIds = participations.map((p) => p.player.id)
 
-  const [confirmed, lastSequence, pending, settlementsLive, debts, chain] =
-    await Promise.all([
+  const [confirmed, pending, settlementsLive, debts, chain] = await Promise.all(
+    [
       prisma.chipPurchase.groupBy({
-        by: ["playerId"],
+        by: ["playerId", "purchaseType"],
         where: { sessionId, playerId: { in: playerIds }, status: "CONFIRMED" },
         _count: { _all: true },
         _sum: { nominalAmount: true },
-      }),
-      prisma.chipPurchase.groupBy({
-        by: ["playerId"],
-        where: { sessionId, playerId: { in: playerIds } },
-        _max: { sequenceNumber: true },
       }),
       prisma.chipPurchase.findMany({
         where: {
@@ -172,7 +167,8 @@ export async function getTableBoard(
             [id, await chainConfirmedPurchasesInTx(prisma, id)] as const
         )
       ),
-    ])
+    ]
+  )
   const applied = await appliedByReceivable(
     prisma,
     debts.map((d) => d.id)
@@ -189,16 +185,39 @@ export async function getTableBoard(
     return { global: global.toFixed(2), session: session.toFixed(2) }
   }
   const chainMap = new Map(chain)
+  // Tipo de la siguiente entrega POR MESA (Módulo 08: `nextPurchaseNumberInTx`).
+  const nextMap = new Map(
+    await Promise.all(
+      participations.map(
+        async (p) =>
+          [
+            p.id,
+            await nextPurchaseNumberInTx(prisma, {
+              sessionId,
+              playerId: p.player.id,
+              tableId,
+              participationId: p.id,
+            }),
+          ] as const
+      )
+    )
+  )
 
   const occupants = participations.map((p) => {
-    const c = confirmed.find((x) => x.playerId === p.player.id)
-    const last = lastSequence.find((x) => x.playerId === p.player.id)
+    const mine = confirmed.filter((x) => x.playerId === p.player.id)
+    const sessionNominalSum = mine.reduce(
+      (a, x) => a.add(dec(x._sum.nominalAmount ?? 0)),
+      dec(0)
+    )
+    const rebuyCount = mine
+      .filter((x) => x.purchaseType === "REBUY")
+      .reduce((a, x) => a + x._count._all, 0)
     const purchase = pending.find((x) => x.participationId === p.id) ?? null
     const settlement =
       settlementsLive.find((x) => x.participationId === p.id) ?? null
-    const next = nextPurchaseNumber(last?._max.sequenceNumber ?? null)
+    const next = nextMap.get(p.id)!
     const chainConfirmed = chainMap.get(p.id) ?? 0
-    const count = c?._count._all ?? 0
+    const count = mine.reduce((a, x) => a + x._count._all, 0)
     const debt = debtOf(p.player.id)
     return {
       participationId: p.id,
@@ -218,9 +237,10 @@ export async function getTableBoard(
       }),
       /** Compras confirmadas del jugador EN LA SESIÓN (todas las mesas). */
       sessionPurchases: count,
-      rebuys: Math.max(0, count - 1),
+      /** Recompras registradas (la clasificación es por mesa). */
+      rebuys: rebuyCount,
       /** Importe nominal acumulado registrado (no son las fichas que tiene ahora). */
-      sessionNominal: dec(c?._sum.nominalAmount ?? 0).toFixed(2),
+      sessionNominal: sessionNominalSum.toFixed(2),
       /** Lo que el servidor asignará a la siguiente entrega (Módulo 08). */
       nextPurchase: {
         purchaseType: next.purchaseType,

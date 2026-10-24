@@ -243,6 +243,9 @@ async function settle(participationId: string, returned: string) {
   return confirmReturn(cashier, settlementId, {
     expectedVersion: s.version,
     chipsReceived: true,
+    ...(Number(s.returnedNominalAmount) === 0
+      ? { zeroReturnConfirmed: true as const }
+      : {}),
     idempotencyKey: key(),
   })
 }

@@ -457,3 +457,44 @@ describe("permisos", () => {
         expect(roleHasPermission(role, p)).toBe(true)
   })
 })
+
+describe("OUT y recepción", () => {
+  const base = {
+    participationId: "cmparticipation0000000001",
+    offsetDecision: "NO_COMPENSATE" as const,
+    idempotencyKey: "00000000-0000-4000-8000-000000000001",
+  }
+  it("OUT solo con retorno $0 y sin compensación", () => {
+    expect(
+      createSettlementSchema.safeParse({
+        ...base,
+        returnedNominalAmount: "0",
+        exitKind: "OUT",
+      }).success
+    ).toBe(true)
+    expect(
+      createSettlementSchema.safeParse({
+        ...base,
+        returnedNominalAmount: "500",
+        exitKind: "OUT",
+      }).success
+    ).toBe(false)
+    expect(
+      createSettlementSchema.safeParse({
+        ...base,
+        returnedNominalAmount: "0",
+        offsetDecision: "MAXIMUM",
+        exitKind: "OUT",
+      }).success
+    ).toBe(false)
+  })
+  it("confirmar sin «fichas recibidas» es válido en el esquema (el servidor lo exige solo si hubo fichas)", () => {
+    expect(
+      confirmReturnSchema.safeParse({
+        expectedVersion: 1,
+        zeroReturnConfirmed: true,
+        idempotencyKey: base.idempotencyKey,
+      }).success
+    ).toBe(true)
+  })
+})

@@ -205,6 +205,6 @@ export async function getChipReport(f: ReportFilters, db: Db = prisma) {
       returned: fmt(dec(s.returned)),
       netNotReturned: fmt(dec(s.delivered).sub(dec(s.returned))),
     })),
-    note: "Las fichas que no regresan al cierre se muestran como valor nominal pendiente de retorno o en circulación. No constituyen automáticamente un faltante físico de arqueo ni utilidad definitiva y no se pagan sin una presentación y validación física posterior.",
+    note: "Ningún jugador se lleva fichas: al terminar entrega todas las que tiene (o confirma $0). Los resultados individuales (devuelto − comprado) se compensan entre jugadores y no son faltante. Una diferencia nominal GLOBAL de la sesión se concilia en el cierre (retorno identificado en el arqueo o diferencia autorizada); la circulación de sesiones anteriores es un registro histórico por revisar y nunca se paga sin presentación y validación física.",
   }
 }

@@ -274,3 +274,7 @@ No se reconstruyen distribuciones desconocidas de entregas anteriores ni se gene
 ## Integración con el Módulo 16 (implementada)
 
 Canje posterior y reverso de compra registran su entrada al inventario COMPARTIDO con `confirmNominalChipReturnInTx`, una sola vez (claves `redemption-receipt:<id>` y `purchase-reversal-return:<purchaseId>`, referencias `LateChipRedemption` / `PurchaseReversal`). La base sigue impidiendo devolver más de lo que está en circulación. Un canje puede guardar el conteo por denominación del retorno ACTUAL (informativo; no se atribuye a compras). El reverso solo se atribuye a la sesión de la compra si sigue OPEN.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

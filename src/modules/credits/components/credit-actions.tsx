@@ -64,10 +64,13 @@ export function NewCreditPaymentForm({
   playerId,
   outstanding,
   openSession,
+  onDone,
 }: {
   playerId: string
   outstanding: string
   openSession: { id: string; folio: string } | null
+  /** Opcional (mesa / OUT): en vez de navegar al comprobante del abono. */
+  onDone?: (paymentId: string) => void
 }) {
   const router = useRouter()
   const [amount, setAmount] = useState("")
@@ -121,7 +124,8 @@ export function NewCreditPaymentForm({
           ? "Transferencia registrada: pendiente de verificación"
           : "Abono registrado"
       )
-      router.push(`${CREDITS_BASE}/abonos/${p.id}`)
+      if (onDone) onDone(p.id)
+      else router.push(`${CREDITS_BASE}/abonos/${p.id}`)
     },
     onError: (e) => toast.error(errorText(e, "No se pudo registrar el abono")),
   })

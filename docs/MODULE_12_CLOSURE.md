@@ -354,3 +354,7 @@ Una sesión `HISTORICAL` no tiene cierre (no se abre, no tiene caja ni arqueos):
 ## Integración con el Módulo 17
 
 Módulo 17: el cierre no cambia: un jugador bancado activo bloquea igual que cualquiera; los pagos de bancaje solo usan la caja de una sesión ABIERTA (nunca una cerrada).
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

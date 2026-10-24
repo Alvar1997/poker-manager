@@ -410,3 +410,7 @@ La liquidación desde el asiento reutiliza `SettlementAmountsForm` (`onCreated`)
 ## Integración con el Módulo 17
 
 Módulo 17: una jugada financiada no se liquida con este módulo (se rechaza con mensaje neutro); su devolución física se concilia en la sección privada con la misma entrada nominal del inventario, sin pagar el valor devuelto.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

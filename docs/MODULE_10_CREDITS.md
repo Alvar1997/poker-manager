@@ -250,3 +250,7 @@ La mesa muestra, al tocar al jugador, su deuda global y la originada en la sesi�
 ## Integración con el Módulo 17
 
 Módulo 17: el financiamiento de la casa NO es crédito ordinario: no crea `PlayerDebt` ni usa el FIFO (triggers lo impiden). Los anticipos excedidos se regularizan caso por caso en la sección privada.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

@@ -324,7 +324,7 @@ export async function computeOpeningChecklist(
       "DONE",
       circulation.greaterThan(0)
         ? {
-            message: `${money(circulation)} siguen en circulación (fichas no retornadas de sesiones cerradas): se conservan como valor pendiente de retorno; no bloquean la apertura.`,
+            message: `${money(circulation)} siguen fuera de custodia por sesiones cerradas ANTES de la conciliación global (registro histórico por revisar; nadie se lleva fichas): no bloquean la apertura.`,
           }
         : {}
     )

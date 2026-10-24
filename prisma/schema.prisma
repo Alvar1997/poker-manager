@@ -69,58 +69,59 @@ model User {
   updatedById String?
   updatedBy   User?   @relation("UserUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  usersCreated              User[]                           @relation("UserCreatedBy")
-  usersUpdated              User[]                           @relation("UserUpdatedBy")
-  auditLogs                 AuditLog[]                       @relation("AuditLogActor")
-  correctionsRequested      CorrectionRequest[]              @relation("CorrectionRequestedBy")
-  correctionsExecuted       CorrectionRequest[]              @relation("CorrectionExecutedBy")
-  correctionDecisions       CorrectionApproval[]             @relation("CorrectionDecidedBy")
-  correctionEvents          CorrectionEvent[]                @relation("CorrectionEventActor")
-  integrityRuns             IntegrityCheckRun[]              @relation("IntegrityRunTriggeredBy")
-  incidentsCreated          OperationalIncident[]            @relation("IncidentCreatedBy")
-  incidentsAssigned         OperationalIncident[]            @relation("IncidentAssignedTo")
-  incidentsResolved         OperationalIncident[]            @relation("IncidentResolvedBy")
-  incidentHistory           IncidentHistory[]                @relation("IncidentHistoryActor")
-  backupsTriggered          BackupExecution[]                @relation("BackupTriggeredBy")
-  restoreValidations        RestoreValidation[]              @relation("RestoreValidationRequestedBy")
-  restoreRequests           RestoreRequest[]                 @relation("RestoreRequestedBy")
-  restoreApprovals          RestoreRequest[]                 @relation("RestoreApprovedBy")
-  maintenanceChanges        SystemMaintenance[]              @relation("MaintenanceChangedBy")
-  redemptionsRequested      LateChipRedemption[]             @relation("RedemptionRequestedBy")
-  redemptionsReceived       LateChipRedemption[]             @relation("RedemptionReceivedBy")
-  specialPayablesCreated    SpecialPayable[]                 @relation("SpecialPayableCreatedBy")
-  specialPayoutsRequested   SpecialPayout[]                  @relation("SpecialPayoutRequestedBy")
-  specialPayoutsResolved    SpecialPayout[]                  @relation("SpecialPayoutResolvedBy")
-  specialPayoutsCustody     SpecialPayout[]                  @relation("SpecialPayoutCustodian")
-  purchaseReversals         PurchaseReversal[]               @relation("PurchaseReversalExecutedBy")
-  settlementCorrections     SettlementCorrection[]           @relation("SettlementCorrectionExecutedBy")
-  specialEvidence           SpecialOperationEvidence[]       @relation("SpecialEvidenceCapturedBy")
-  specialReceipts           SpecialOperationReceipt[]        @relation("SpecialReceiptCreatedBy")
+  usersCreated                  User[]                           @relation("UserCreatedBy")
+  usersUpdated                  User[]                           @relation("UserUpdatedBy")
+  auditLogs                     AuditLog[]                       @relation("AuditLogActor")
+  correctionsRequested          CorrectionRequest[]              @relation("CorrectionRequestedBy")
+  correctionsExecuted           CorrectionRequest[]              @relation("CorrectionExecutedBy")
+  correctionDecisions           CorrectionApproval[]             @relation("CorrectionDecidedBy")
+  correctionEvents              CorrectionEvent[]                @relation("CorrectionEventActor")
+  integrityRuns                 IntegrityCheckRun[]              @relation("IntegrityRunTriggeredBy")
+  incidentsCreated              OperationalIncident[]            @relation("IncidentCreatedBy")
+  incidentsAssigned             OperationalIncident[]            @relation("IncidentAssignedTo")
+  incidentsResolved             OperationalIncident[]            @relation("IncidentResolvedBy")
+  incidentHistory               IncidentHistory[]                @relation("IncidentHistoryActor")
+  backupsTriggered              BackupExecution[]                @relation("BackupTriggeredBy")
+  restoreValidations            RestoreValidation[]              @relation("RestoreValidationRequestedBy")
+  restoreRequests               RestoreRequest[]                 @relation("RestoreRequestedBy")
+  restoreApprovals              RestoreRequest[]                 @relation("RestoreApprovedBy")
+  maintenanceChanges            SystemMaintenance[]              @relation("MaintenanceChangedBy")
+  redemptionsRequested          LateChipRedemption[]             @relation("RedemptionRequestedBy")
+  redemptionsReceived           LateChipRedemption[]             @relation("RedemptionReceivedBy")
+  specialPayablesCreated        SpecialPayable[]                 @relation("SpecialPayableCreatedBy")
+  specialPayoutsRequested       SpecialPayout[]                  @relation("SpecialPayoutRequestedBy")
+  specialPayoutsResolved        SpecialPayout[]                  @relation("SpecialPayoutResolvedBy")
+  specialPayoutsCustody         SpecialPayout[]                  @relation("SpecialPayoutCustodian")
+  purchaseReversals             PurchaseReversal[]               @relation("PurchaseReversalExecutedBy")
+  settlementCorrections         SettlementCorrection[]           @relation("SettlementCorrectionExecutedBy")
+  specialEvidence               SpecialOperationEvidence[]       @relation("SpecialEvidenceCapturedBy")
+  specialReceipts               SpecialOperationReceipt[]        @relation("SpecialReceiptCreatedBy")
   // Módulo 17 — bancaje (privado)
-  bankingAgreementsCreated  BankingAgreement[]               @relation("BankingAgreementCreatedBy")
-  bankingAgreementsEnded    BankingAgreement[]               @relation("BankingAgreementEndedBy")
-  bankingVersionsCreated    BankingAgreementVersion[]        @relation("BankingVersionCreatedBy")
-  bankingVersionsApproved   BankingAgreementVersion[]        @relation("BankingVersionApprovedBy")
-  bankingCyclesCreated      BankingCycle[]                   @relation("BankingCycleCreatedBy")
-  bankingSegmentsCreated    BankingPercentageSegment[]       @relation("BankingSegmentCreatedBy")
-  bankingGamesStarted       BankingGame[]                    @relation("BankingGameStartedBy")
-  bankingGamesConfirmed     BankingGame[]                    @relation("BankingGameConfirmedBy")
-  bankingSourcesCreated     BankingGameFinancialSource[]     @relation("BankingSourceCreatedBy")
-  bankingAdjustmentsMade    BankingGameAdjustment[]          @relation("BankingAdjustmentApprovedBy")
-  bankingChangesRequested   BankingPercentageChangeRequest[] @relation("BankingChangeRequestedBy")
-  bankingChangesDecided     BankingPercentageChangeRequest[] @relation("BankingChangeDecidedBy")
-  bankingAdvancesAuthorized BankingAdvance[]                 @relation("BankingAdvanceAuthorizer")
-  bankingAdvancesRecorded   BankingAdvance[]                 @relation("BankingAdvanceRecordedBy")
-  bankingAdvancesClosed     BankingAdvance[]                 @relation("BankingAdvanceClosedBy")
-  bankingClosingsPrepared   BankingCycleClosing[]            @relation("BankingClosingPreparedBy")
-  bankingClosingsDecided    BankingCycleClosing[]            @relation("BankingClosingDecidedBy")
-  bankingReserveMovements   BankingReserveMovement[]         @relation("BankingReserveMovementCreatedBy")
-  bankingWithdrawalsReq     BankingReserveWithdrawal[]       @relation("BankingWithdrawalRequestedBy")
-  bankingWithdrawalsDecided BankingReserveWithdrawal[]       @relation("BankingWithdrawalDecidedBy")
-  bankingWithdrawalsClosed  BankingReserveWithdrawal[]       @relation("BankingWithdrawalClosedBy")
-  bankingRegsOpened         BankingRegularization[]          @relation("BankingRegularizationOpenedBy")
-  bankingRegsResolved       BankingRegularization[]          @relation("BankingRegularizationResolvedBy")
-  bankingRegReceipts        BankingRegularizationReceipt[]   @relation("BankingRegReceiptReceivedBy")
+  bankingAgreementsCreated      BankingAgreement[]               @relation("BankingAgreementCreatedBy")
+  bankingAgreementsEnded        BankingAgreement[]               @relation("BankingAgreementEndedBy")
+  bankingVersionsCreated        BankingAgreementVersion[]        @relation("BankingVersionCreatedBy")
+  bankingVersionsApproved       BankingAgreementVersion[]        @relation("BankingVersionApprovedBy")
+  bankingCyclesCreated          BankingCycle[]                   @relation("BankingCycleCreatedBy")
+  bankingSegmentsCreated        BankingPercentageSegment[]       @relation("BankingSegmentCreatedBy")
+  bankingGamesStarted           BankingGame[]                    @relation("BankingGameStartedBy")
+  bankingGamesConfirmed         BankingGame[]                    @relation("BankingGameConfirmedBy")
+  bankingSourcesCreated         BankingGameFinancialSource[]     @relation("BankingSourceCreatedBy")
+  bankingAdjustmentsMade        BankingGameAdjustment[]          @relation("BankingAdjustmentApprovedBy")
+  bankingChangesRequested       BankingPercentageChangeRequest[] @relation("BankingChangeRequestedBy")
+  bankingChangesDecided         BankingPercentageChangeRequest[] @relation("BankingChangeDecidedBy")
+  bankingAdvancesAuthorized     BankingAdvance[]                 @relation("BankingAdvanceAuthorizer")
+  bankingAdvancesRecorded       BankingAdvance[]                 @relation("BankingAdvanceRecordedBy")
+  bankingAdvancesClosed         BankingAdvance[]                 @relation("BankingAdvanceClosedBy")
+  bankingClosingsPrepared       BankingCycleClosing[]            @relation("BankingClosingPreparedBy")
+  bankingClosingsDecided        BankingCycleClosing[]            @relation("BankingClosingDecidedBy")
+  bankingReserveMovements       BankingReserveMovement[]         @relation("BankingReserveMovementCreatedBy")
+  bankingWithdrawalsReq         BankingReserveWithdrawal[]       @relation("BankingWithdrawalRequestedBy")
+  bankingWithdrawalsDecided     BankingReserveWithdrawal[]       @relation("BankingWithdrawalDecidedBy")
+  bankingWithdrawalsClosed      BankingReserveWithdrawal[]       @relation("BankingWithdrawalClosedBy")
+  bankingRegsOpened             BankingRegularization[]          @relation("BankingRegularizationOpenedBy")
+  bankingRegsResolved           BankingRegularization[]          @relation("BankingRegularizationResolvedBy")
+  bankingRegReceipts            BankingRegularizationReceipt[]   @relation("BankingRegReceiptReceivedBy")
+  chipReconciliationsAuthorized SessionChipReconciliation[]      @relation("SessionChipReconciliationBy")
 
   sessionsHistoricalRecorded PokerSession[] @relation("SessionHistoricalRecordedBy")
 
@@ -929,6 +930,8 @@ model ChipInventoryOperation {
   nominalMovements  ChipNominalMovement[]
   closureAdjustment ClosureAdjustmentAuthorization? @relation("ClosureAdjustmentChipOperation")
 
+  sessionChipReconciliation SessionChipReconciliation? @relation("SessionChipReconciliationOperation")
+
   @@unique([id, chipSetId])
   @@index([chipSetId, createdAt])
   @@index([referenceType, referenceId])
@@ -1561,23 +1564,24 @@ model PokerSession {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  opening            SessionOpening?
-  statusHistory      SessionStatusHistory[]
-  tables             SessionTable[]
-  participations     TableParticipation[]
-  transfers          TableTransfer[]
-  purchases          ChipPurchase[]
-  debts              PlayerDebt[]
-  receivablePayments ReceivablePayment[]
-  settlements        PlayerSettlement[]
-  settlementPayables SettlementPayable[]    @relation("SettlementPayableSourceSession")
-  settlementPayouts  SettlementPayout[]     @relation("SettlementPayoutSession")
-  closures           SessionClosure[]
-  closureReport      ClosureReport?
-  lateRedemptions    LateChipRedemption[]   @relation("RedemptionOriginSession")
-  seatAssignments    TableSeatAssignment[]
-  dealerAssignments  DealerAssignment[]
-  bankingGames       BankingGame[]
+  opening             SessionOpening?
+  statusHistory       SessionStatusHistory[]
+  tables              SessionTable[]
+  participations      TableParticipation[]
+  transfers           TableTransfer[]
+  purchases           ChipPurchase[]
+  debts               PlayerDebt[]
+  receivablePayments  ReceivablePayment[]
+  settlements         PlayerSettlement[]
+  settlementPayables  SettlementPayable[]         @relation("SettlementPayableSourceSession")
+  settlementPayouts   SettlementPayout[]          @relation("SettlementPayoutSession")
+  closures            SessionClosure[]
+  closureReport       ClosureReport?
+  lateRedemptions     LateChipRedemption[]        @relation("RedemptionOriginSession")
+  seatAssignments     TableSeatAssignment[]
+  dealerAssignments   DealerAssignment[]
+  bankingGames        BankingGame[]
+  chipReconciliations SessionChipReconciliation[]
 
   @@index([status])
   @@index([createdAt])
@@ -1934,6 +1938,15 @@ enum ChipPurchaseStatus {
 }
 
 /// Se asigna al CONFIRMAR (los borradores no consumen numeración).
+/// Modalidad de pago elegida por el cajero para una compra.
+enum PurchasePaymentMode {
+  CASH
+  BANK_TRANSFER
+  CARD
+  CREDIT
+  MIXED
+}
+
 /// Origen del financiamiento de la compra (Módulo 17, privado).
 enum ChipPurchaseFunding {
   /// El jugador paga (efectivo, transferencia, terminal) y/o queda a crédito.
@@ -1975,24 +1988,24 @@ enum CreditAuthorizationStatus {
 }
 
 model ChipPurchase {
-  id                 String              @id @default(cuid())
-  folio              String              @unique
+  id                 String               @id @default(cuid())
+  folio              String               @unique
   sessionId          String
-  session            PokerSession        @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  session            PokerSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   sessionTableId     String
-  sessionTable       SessionTable        @relation(fields: [sessionTableId], references: [id], onDelete: Restrict)
+  sessionTable       SessionTable         @relation(fields: [sessionTableId], references: [id], onDelete: Restrict)
   cycleId            String
-  cycle              SessionTableCycle   @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  cycle              SessionTableCycle    @relation(fields: [cycleId], references: [id], onDelete: Restrict)
   participationId    String
-  participation      TableParticipation  @relation(fields: [participationId], references: [id], onDelete: Restrict)
+  participation      TableParticipation   @relation(fields: [participationId], references: [id], onDelete: Restrict)
   playerId           String
-  player             Player              @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  player             Player               @relation(fields: [playerId], references: [id], onDelete: Restrict)
   /// Mesa del catálogo (copia para trazabilidad en caja e inventario).
   tableId            String
-  table              PokerTable          @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  table              PokerTable           @relation(fields: [tableId], references: [id], onDelete: Restrict)
   /// Importe nominal solicitado (Decimal > 0). Sin denominaciones.
-  nominalAmount      Decimal             @db.Decimal(14, 2)
-  status             ChipPurchaseStatus  @default(DRAFT)
+  nominalAmount      Decimal              @db.Decimal(14, 2)
+  status             ChipPurchaseStatus   @default(DRAFT)
   purchaseType       ChipPurchaseType?
   /// Orden de compra confirmada por (sesión, jugador): 1 = compra inicial.
   sequenceNumber     Int?
@@ -2000,26 +2013,30 @@ model ChipPurchase {
   rebuyNumber        Int?
   /// Versión del resumen: cambia con cada cambio material (firma y
   /// autorización se ligan a una versión exacta).
-  version            Int                 @default(1)
+  version            Int                  @default(1)
   /// Reserva nominal vigente (READY_FOR_DELIVERY).
-  reservationId      String?             @unique
+  reservationId      String?              @unique
   notes              String?
   /// Módulo 17 (privado): HOUSE = compra financiada por la casa (jugador
   /// bancado): sin pagos, sin crédito ordinario, sin firma de crédito. Nunca
   /// se proyecta en vistas compartidas.
-  fundingSource      ChipPurchaseFunding @default(PLAYER)
+  fundingSource      ChipPurchaseFunding  @default(PLAYER)
+  /// Modalidad de pago elegida al crear (null en compras anteriores). El
+  /// servidor valida los pagos contra ella (CRÉDITO total no admite cobros;
+  /// solo PAGO MIXTO combina componentes).
+  paymentMode        PurchasePaymentMode?
   createdById        String
-  createdBy          User                @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy          User                 @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   confirmedById      String?
-  confirmedBy        User?               @relation("PurchaseConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  confirmedBy        User?                @relation("PurchaseConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
   confirmedAt        DateTime?
   cancelledById      String?
-  cancelledBy        User?               @relation("PurchaseCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancelledBy        User?                @relation("PurchaseCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
   cancelledAt        DateTime?
   cancellationReason String?
-  idempotencyKey     String              @unique
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  idempotencyKey     String               @unique
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   payments         PurchasePayment[]
   authorizations   PurchaseCreditAuthorization[]
@@ -2726,6 +2743,12 @@ enum PlayerSettlementStatus {
   REVERSED
 }
 
+/// Tipo de salida del jugador.
+enum SettlementExitKind {
+  CASHOUT
+  OUT
+}
+
 /// Decisión EXPLÍCITA del cajero (nunca implícita por existir deuda).
 enum SettlementOffsetDecision {
   NO_COMPENSATE
@@ -2801,6 +2824,10 @@ model PlayerSettlement {
   /// Valor nominal TOTAL devuelto (≥ 0). Sin denominaciones.
   returnedNominalAmount Decimal                  @db.Decimal(14, 2)
   offsetDecision        SettlementOffsetDecision
+  /// OUT: el jugador perdió todas sus fichas (retorno $0). CASHOUT: entrega fichas.
+  exitKind              SettlementExitKind       @default(CASHOUT)
+  /// Confirmación EXPLÍCITA de retorno cero (obligatoria si devolvió $0).
+  zeroReturnConfirmed   Boolean                  @default(false)
   /// Importe pedido por el cajero (solo PARTIAL).
   requestedOffsetAmount Decimal?                 @db.Decimal(14, 2)
   /// Fijados al CONFIRMAR la recepción (recalculados en el servidor).
@@ -3113,13 +3140,14 @@ model SessionClosure {
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
-  statusHistory ClosureStatusHistory[]
-  prechecks     ClosurePrecheck[]
-  discrepancies ClosureDiscrepancy[]
-  adjustments   ClosureAdjustmentAuthorization[]
-  withdrawal    ClosureCashWithdrawal?
-  approval      ClosureApproval?
-  report        ClosureReport?
+  statusHistory       ClosureStatusHistory[]
+  prechecks           ClosurePrecheck[]
+  discrepancies       ClosureDiscrepancy[]
+  adjustments         ClosureAdjustmentAuthorization[]
+  chipReconciliations SessionChipReconciliation[]
+  withdrawal          ClosureCashWithdrawal?
+  approval            ClosureApproval?
+  report              ClosureReport?
 
   @@unique([sessionId, attemptNumber])
   @@index([sessionId, status])
@@ -4485,4 +4513,44 @@ model BankingRegularizationReceipt {
 
   @@index([regularizationId])
   @@map("banking_regularization_receipts")
+}
+
+// ── Conciliación GLOBAL de fichas de la sesión (corrección transversal) ──
+// Ver docs/CHIP_GLOBAL_RECONCILIATION.md. Ningún jugador se lleva fichas:
+// cuando todos terminaron, entregado − devuelto de la sesión debe ser $0.
+// Una diferencia es por INVESTIGAR (nunca «circulación» legítima) y solo se
+// resuelve con un hecho autorizado por PARTNER/SUPERADMIN.
+
+enum SessionChipReconciliationKind {
+  /// Las fichas SÍ estaban en la caja (sobrante del arqueo de cierre) pero
+  /// su devolución no se capturó: se registra la entrada nominal real.
+  RETURN_IDENTIFIED_IN_COUNT
+  /// La diferencia no se recuperó físicamente: se documenta y autoriza (sin
+  /// movimientos); el valor sigue fuera de custodia y se señala.
+  UNRECOVERED_AUTHORIZED
+}
+
+/// Hecho autorizado (solo inserción) que concilia la diferencia nominal de
+/// una sesión en CIERRE. Nunca edita liquidaciones ni arqueos.
+model SessionChipReconciliation {
+  id               String                        @id @default(cuid())
+  sessionId        String
+  session          PokerSession                  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  closureId        String
+  closure          SessionClosure                @relation(fields: [closureId], references: [id], onDelete: Restrict)
+  kind             SessionChipReconciliationKind
+  amount           Decimal                       @db.Decimal(14, 2)
+  reason           String
+  /// Arqueo de cierre que respalda el retorno identificado.
+  chipStockCountId String?
+  /// Entrada nominal real (solo RETURN_IDENTIFIED_IN_COUNT).
+  chipOperationId  String?                       @unique
+  chipOperation    ChipInventoryOperation?       @relation("SessionChipReconciliationOperation", fields: [chipOperationId], references: [id], onDelete: Restrict)
+  authorizedById   String
+  authorizedBy     User                          @relation("SessionChipReconciliationBy", fields: [authorizedById], references: [id], onDelete: Restrict)
+  idempotencyKey   String                        @unique
+  createdAt        DateTime                      @default(now())
+
+  @@index([sessionId])
+  @@map("session_chip_reconciliations")
 }

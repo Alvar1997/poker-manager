@@ -187,6 +187,7 @@ export default async function SettlementSignaturePage({
                 settlementId={id}
                 version={s.version}
                 net={status.validSignature.summary.netPayoutAmount}
+                returned={status.validSignature.summary.returnedNominalAmount}
                 cashAvailable={await sessionCashAvailable(s.sessionId)}
               />
             </CardContent>

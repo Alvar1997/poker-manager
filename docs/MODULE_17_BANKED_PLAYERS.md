@@ -112,3 +112,7 @@ XLSX privado (`PokerManager_Bancaje.xlsx`, ExcelJS, anti-inyección): jugadores,
 - Firma del jugador en la conciliación: no se exige (el cajero verifica la recepción); la evidencia es la auditoría.
 - Corrección de una compra financiada con el reverso del Módulo 16: bloqueada (se corrige con ajuste de jugada).
 - El estado `UNDER_CORRECTION` de jugadas queda reservado (las correcciones actuales son atómicas).
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

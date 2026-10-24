@@ -1684,6 +1684,42 @@ export function integrityChecks(db: Db): CheckDefinition[] {
         )
       }
     ),
+    // ── CONCILIACIÓN GLOBAL DE FICHAS (corrección transversal) ─────────
+    def(
+      "SESSION_NOMINAL_BALANCE",
+      "INVENTORY",
+      "Sesiones cerradas: entregado = devuelto (+ diferencias autorizadas)",
+      async () => {
+        const list = await q<{
+          id: string
+          folio: string
+          diff: string
+        }>(Prisma.sql`
+          SELECT s."id", s."folio",
+            (COALESCE((SELECT SUM(m."circulationAfter" - m."circulationBefore") FROM "chip_nominal_movements" m WHERE m."sessionId" = s."id"), 0)
+             - COALESCE((SELECT SUM(r."amount") FROM "session_chip_reconciliations" r
+                 WHERE r."sessionId" = s."id" AND r."kind" = 'UNRECOVERED_AUTHORIZED'), 0))::text AS diff
+          FROM "poker_sessions" s
+          WHERE s."status" = 'CLOSED'
+            AND COALESCE((SELECT SUM(m."circulationAfter" - m."circulationBefore") FROM "chip_nominal_movements" m WHERE m."sessionId" = s."id"), 0)
+             - COALESCE((SELECT SUM(r."amount") FROM "session_chip_reconciliations" r
+                 WHERE r."sessionId" = s."id" AND r."kind" = 'UNRECOVERED_AUTHORIZED'), 0) <> 0`)
+        return rows(
+          "SESSION_NOMINAL_BALANCE",
+          "INVENTORY",
+          "WARNING",
+          "MEDIUM",
+          list,
+          (r) => ({
+            entityType: "PokerSession",
+            entityId: r.id,
+            expected: "0.00",
+            actual: dec(r.diff).toFixed(2),
+            explanation: `La sesión ${r.folio} cerró con una diferencia nominal sin conciliar (${dec(r.diff).toFixed(2)}): requiere revisión (cierres anteriores a la conciliación global). No se corrige automáticamente.`,
+          })
+        )
+      }
+    ),
     // ── REGISTROS ADMINISTRATIVOS (Módulo 17, privado) ────────────────
     // Textos NEUTROS: el diagnóstico general no revela quién está bancado.
     def(

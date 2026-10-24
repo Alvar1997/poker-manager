@@ -233,7 +233,7 @@ export function ChipFigures({
       </div>
       <div className="rounded-lg border p-3">
         <p className="text-muted-foreground text-xs">
-          No retornado en la sesión (pendiente de retorno)
+          Balance nominal de la sesión
         </p>
         <p
           className="text-lg font-semibold tabular-nums"
@@ -242,7 +242,9 @@ export function ChipFigures({
           {formatNominal(sessionNetNotReturned)}
         </p>
         <p className="text-muted-foreground text-xs">
-          Entregado − devuelto. No es faltante, ni ingreso, ni utilidad.
+          Entregado − devuelto en ambas mesas. Con todos los jugadores
+          terminados debe ser $0: los resultados individuales se compensan entre
+          jugadores. Si no es $0, se investiga antes de cerrar.
         </p>
       </div>
       <div className="rounded-lg border p-3">

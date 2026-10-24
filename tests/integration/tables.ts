@@ -1,5 +1,6 @@
 /** Todas las tablas de la app, para vaciar bases de PRUEBA (nunca Neon). */
 export const ALL_TABLES = [
+  "session_chip_reconciliations",
   "banking_regularization_receipts",
   "banking_regularization_recoveries",
   "banking_reserve_movements",

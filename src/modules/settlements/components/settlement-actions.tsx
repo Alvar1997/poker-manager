@@ -106,18 +106,18 @@ type Preview =
 const DECISIONS: { value: Decision; label: string; hint: string }[] = [
   {
     value: "NO_COMPENSATE",
-    label: "No compensar",
-    hint: "El jugador conserva su deuda; se le paga todo lo devuelto.",
+    label: "No aplicar abono",
+    hint: "El jugador conserva su deuda; se le paga (o queda por pagar) todo lo devuelto.",
   },
   {
     value: "PARTIAL",
-    label: "Compensar parcialmente",
-    hint: "Indica cuánto aplicar a sus deudas (las más antiguas primero).",
+    label: "Abonar parcialmente",
+    hint: "Indica cuánto de la liquidación se abona a su deuda (FIFO: la más antigua primero). Es compensación: no entra ni sale efectivo.",
   },
   {
     value: "MAXIMUM",
-    label: "Compensar el máximo posible",
-    hint: "El sistema aplica lo menor entre las fichas y la deuda.",
+    label: "Abonar lo máximo posible",
+    hint: "El sistema abona lo menor entre lo devuelto y la deuda (sin mover efectivo).",
   },
 ]
 
@@ -129,11 +129,14 @@ const DECISIONS: { value: Decision; label: string; hint: string }[] = [
 export function SettlementAmountsForm({
   participationId,
   outstanding,
+  purchased,
   edit,
   onCreated,
 }: {
   participationId: string
   outstanding: string
+  /** Compras confirmadas del jugador en la sesión (para el resultado individual). */
+  purchased?: string
   /** Opcional (mesa interactiva): en vez de navegar a la firma. */
   onCreated?: (settlementId: string) => void
   edit?: {
@@ -230,9 +233,22 @@ export function SettlementAmountsForm({
           testId="returned-amount"
         />
         <p className="text-muted-foreground text-xs">
-          Solo el importe total. Puede ser $0. No se capturan denominaciones:
-          las cantidades por ficha se verifican en los arqueos.
+          Solo el importe total de TODAS las fichas que entrega (nadie se lleva
+          fichas). Puede ser $0. No se capturan denominaciones: las cantidades
+          por ficha se verifican en los arqueos.
         </p>
+        {purchased !== undefined && validReturned ? (
+          <p className="text-sm" data-testid="individual-result">
+            Compró {formatMXN(purchased)} · resultado individual{" "}
+            <strong className="tabular-nums">
+              {formatMXN((Number(returned) - Number(purchased)).toFixed(2))}
+            </strong>{" "}
+            <span className="text-muted-foreground text-xs">
+              (devuelto − comprado; no es faltante: lo que pierde lo gana otro
+              jugador)
+            </span>
+          </p>
+        ) : null}
       </section>
 
       <section className="space-y-1">
@@ -251,7 +267,7 @@ export function SettlementAmountsForm({
 
       <fieldset className="space-y-2">
         <legend className="mb-1 text-base font-medium">
-          4 · ¿Compensar deuda?
+          4 · ¿Deseas aplicar parte de esta liquidación a la deuda del jugador?
         </legend>
         {DECISIONS.map((d) => {
           const disabled =
@@ -449,18 +465,23 @@ export function ConfirmReturnForm({
   settlementId,
   version,
   net,
+  returned,
   cashAvailable,
   onDone,
 }: {
   settlementId: string
   version: number
   net: string
+  /** Valor devuelto capturado: con $0 se exige confirmar el retorno cero. */
+  returned?: string
   cashAvailable: string
   /** Opcional (mesa interactiva): en vez de navegar al comprobante o a pagos. */
   onDone?: (status: string) => void
 }) {
   const router = useRouter()
   const [received, setReceived] = useState(false)
+  const [zero, setZero] = useState(false)
+  const zeroReturn = returned !== undefined && Number(returned) === 0
   const [payNow, setPayNow] = useState(false)
   const [amount, setAmount] = useState("")
   const [delivered, setDelivered] = useState(false)
@@ -473,7 +494,10 @@ export function ConfirmReturnForm({
           method: "POST",
           body: {
             expectedVersion: version,
-            chipsReceived: received,
+            // Con $0 no hay recepción física: solo la confirmación de cero.
+            ...(zeroReturn
+              ? { zeroReturnConfirmed: zero }
+              : { chipsReceived: received }),
             ...(payNow
               ? { immediateCashAmount: amount, cashDelivered: delivered }
               : {}),
@@ -507,7 +531,7 @@ export function ConfirmReturnForm({
   })
   const hasNet = net !== "0.00"
   const ready =
-    received &&
+    (zeroReturn ? zero : received) &&
     (!payNow || (positive(amount) && delivered)) &&
     !confirm.isPending
   return (
@@ -519,16 +543,31 @@ export function ConfirmReturnForm({
       }}
       data-testid="confirm-return-form"
     >
-      <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
-        <input
-          type="checkbox"
-          className="size-5"
-          checked={received}
-          onChange={(e) => setReceived(e.target.checked)}
-          data-testid="chips-received"
-        />
-        Recibí físicamente las fichas del jugador
-      </label>
+      {!zeroReturn ? (
+        <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-5"
+            checked={received}
+            onChange={(e) => setReceived(e.target.checked)}
+            data-testid="chips-received"
+          />
+          Recibí físicamente las fichas del jugador
+        </label>
+      ) : null}
+      {zeroReturn ? (
+        <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-5"
+            checked={zero}
+            onChange={(e) => setZero(e.target.checked)}
+            data-testid="zero-return-confirmed"
+          />
+          Confirmo que el jugador terminó sin fichas y no conserva fichas de
+          esta participación
+        </label>
+      ) : null}
       {hasNet ? (
         <>
           <label className="flex min-h-11 items-center gap-2 text-sm">

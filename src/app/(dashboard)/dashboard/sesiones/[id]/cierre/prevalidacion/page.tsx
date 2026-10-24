@@ -31,7 +31,7 @@ export default async function ClosurePrecheckPage({
         status={session.status}
         title="Prevalidación"
         current="prevalidacion"
-        description="Solo los BLOQUEOS impiden cerrar. Las advertencias (deudas, pagos pendientes, transferencias, fichas no retornadas) se conservan después del cierre."
+        description="Solo los BLOQUEOS impiden cerrar. Las advertencias (deudas, pagos pendientes, transferencias) son dinero y se conservan después del cierre. Las fichas se concilian GLOBALMENTE: nadie se lleva fichas."
       />
       <p className="text-sm" data-testid="precheck-summary">
         {p.summary.blocking} bloqueo(s) · {p.summary.warnings} advertencia(s) ·{" "}

@@ -206,3 +206,7 @@ Migraciones aplicadas en Neon el 2026-10-23. Pendientes conocidos: jugadas en se
 - `src/modules/*` del árbol de referencia (`auth`, `users`, `sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) se reparten entre estos módulos numerados — `sessions`+`tables` corresponden al Módulo 02, `reports` al Módulo 14 y `audit` al Módulo 15, etc.
 - Ningún módulo de negocio (02 en adelante) debe implementarse antes que el Módulo 01 (seguridad/roles) esté terminado — todos dependen de autorización por rol correcta.
 - Este archivo se actualiza al cerrar cada módulo (mover su fila a "✅ Completado" y anotar la fecha).
+
+## Conciliación global de fichas — entregado
+
+Detalle: [`docs/CHIP_GLOBAL_RECONCILIATION.md`](CHIP_GLOBAL_RECONCILIATION.md). Sustituye la advertencia «Fichas no retornadas» por la conciliación GLOBAL (en juego / conciliada / diferencia por conciliar), retorno cero explícito en liquidaciones, resultado individual visible, conciliación autorizada (`session_chip_reconciliations`), reportes con «diferencia nominal» y comprobación de integridad `SESSION_NOMINAL_BALANCE`. Migración `20261102120000_chip_global_reconciliation` (pendiente en Neon).

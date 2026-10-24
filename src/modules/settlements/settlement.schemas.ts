@@ -76,10 +76,24 @@ export const createSettlementSchema = z
     returnedNominalAmount: nonNegativeMoneySchema,
     offsetDecision: offsetDecisionSchema,
     offsetAmount: positiveMoneySchema.optional(),
+    /** OUT: perdió todas sus fichas (retorno $0, sin compensación). */
+    exitKind: z.enum(["CASHOUT", "OUT"]).optional(),
     notes,
     idempotencyKey: idempotencyKeySchema,
   })
   .superRefine(offsetAmountRule)
+  .superRefine((v, ctx) => {
+    if (
+      v.exitKind === "OUT" &&
+      (!/^0+(\.0{1,2})?$/.test(v.returnedNominalAmount) ||
+        v.offsetDecision !== "NO_COMPENSATE")
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["exitKind"],
+        message: "OUT significa retorno de $0 sin compensación.",
+      })
+  })
 export type CreateSettlementInput = z.infer<typeof createSettlementSchema>
 
 export const updateSettlementDraftSchema = z
@@ -106,10 +120,17 @@ export const cancelSettlementSchema = z.strictObject({
 export const confirmReturnSchema = z
   .strictObject({
     expectedVersion: z.number().int().min(1),
-    /** El cajero declara que recibió físicamente las fichas. */
-    chipsReceived: z.literal(true, {
-      message: "Confirma que recibiste físicamente las fichas",
-    }),
+    /**
+     * El cajero declara que recibió físicamente las fichas (obligatorio si
+     * se devolvieron fichas). Con retorno $0 (OUT) no hay recepción: se usa
+     * `zeroReturnConfirmed`.
+     */
+    chipsReceived: z.literal(true).optional(),
+    /**
+     * OBLIGATORIO cuando el retorno es $0: el jugador terminó sin fichas y
+     * no conserva fichas de esta participación (nunca se asume).
+     */
+    zeroReturnConfirmed: z.literal(true).optional(),
     /** Pago inmediato en efectivo (opcional) dentro de la misma operación. */
     immediateCashAmount: positiveMoneySchema.optional(),
     cashDelivered: z.literal(true).optional(),

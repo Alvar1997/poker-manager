@@ -85,9 +85,9 @@ export default async function SessionReportPage({
             <Stat label="Nominal entregado" value={m.deliveredNominal} />
             <Stat label="Nominal devuelto" value={m.returnedNominal} />
             <Stat
-              label="Neto no retornado"
+              label="Diferencia nominal (entregado − devuelto)"
               value={m.netNotReturned}
-              hint="Pendiente de retorno; no es faltante ni utilidad."
+              hint="Con todos los jugadores terminados debe ser $0 (nadie se lleva fichas); si no, se concilia en el cierre. No es utilidad."
             />
           </StatGrid>
         </CardContent>

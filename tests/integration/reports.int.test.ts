@@ -12,11 +12,13 @@ import * as exportRoute from "@/app/api/reports/export/xlsx/route"
 import * as sessionsRoute from "@/app/api/reports/sessions/route"
 import { Prisma } from "@/generated/prisma/client"
 import { prisma } from "@/lib/prisma"
+import { getSessionChipReconciliation } from "@/modules/closure/chip-circulation.service"
 import { confirmBankTransfer } from "@/modules/cash/bank-transfer.service"
 import { buildClosurePreview } from "@/modules/closure/closure.data"
 import {
   confirmClosingChipCount,
   confirmClosure,
+  reconcileSessionChips,
   recordClosingCashCount,
   startClosing,
   startClosingChipCount,
@@ -250,6 +252,9 @@ async function settle(
   await confirmReturn(cashier, settlementId, {
     expectedVersion: s.version,
     chipsReceived: true,
+    ...(Number(s.returnedNominalAmount) === 0
+      ? { zeroReturnConfirmed: true as const }
+      : {}),
     idempotencyKey: key(),
   })
   return settlementId
@@ -274,6 +279,17 @@ async function closeSession(sid: string) {
     countedAmount: "0",
     physicallyCounted: true,
   })
+  // Este escenario deja fichas sin regresar a propósito: la conciliación
+  // global exige que un socio documente y autorice la diferencia.
+  if (
+    (await getSessionChipReconciliation(prisma, sid)).status ===
+    "UNEXPLAINED_DIFFERENCE"
+  )
+    await reconcileSessionChips(partner, sid, {
+      kind: "UNRECOVERED_AUTHORIZED",
+      reason: "Escenario de prueba: fichas no devueltas documentadas",
+      idempotencyKey: key(),
+    })
   const p = await buildClosurePreview(prisma, sid)
   await confirmClosure(partner, sid, {
     idempotencyKey: key(),

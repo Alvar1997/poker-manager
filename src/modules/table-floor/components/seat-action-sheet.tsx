@@ -39,7 +39,7 @@ import { PokerSeatAvatar } from "./poker-table-felt"
 import { purchaseKindLabel } from "./quick-purchase-sheet"
 import { errorText, type Occupant } from "./use-table-board"
 
-export type SeatAction = "buy" | "settle" | "change-seat" | "move"
+export type SeatAction = "buy" | "settle" | "out" | "change-seat" | "move"
 
 export type FloorPermissions = {
   manage: boolean
@@ -176,6 +176,17 @@ export function SeatActionSheet({
                   : `+ ${purchaseKindLabel(occupant)}`}
               </Button>
             ) : null}
+            {perms.settle && allowed.out ? (
+              <Button
+                variant="outline"
+                className="h-12 text-base"
+                onClick={() => onAction("out")}
+                data-testid="seat-out"
+              >
+                <LogOut />
+                OUT (perdió todas sus fichas)
+              </Button>
+            ) : null}
             {perms.settle && allowed.settle ? (
               <Button
                 variant={occupant.state === "SETTLING" ? "default" : "outline"}
@@ -186,7 +197,7 @@ export function SeatActionSheet({
                 <HandCoins />
                 {occupant.state === "SETTLING"
                   ? "Continuar liquidación"
-                  : "Liquidar"}
+                  : "Cashout (entrega fichas)"}
               </Button>
             ) : null}
             {perms.manage && allowed.move ? (

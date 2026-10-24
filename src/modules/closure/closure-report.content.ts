@@ -86,6 +86,12 @@ export type ClosureReportContent = {
     sessionReturned: string
     sessionNetNotReturned: string
     globalCirculation: string
+    /** Conciliación global (desde la corrección transversal; opcional en snapshots anteriores). */
+    chipReconciliation?: {
+      status: string
+      authorizedUnrecovered: string
+      identifiedInCount: string
+    }
   }
   cash: {
     cashCountId: string
@@ -195,11 +201,20 @@ export function closureReportLines(c: ClosureReportContent): ReceiptLine[] {
       label: "Fichas entregadas / devueltas",
       value: `${m(c.inventory.sessionDelivered)} / ${m(c.inventory.sessionReturned)}`,
     },
-    {
-      label: "Valor no retornado (pendiente)",
-      value: m(c.inventory.sessionNetNotReturned),
-      strong: true,
-    },
+    c.inventory.chipReconciliation
+      ? {
+          label: "Balance nominal de la sesión",
+          value:
+            c.inventory.chipReconciliation.status === "RECONCILED"
+              ? `Conciliado (${m(c.inventory.sessionNetNotReturned)} de diferencia autorizada)`
+              : m(c.inventory.sessionNetNotReturned),
+          strong: true,
+        }
+      : {
+          label: "Valor no retornado (pendiente)",
+          value: m(c.inventory.sessionNetNotReturned),
+          strong: true,
+        },
     {
       label: "Circulación global de fichas",
       value: m(c.inventory.globalCirculation),
@@ -257,6 +272,8 @@ export function closureReportText(c: ClosureReportContent): string {
   return [
     `Poker Manager · ${closureReportTitle(c)}`,
     ...lines,
-    "Las fichas no retornadas quedan como valor nominal pendiente de retorno (no son faltante ni utilidad).",
+    c.inventory.chipReconciliation
+      ? "Ningún jugador se lleva fichas: el balance nominal de la sesión se concilia globalmente entre ambas mesas."
+      : "Las fichas no retornadas quedan como valor nominal pendiente de retorno (no son faltante ni utilidad).",
   ].join("\n")
 }

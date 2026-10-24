@@ -40,7 +40,7 @@ import {
   BLOCKER_MESSAGE,
   deliveryBlockers,
   effectiveAmount,
-  nextPurchaseNumber,
+  classifyPurchase,
   paymentEffect,
   summarizePayments,
   type PaymentLike,
@@ -165,6 +165,7 @@ const purchaseSelect = {
   notes: true,
   // Interno (Módulo 17): nunca se proyecta en `toView`.
   fundingSource: true,
+  paymentMode: true,
   createdAt: true,
   updatedAt: true,
   confirmedAt: true,
@@ -430,6 +431,8 @@ async function toView(
     rebuyNumber: p.rebuyNumber,
     version: p.version,
     nominalAmount: fmt(dec(p.nominalAmount)),
+    /** Modalidad elegida (null = compras anteriores: sin restricción). */
+    paymentMode: p.paymentMode,
     notes: p.notes,
     session: p.session,
     table: p.table,
@@ -960,6 +963,7 @@ export async function createPurchase(
           playerId: ctxp.playerId,
           tableId: ctxp.tableId,
           nominalAmount: amount,
+          paymentMode: input.paymentMode ?? null,
           notes: input.notes ?? null,
           createdById: actor.id,
           idempotencyKey: input.idempotencyKey,
@@ -1129,6 +1133,7 @@ export async function recordPayment(
   await prisma.$transaction(async (tx) => {
     await lockOpenSessionFor(tx, head.sessionId, "registrar pagos")
     const p = await lockPurchase(tx, id)
+    assertPaymentMatchesMode(p.paymentMode, input.method)
     const again = await tx.purchasePayment.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
       select: { id: true },
@@ -1630,6 +1635,7 @@ export async function confirmDelivery(
 
       // Estado financiero real (con transferencias verificadas a la fecha).
       const f = financialsOf(p)
+      assertModeCoversAtDelivery(p.paymentMode, f.outstanding)
       if (f.overApplied)
         throw new BusinessRuleError(BLOCKER_MESSAGE.OVER_APPLIED)
       if (f.pendingCards.greaterThan(0))
@@ -1663,12 +1669,8 @@ export async function confirmDelivery(
         expectedNumber = signature.expectedNumber ?? null
       }
 
-      // Numeración por (sesión, jugador), serializada por la participación.
-      const last = await tx.chipPurchase.aggregate({
-        where: { sessionId: p.sessionId, playerId: p.playerId },
-        _max: { sequenceNumber: true },
-      })
-      const number = nextPurchaseNumber(last._max.sequenceNumber)
+      // Numeración por (sesión, jugador) y tipo por MESA, serializada por la participación.
+      const number = await nextPurchaseNumberInTx(tx, p)
       // El jugador firmó un tipo/número de recompra: si otra compra suya se
       // confirmó antes, lo firmado ya no corresponde (FIR-06).
       if (
@@ -1967,6 +1969,79 @@ export async function confirmDelivery(
   }
 }
 
+// ── Modalidad de pago ─────────────────────────────────────────────────
+
+const MODE_METHODS: Record<string, readonly string[]> = {
+  CASH: ["CASH"],
+  BANK_TRANSFER: ["BANK_TRANSFER"],
+  CARD: ["CARD_DEBIT", "CARD_CREDIT"],
+  CREDIT: [],
+}
+const MODE_LABEL: Record<string, string> = {
+  CASH: "efectivo",
+  BANK_TRANSFER: "transferencia",
+  CARD: "terminal",
+  CREDIT: "crédito total",
+}
+
+/** El método del pago debe corresponder a la modalidad elegida (no solo en pantalla). */
+export function assertPaymentMatchesMode(mode: string | null, method: string) {
+  if (!mode || mode === "MIXED") return
+  if (!MODE_METHODS[mode]?.includes(method))
+    throw new BusinessRuleError(
+      mode === "CREDIT"
+        ? "La compra es a CRÉDITO TOTAL: no recibe efectivo ni otros cobros. Para combinar crédito con un pago usa «Pago mixto»."
+        : `La compra se registró con ${MODE_LABEL[mode]}: este cobro no corresponde. Para combinar métodos usa «Pago mixto».`
+    )
+}
+
+/** Efectivo o terminal como modalidad única deben cubrir TODO el importe. */
+function assertModeCoversAtDelivery(
+  mode: string | null,
+  outstanding: Prisma.Decimal
+) {
+  if ((mode === "CASH" || mode === "CARD") && outstanding.greaterThan(0))
+    throw new BusinessRuleError(
+      "El cobro no cubre el importe. Si una parte queda a crédito, registra la compra como «Pago mixto»."
+    )
+}
+
+// ── Clasificación compra inicial / recompra (por mesa) ────────────────
+
+/**
+ * Número y tipo de la siguiente entrega del jugador: consecutivo por
+ * (sesión, jugador) y tipo por MESA lógica + cadena de transferencias
+ * (`classifyPurchase`). Las compras entregadas y después revertidas cuentan
+ * como historial (se entregaron).
+ */
+export async function nextPurchaseNumberInTx(
+  db: Tx | typeof prisma,
+  p: {
+    sessionId: string
+    playerId: string
+    tableId: string
+    participationId: string
+  }
+) {
+  const [last, prior] = await Promise.all([
+    db.chipPurchase.aggregate({
+      where: { sessionId: p.sessionId, playerId: p.playerId },
+      _max: { sequenceNumber: true },
+    }),
+    db.$queryRaw<{ n: number }[]>`
+      WITH RECURSIVE chain("id", "src") AS (
+        SELECT tp."id", tp."sourceParticipationId" FROM "table_participations" tp WHERE tp."id" = ${p.participationId}
+        UNION ALL
+        SELECT tp."id", tp."sourceParticipationId" FROM "table_participations" tp JOIN chain ON tp."id" = chain."src"
+      )
+      SELECT count(*)::int AS "n" FROM "chip_purchases" cp
+       WHERE cp."sessionId" = ${p.sessionId} AND cp."playerId" = ${p.playerId}
+         AND cp."status" IN ('CONFIRMED', 'REVERSED')
+         AND (cp."tableId" = ${p.tableId} OR cp."participationId" IN (SELECT "id" FROM chain))`,
+  ])
+  return classifyPurchase(last._max.sequenceNumber, prior[0]?.n ?? 0)
+}
+
 // ── Entrega financiada por la casa (Módulo 17, PRIVADO) ───────────────
 
 /**
@@ -2041,11 +2116,7 @@ export async function deliverHouseFundedPurchaseInTx(
   const f = financialsOf(p)
   const summary = signableSummary(p, f)
   const hash = summaryHash(summary)
-  const last = await tx.chipPurchase.aggregate({
-    where: { sessionId: p.sessionId, playerId: p.playerId },
-    _max: { sequenceNumber: true },
-  })
-  const number = nextPurchaseNumber(last._max.sequenceNumber)
+  const number = await nextPurchaseNumberInTx(tx, p)
   const reservation = await reserveNominalAmountInTx(
     tx,
     actor,
@@ -2454,10 +2525,7 @@ export async function loadPurchaseCreditStateInTx(
   if (!p) throw new NotFoundError("Compra no encontrada")
   const f = financialsOf(p)
   const auth = activeAuthorization(p)
-  const last = await tx.chipPurchase.aggregate({
-    where: { sessionId: p.sessionId, playerId: p.playerId },
-    _max: { sequenceNumber: true },
-  })
+  const projectedNumber = await nextPurchaseNumberInTx(tx, p)
   return {
     purchase: p,
     financials: f,
@@ -2465,7 +2533,7 @@ export async function loadPurchaseCreditStateInTx(
       auth && dec(auth.authorizedCreditAmount).equals(f.outstanding)
         ? auth
         : null,
-    projectedNumber: nextPurchaseNumber(last._max.sequenceNumber),
+    projectedNumber,
   }
 }
 export type PurchaseCreditState = Awaited<

@@ -8,6 +8,7 @@ import {
   circulationFlows,
   dec,
   fmt,
+  sessionChipReconciliation,
   ZERO,
 } from "@/modules/closure/closure.math"
 
@@ -109,6 +110,8 @@ export async function getSessionChipFlows(db: Db, sessionId: string) {
         delivered: fmt(p.delivered),
         returned: fmt(p.returned),
         net: fmt(p.net),
+        /** Resultado INDIVIDUAL (devuelto − entregado): no es faltante. */
+        result: fmt(p.returned.sub(p.delivered)),
       }))
       .sort(
         (a, b) =>
@@ -125,6 +128,40 @@ export async function getSessionChipFlows(db: Db, sessionId: string) {
         returned: fmt(f.returned),
       }))
       .sort((a, b) => a.table.name.localeCompare(b.table.name)),
+  }
+}
+
+/**
+ * Conciliación GLOBAL de fichas de la sesión (ambas mesas): entregado vs
+ * devuelto, menos diferencias autorizadas, con su estado. Fuente única para
+ * la prevalidación del cierre, la pantalla de pendientes y los reportes.
+ */
+export async function getSessionChipReconciliation(db: Db, sessionId: string) {
+  const [flows, active, authorized, identified] = await Promise.all([
+    getSessionChipFlows(db, sessionId),
+    db.tableParticipation.count({ where: { sessionId, status: "ACTIVE" } }),
+    db.sessionChipReconciliation.aggregate({
+      where: { sessionId, kind: "UNRECOVERED_AUTHORIZED" },
+      _sum: { amount: true },
+    }),
+    db.sessionChipReconciliation.aggregate({
+      where: { sessionId, kind: "RETURN_IDENTIFIED_IN_COUNT" },
+      _sum: { amount: true },
+    }),
+  ])
+  const r = sessionChipReconciliation({
+    delivered: flows.delivered,
+    returned: flows.returned,
+    authorizedUnrecovered: dec(authorized._sum.amount),
+    activeParticipants: active,
+  })
+  return {
+    ...r,
+    activeParticipants: active,
+    /** Ya incluido en `returned` (entrada nominal real registrada). */
+    identifiedInCount: dec(identified._sum.amount),
+    byPlayer: flows.byPlayer,
+    byTable: flows.byTable,
   }
 }
 
@@ -174,15 +211,24 @@ export async function getOutstandingChips(sessionId: string) {
     select: { id: true },
   })
   if (!exists) throw new NotFoundError("Sesión no encontrada")
-  const [flows, global] = await Promise.all([
+  const [flows, global, rec] = await Promise.all([
     getSessionChipFlows(prisma, sessionId),
     getGlobalChipPosition(prisma),
+    getSessionChipReconciliation(prisma, sessionId),
   ])
   return {
     session: {
       delivered: fmt(flows.delivered),
       returned: fmt(flows.returned),
       netNotReturned: fmt(flows.netNotReturned),
+    },
+    /** Conciliación GLOBAL de la sesión (ambas mesas). */
+    reconciliation: {
+      status: rec.status,
+      authorizedUnrecovered: fmt(rec.authorizedUnrecovered),
+      identifiedInCount: fmt(rec.identifiedInCount),
+      difference: fmt(rec.difference),
+      activeParticipants: rec.activeParticipants,
     },
     global: {
       circulation: fmt(global.circulation),
@@ -196,7 +242,7 @@ export async function getOutstandingChips(sessionId: string) {
       physicalShortage: false,
       recognizedAsIncome: "0.00",
       payableCreated: false,
-      note: "Valor nominal pendiente de retorno: no es faltante de arqueo, ni utilidad, ni deuda, ni pago. Solo se paga ante una presentación física validada.",
+      note: "Ningún jugador se lleva fichas. El resultado individual (devuelto − entregado) no es un faltante: lo que un jugador pierde lo gana otro y regresa en su liquidación. Solo una diferencia GLOBAL con todos los jugadores terminados se investiga. Deudas y pagos pendientes son dinero, no fichas.",
     },
     lateRedemption: {
       enabled: false,

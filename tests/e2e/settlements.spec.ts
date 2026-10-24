@@ -387,7 +387,10 @@ test("devolución de $0: firma obligatoria y sin movimiento nominal de valor cer
   expect(noSig.status()).toBe(422)
   await page.waitForLoadState("networkidle")
   await signOnDevice(page)
-  await visible(page, "chips-received").check()
+  // Con $0 no hay «fichas recibidas»: el cajero confirma EXPRESAMENTE el cero.
+  await expect(page.getByTestId("chips-received")).toHaveCount(0)
+  await expect(visible(page, "confirm-return")).toBeDisabled()
+  await visible(page, "zero-return-confirmed").check()
   await visible(page, "confirm-return").click()
   await expect(page).toHaveURL(new RegExp(`/liquidaciones/${id}/comprobante$`))
   const s = await api<{

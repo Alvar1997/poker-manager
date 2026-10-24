@@ -36,7 +36,10 @@ export type FindingCode =
   | "CASH_DEPOSITS_IN_TRANSIT"
   | "CARD_CLEARING_PENDING"
   | "UNAPPLIED_FUNDS_PENDING"
-  | "CHIPS_NOT_RETURNED"
+  | "CHIPS_IN_PLAY"
+  | "CHIPS_RECONCILED"
+  | "SESSION_NOMINAL_DIFFERENCE"
+  | "SESSION_RETURNED_PRIOR_CIRCULATION"
   | "GLOBAL_CIRCULATION"
   | "NO_ACTIVITY"
   | "CASH_BALANCE"
@@ -400,4 +403,79 @@ export function evaluateReadiness(f: ReadinessFacts) {
     )
   }
   return { ready: checks.every((c) => c.ok), checks }
+}
+
+// ── Conciliación GLOBAL de fichas de la sesión (corrección transversal) ─
+
+/**
+ * Estado nominal de la sesión (docs/CHIP_GLOBAL_RECONCILIATION.md).
+ *
+ * REGLA: ningún jugador se lleva fichas. El resultado individual de cada
+ * jugador (devuelto − comprado) NO es un faltante: lo que uno pierde lo
+ * gana otro y regresa en SU liquidación. Lo que se concilia es el balance
+ * GLOBAL de la sesión (ambas mesas; las transferencias no generan
+ * movimientos):
+ *
+ *   diferencia = Σ entregado − Σ devuelto − Σ diferencias autorizadas
+ *
+ * - Con jugadores ACTIVOS: las fichas están legítimamente EN JUEGO.
+ * - Todos terminaron y diferencia = 0: CONCILIADA.
+ * - Todos terminaron y diferencia > 0: entregas sin retorno registrado →
+ *   POR INVESTIGAR (bloquea el cierre; nunca es «circulación» legítima).
+ * - Diferencia < 0: se devolvieron fichas de circulación ANTERIOR (sesiones
+ *   previas al cambio de regla); se informa.
+ */
+export type SessionChipStatus =
+  | "IN_PLAY"
+  | "RECONCILED"
+  | "UNEXPLAINED_DIFFERENCE"
+  | "PRIOR_CIRCULATION_RETURNED"
+
+export function sessionChipReconciliation(input: {
+  delivered: Dec
+  returned: Dec
+  /** Diferencias documentadas y autorizadas (UNRECOVERED_AUTHORIZED). */
+  authorizedUnrecovered: Dec
+  activeParticipants: number
+}) {
+  const grossDifference = input.delivered.sub(input.returned)
+  const difference = grossDifference.sub(input.authorizedUnrecovered)
+  const status: SessionChipStatus =
+    input.activeParticipants > 0
+      ? "IN_PLAY"
+      : difference.isZero()
+        ? "RECONCILED"
+        : difference.greaterThan(0)
+          ? "UNEXPLAINED_DIFFERENCE"
+          : "PRIOR_CIRCULATION_RETURNED"
+  return {
+    delivered: input.delivered,
+    returned: input.returned,
+    grossDifference,
+    authorizedUnrecovered: input.authorizedUnrecovered,
+    difference,
+    status,
+  }
+}
+
+/** Resultado nominal INDIVIDUAL: devuelto − comprado (no es faltante). */
+export function individualResult(returned: Dec, purchased: Dec): Dec {
+  return returned.sub(purchased)
+}
+
+/**
+ * Cuánto puede registrarse como «retorno identificado en el arqueo»: solo
+ * hasta lo que el arqueo de cierre encontró DE MÁS en la caja y hasta la
+ * diferencia pendiente (nunca una entrada sin fichas contadas).
+ */
+export function identifiableReturn(input: {
+  physicalSurplus: Dec | null
+  pendingDifference: Dec
+}): Dec {
+  if (!input.physicalSurplus || !input.physicalSurplus.greaterThan(0))
+    return ZERO
+  if (!input.pendingDifference.greaterThan(0)) return ZERO
+  return input.physicalSurplus.lessThan(input.pendingDifference)
+    ? input.physicalSurplus
+    : input.pendingDifference
 }

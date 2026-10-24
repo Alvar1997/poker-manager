@@ -7,6 +7,7 @@ import { OPERATIONAL_RULES } from "@/config/operational-rules"
 import { Prisma } from "@/generated/prisma/client"
 import {
   assertPaymentFits,
+  classifyPurchase,
   deliveryBlockers,
   nextPurchaseNumber,
   paymentEffect,
@@ -131,6 +132,30 @@ describe("numeración: compra inicial y recompras por (sesión, jugador)", () =>
       purchaseType: "REBUY",
       rebuyNumber: 2,
     })
+  })
+})
+
+describe("clasificación compra inicial / recompra POR MESA", () => {
+  it("primera compra en la mesa = inicial aunque ya haya comprado en otra mesa", () => {
+    expect(classifyPurchase(null, 0)).toEqual({
+      sequenceNumber: 1,
+      purchaseType: "INITIAL_PURCHASE",
+      rebuyNumber: null,
+    })
+    // Juan: 25/25 (#1) → OUT → 10/10: su primera compra ahí es inicial (#2).
+    expect(classifyPurchase(1, 0)).toEqual({
+      sequenceNumber: 2,
+      purchaseType: "INITIAL_PURCHASE",
+      rebuyNumber: null,
+    })
+  })
+  it("compras previas en la misma mesa (o su cadena de transferencias) = recompra", () => {
+    expect(classifyPurchase(3, 1)).toEqual({
+      sequenceNumber: 4,
+      purchaseType: "REBUY",
+      rebuyNumber: 1,
+    })
+    expect(classifyPurchase(4, 2)).toMatchObject({ rebuyNumber: 2 })
   })
 })
 

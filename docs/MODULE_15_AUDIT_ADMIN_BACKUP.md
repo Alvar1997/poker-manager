@@ -190,3 +190,7 @@ Nuevos eventos clasificados en «Mesas (M07)»: `SEAT_ASSIGNED`, `SEAT_CHANGED`,
 ## Integración con el Módulo 17
 
 Módulo 17: módulo de auditoría `BANKING` (acciones `BANKING_*`) restringido a `banking:read`; tres comprobaciones de integridad con textos neutros (`ADMIN_FUNDED_PURCHASES`, `ADMIN_RECORD_RESULTS`, `ADMIN_RESERVE_NONNEGATIVE`).
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

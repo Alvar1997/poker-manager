@@ -147,6 +147,35 @@ function SettlementStart({
     )
   return (
     <div className="space-y-4">
+      <dl
+        className="bg-muted/50 divide-y rounded-xl p-3 text-sm"
+        data-testid="quick-settlement-summary"
+      >
+        <div className="flex justify-between py-1">
+          <dt>Compras y recompras ({c.purchasedInSession.count})</dt>
+          <dd className="tabular-nums">
+            {formatMXN(c.purchasedInSession.nominal)}
+          </dd>
+        </div>
+        <div className="flex justify-between py-1">
+          <dt>· pagadas</dt>
+          <dd className="tabular-nums">
+            {formatMXN(c.purchasedInSession.paid)}
+          </dd>
+        </div>
+        <div className="flex justify-between py-1">
+          <dt>· a crédito</dt>
+          <dd className="tabular-nums">
+            {formatMXN(c.purchasedInSession.credit)}
+          </dd>
+        </div>
+        <div className="flex justify-between py-1 font-semibold">
+          <dt>Deuda vigente</dt>
+          <dd className="tabular-nums" data-testid="quick-settlement-debt">
+            {formatMXN(c.outstandingDebt)}
+          </dd>
+        </div>
+      </dl>
       {c.debts.length > 0 ? (
         <section className="space-y-1">
           <p className="text-sm font-medium">
@@ -173,6 +202,7 @@ function SettlementStart({
       <SettlementAmountsForm
         participationId={occupant.participationId}
         outstanding={c.outstandingDebt}
+        purchased={c.purchasedInSession.nominal}
         onCreated={onCreated}
       />
     </div>
@@ -255,6 +285,7 @@ function SettlementProgress({
             settlementId={s.id}
             version={s.version}
             net={valid.summary.netPayoutAmount}
+            returned={valid.summary.returnedNominalAmount}
             cashAvailable={cashAvailable}
             onDone={(st) => (st === "CONFLICT" ? refresh() : onFinished(st))}
           />
@@ -289,7 +320,7 @@ function SummaryRows({ s }: { s: SettlementSummaryView }) {
   )
 }
 
-function SettlementSignatureStep({
+export function SettlementSignatureStep({
   settlementId,
   onDone,
 }: {
@@ -330,7 +361,7 @@ function SettlementSignatureStep({
   )
 }
 
-function SettlementDone({
+export function SettlementDone({
   settlementId,
   status,
   onClose,

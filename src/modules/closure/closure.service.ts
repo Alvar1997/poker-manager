@@ -55,7 +55,9 @@ import {
   closureReportTitle,
   type ClosureReportContent,
 } from "@/modules/closure/closure-report.content"
-import { dec, fmt } from "@/modules/closure/closure.math"
+import { dec, fmt, identifiableReturn } from "@/modules/closure/closure.math"
+import { getSessionChipReconciliation } from "@/modules/closure/chip-circulation.service"
+import { confirmNominalChipReturnInTx } from "@/modules/inventory/reservation.service"
 import type {
   CashCountInput,
   CashWithdrawalInput,
@@ -1264,6 +1266,11 @@ function buildReportContent(
       sessionReturned: inventory.position.sessionReturned,
       sessionNetNotReturned: inventory.position.sessionNetNotReturned,
       globalCirculation: inventory.position.globalCirculation,
+      chipReconciliation: {
+        status: inventory.reconciliation.status,
+        authorizedUnrecovered: inventory.reconciliation.authorizedUnrecovered,
+        identifiedInCount: inventory.reconciliation.identifiedInCount,
+      },
     },
     cash: {
       cashCountId: cash.count!.id,
@@ -1635,8 +1642,9 @@ export async function renderClosureReportPng(sessionId: string) {
     okLabel:
       c.kind === "NO_ACTIVITY" ? "Cerrada sin actividad" : "Sesión cerrada",
     lines: closureReportLines(c),
-    footer:
-      "Fichas no retornadas: valor nominal pendiente de retorno (no es faltante ni utilidad). Deudas y pagos pendientes continúan después del cierre.",
+    footer: c.inventory.chipReconciliation
+      ? "Fichas conciliadas globalmente entre ambas mesas (ningún jugador se lleva fichas). Deudas y pagos pendientes continúan después del cierre."
+      : "Fichas no retornadas: valor nominal pendiente de retorno (no es faltante ni utilidad). Deudas y pagos pendientes continúan después del cierre.",
   })
   return { png, filename: `cierre-${c.session.folio}.png`, reportId: report.id }
 }
@@ -1667,4 +1675,154 @@ export async function recordClosureReportEvent(
     requestId: ctx.requestId,
     metadata: { sessionId, folio: r.folio, ...metadata },
   })
+}
+
+// ── Conciliación GLOBAL de fichas de la sesión ────────────────────────
+
+export type SessionChipReconciliationInput = {
+  kind: "RETURN_IDENTIFIED_IN_COUNT" | "UNRECOVERED_AUTHORIZED"
+  /** Opcional: si se envía debe coincidir con lo que calcula el servidor. */
+  amount?: string
+  reason: string
+  idempotencyKey: string
+}
+
+/**
+ * Concilia la DIFERENCIA NOMINAL de una sesión en cierre (entregado −
+ * devuelto con todos los jugadores terminados). Solo PARTNER o SUPERADMIN.
+ *
+ * - RETURN_IDENTIFIED_IN_COUNT: el arqueo de cierre encontró fichas DE MÁS
+ *   en la caja (devoluciones que no se capturaron): se registra la entrada
+ *   nominal REAL por lo identificado (≤ sobrante y ≤ diferencia). El arqueo
+ *   queda desactualizado y se vuelve a contar (recuento).
+ * - UNRECOVERED_AUTHORIZED: las fichas no aparecen; se documenta y autoriza
+ *   SIN movimientos (el valor sigue fuera de custodia y queda señalado).
+ * Nunca edita liquidaciones, arqueos ni crea retornos sin fichas contadas.
+ */
+export async function reconcileSessionChips(
+  actor: SessionUser,
+  sessionId: string,
+  input: SessionChipReconciliationInput,
+  ctx: RequestContext = {}
+) {
+  if (!roleHasPermission(actor.role, PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE)) {
+    await recordAudit({
+      action: AUDIT_ACTIONS.CLOSURE_NOMINAL_RECONCILIATION_DENIED,
+      entityType: "PokerSession",
+      entityId: sessionId,
+      actorUserId: actor.id,
+      requestId: ctx.requestId,
+      result: "DENIED",
+      metadata: { sessionId, kind: input.kind },
+    }).catch(() => {})
+    throw new ForbiddenError(
+      "Solo un socio o un superadministrador concilia la diferencia nominal de la sesión."
+    )
+  }
+  const previous = await prisma.sessionChipReconciliation.findUnique({
+    where: { idempotencyKey: input.idempotencyKey },
+    select: { sessionId: true },
+  })
+  if (previous) {
+    if (previous.sessionId !== sessionId)
+      throw new ConflictError("Clave de operación reutilizada")
+    return { replayed: true }
+  }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const { closure } = await lockClosingSession(tx, sessionId)
+      // Serializa con otras conciliaciones y movimientos de inventario.
+      await tx.$queryRaw`SELECT "chipSetId" FROM "chip_set_inventory_states" FOR UPDATE`
+      const rec = await getSessionChipReconciliation(tx, sessionId)
+      if (rec.status !== "UNEXPLAINED_DIFFERENCE")
+        throw new BusinessRuleError(
+          rec.status === "IN_PLAY"
+            ? "Todavía hay jugadores activos: sus fichas siguen en juego."
+            : "La sesión no tiene una diferencia nominal pendiente de conciliar."
+        )
+      let amount = rec.difference
+      let chipOperationId: string | null = null
+      let chipStockCountId: string | null = null
+      const id = `scr_${input.idempotencyKey}`.slice(0, 64)
+      if (input.kind === "RETURN_IDENTIFIED_IN_COUNT") {
+        const count = await closureChipCount(tx, sessionId, closure)
+        if (!count || count.status !== "CONFIRMED")
+          throw new BusinessRuleError(
+            "Primero confirma el arqueo físico global del cierre: el retorno solo se identifica con fichas contadas."
+          )
+        const surplus = dec(count.countedTotal).sub(dec(count.expectedTotal))
+        amount = identifiableReturn({
+          physicalSurplus: surplus,
+          pendingDifference: rec.difference,
+        })
+        if (!amount.greaterThan(0))
+          throw new BusinessRuleError(
+            "El arqueo de cierre no encontró fichas de más: no hay retorno que identificar. Si las fichas no aparecen, documenta y autoriza la diferencia."
+          )
+        chipStockCountId = count.id
+      }
+      if (input.amount && !dec(input.amount).equals(amount))
+        throw new ConflictError(
+          `El importe a conciliar es $${fmt(amount)} (calculado por el servidor). Revisa la pantalla de nuevo.`
+        )
+      if (input.kind === "RETURN_IDENTIFIED_IN_COUNT") {
+        const op = await confirmNominalChipReturnInTx(
+          tx,
+          actor,
+          {
+            amount,
+            referenceType: "SessionChipReconciliation",
+            referenceId: id,
+            sessionId,
+            idempotencyKey: `session-chip-rec-${input.idempotencyKey}`,
+          },
+          ctx
+        )
+        chipOperationId = op.operationId
+      }
+      await tx.sessionChipReconciliation.create({
+        data: {
+          id,
+          sessionId,
+          closureId: closure.id,
+          kind: input.kind,
+          amount,
+          reason: input.reason,
+          chipStockCountId,
+          chipOperationId,
+          authorizedById: actor.id,
+          idempotencyKey: input.idempotencyKey,
+        },
+      })
+      await recordAudit(
+        {
+          action:
+            input.kind === "RETURN_IDENTIFIED_IN_COUNT"
+              ? AUDIT_ACTIONS.CLOSURE_NOMINAL_RETURN_IDENTIFIED
+              : AUDIT_ACTIONS.CLOSURE_NOMINAL_DIFFERENCE_AUTHORIZED,
+          entityType: "SessionChipReconciliation",
+          entityId: id,
+          actorUserId: actor.id,
+          requestId: ctx.requestId,
+          reason: input.reason,
+          metadata: {
+            sessionId,
+            closureId: closure.id,
+            amount: fmt(amount),
+            delivered: fmt(rec.delivered),
+            returned: fmt(rec.returned),
+            differenceBefore: fmt(rec.difference),
+            chipStockCountId,
+            chipOperationId,
+            recognizedAsIncome: "0.00",
+          },
+        },
+        tx
+      )
+      return { replayed: false, amount: fmt(amount) }
+    }, CLOSURE_TX)
+  } catch (error) {
+    if (isUniqueViolation(error)) return { replayed: true }
+    throw error
+  }
 }

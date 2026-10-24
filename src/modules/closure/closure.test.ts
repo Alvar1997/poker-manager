@@ -16,6 +16,9 @@ import {
   closureKindFor,
   custodyFlows,
   evaluateReadiness,
+  identifiableReturn,
+  individualResult,
+  sessionChipReconciliation,
   requiresNoActivityReason,
   sortFindings,
   summarizeFindings,
@@ -91,14 +94,17 @@ describe("prevalidación", () => {
     detail: "",
   })
 
-  it("solo los BLOCKING impiden cerrar: deudas, pagos pendientes y fichas no retornadas son advertencias", () => {
+  it("solo los BLOCKING impiden cerrar: deudas y pagos pendientes son advertencias; la diferencia nominal global bloquea", () => {
     const s = summarizeFindings([
       f("PLAYER_DEBTS_OUTSTANDING", "WARNING"),
       f("PAYABLES_PENDING", "WARNING"),
-      f("CHIPS_NOT_RETURNED", "WARNING"),
+      f("CHIPS_RECONCILED", "INFO"),
       f("GLOBAL_CIRCULATION", "INFO"),
     ])
-    expect(s).toEqual({ blocking: 0, warnings: 3, info: 1, clear: true })
+    expect(s).toEqual({ blocking: 0, warnings: 2, info: 2, clear: true })
+    expect(
+      summarizeFindings([f("SESSION_NOMINAL_DIFFERENCE", "BLOCKING")]).clear
+    ).toBe(false)
     expect(
       summarizeFindings([f("ACTIVE_PARTICIPANTS", "BLOCKING")]).clear
     ).toBe(false)
@@ -547,5 +553,102 @@ describe("comprobante de cierre", () => {
       label: "Motivo (sin actividad)",
       value: "No llegaron jugadores",
     })
+  })
+})
+
+describe("conciliación GLOBAL de fichas (nadie se lleva fichas)", () => {
+  const D2 = (v: string | number) => new Prisma.Decimal(v)
+  const rec = (
+    delivered: string,
+    returned: string,
+    active = 0,
+    authorized = "0"
+  ) =>
+    sessionChipReconciliation({
+      delivered: D2(delivered),
+      returned: D2(returned),
+      authorizedUnrecovered: D2(authorized),
+      activeParticipants: active,
+    })
+  const row = (delta: number, playerId: string) => ({
+    movementType: delta > 0 ? "CHIP_DELIVERY" : "CHIP_RETURN",
+    custodyBefore: "0",
+    custodyAfter: String(-delta),
+    circulationBefore: "0",
+    circulationAfter: String(delta),
+    playerId,
+  })
+
+  it("Juan compra 5,000 y devuelve 2,000 (−3,000); Pedro compra 5,000 y devuelve 8,000 (+3,000): balance global $0, sin alerta", () => {
+    const rows = [
+      row(5000, "juan"),
+      row(5000, "pedro"),
+      row(-2000, "juan"),
+      row(-8000, "pedro"),
+    ]
+    const flows = circulationFlows(rows)
+    expect(flows.delivered.toFixed(2)).toBe("10000.00")
+    expect(flows.returned.toFixed(2)).toBe("10000.00")
+    const r = rec(flows.delivered.toFixed(2), flows.returned.toFixed(2))
+    expect(r.status).toBe("RECONCILED")
+    expect(r.difference.toFixed(2)).toBe("0.00")
+    const players = circulationByPlayer(rows)
+    const juan = players.find((p) => p.playerId === "juan")!
+    const pedro = players.find((p) => p.playerId === "pedro")!
+    expect(individualResult(juan.returned, juan.delivered).toFixed(2)).toBe(
+      "-3000.00"
+    )
+    expect(individualResult(pedro.returned, pedro.delivered).toFixed(2)).toBe(
+      "3000.00"
+    )
+  })
+
+  it("retorno cero (−5,000) y ganador que devuelve el doble (+5,000): conciliado", () => {
+    expect(rec("10000", "10000").status).toBe("RECONCILED")
+    expect(individualResult(D2(0), D2(5000)).toFixed(2)).toBe("-5000.00")
+    expect(individualResult(D2(12000), D2(5000)).toFixed(2)).toBe("7000.00")
+  })
+
+  it("con jugadores activos las fichas están EN JUEGO (no es diferencia)", () => {
+    expect(rec("10000", "4000", 2).status).toBe("IN_PLAY")
+  })
+
+  it("100,000 entregados y 95,000 devueltos con todos terminados: 5,000 por conciliar (no «en circulación»)", () => {
+    const r = rec("100000", "95000")
+    expect(r.status).toBe("UNEXPLAINED_DIFFERENCE")
+    expect(r.difference.toFixed(2)).toBe("5000.00")
+    // Una diferencia autorizada la concilia sin inventar retornos.
+    expect(rec("100000", "95000", 0, "5000").status).toBe("RECONCILED")
+  })
+
+  it("devolver más de lo entregado en la sesión: proviene de circulación anterior", () => {
+    expect(rec("1000", "1500").status).toBe("PRIOR_CIRCULATION_RETURNED")
+  })
+
+  it("retorno identificado solo hasta lo que el arqueo encontró de más", () => {
+    expect(
+      identifiableReturn({
+        physicalSurplus: D2(3000),
+        pendingDifference: D2(5000),
+      }).toFixed(2)
+    ).toBe("3000.00")
+    expect(
+      identifiableReturn({
+        physicalSurplus: D2(8000),
+        pendingDifference: D2(5000),
+      }).toFixed(2)
+    ).toBe("5000.00")
+    expect(
+      identifiableReturn({
+        physicalSurplus: D2(0),
+        pendingDifference: D2(5000),
+      }).toFixed(2)
+    ).toBe("0.00")
+    expect(
+      identifiableReturn({
+        physicalSurplus: null,
+        pendingDifference: D2(5000),
+      }).toFixed(2)
+    ).toBe("0.00")
   })
 })

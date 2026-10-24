@@ -167,3 +167,7 @@ Asientos (`TableSeatAssignment`, 1..9 por ciclo) y dealer por ciclo (`DealerAssi
 ## Integración con el Módulo 17
 
 Módulo 17: una participación con jugada financiada sale SETTLED por `completeParticipationFromBankingGameInTx` (con `bankingGameId`, sin liquidación ordinaria) y libera su asiento. La mesa no muestra ninguna señal del bancaje; cambiar de mesa no crea otra jugada.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

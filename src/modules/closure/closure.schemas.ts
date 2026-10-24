@@ -150,3 +150,20 @@ export async function parseDiscrepancyIdParam(
   if (!parsed.success) throw new ValidationError("Identificador inválido")
   return parsed.data
 }
+
+/**
+ * Conciliación de la DIFERENCIA NOMINAL de la sesión (PARTNER/SUPERADMIN).
+ * El importe lo calcula el servidor; si se envía, debe coincidir.
+ */
+export const sessionChipReconciliationSchema = z.strictObject({
+  kind: z.enum(["RETURN_IDENTIFIED_IN_COUNT", "UNRECOVERED_AUTHORIZED"], {
+    message: "Elige cómo se concilia la diferencia",
+  }),
+  amount: z
+    .string()
+    .trim()
+    .regex(/^\d{1,10}(\.\d{1,2})?$/, "Importe inválido")
+    .optional(),
+  reason: reason("Explica qué se verificó y por qué"),
+  idempotencyKey: idempotencyKeySchema,
+})

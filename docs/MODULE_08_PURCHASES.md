@@ -24,6 +24,8 @@ La primera compra **confirmada** del jugador en la sesión es `INITIAL_PURCHASE`
 
 Por `(sessionId, playerId)`, asignada **al confirmar** (los borradores cancelados no consumen números) dentro de la transacción de entrega, serializada por el bloqueo `FOR UPDATE` de la participación ACTIVE (solo hay una por jugador y sesión) y respaldada por el índice único `chip_purchases_sequence_per_player` y el CHECK `chip_purchases_numbering_valid`. No se reinicia al cambiar de mesa (probado: inicial y recompra 1 en 10/10, recompra 2 en 25/25).
 
+**Actualización (flujo de mesa, migración `20261103120000_table_flow_out_credit`):** el consecutivo sigue por (sesión, jugador), pero el TIPO se decide por MESA lógica + cadena de transferencias (`classifyPurchase`/`nextPurchaseNumberInTx`): tras salir (OUT/CASHOUT) de una mesa, la primera compra en OTRA mesa es compra inicial; al regresar a una mesa ya jugada es recompra. `paymentMode` valida los cobros en el servidor. Ver `docs/TABLE_FLOW_OUT_CASHOUT.md`.
+
 ## 6. Pagos mixtos
 
 Una compra admite varios componentes (`PurchasePayment`). Relación (Decimal, nunca Float):
@@ -155,3 +157,7 @@ La compra rápida desde el asiento usa estos mismos endpoints (borrador → pago
 ## Integración con el Módulo 17
 
 Módulo 17: `deliverHouseFundedPurchaseInTx` registra compras/recompras FINANCIADAS POR LA CASA (`fundingSource = HOUSE`, `houseFundedAmount` en la entrega): sin pagos, crédito, deuda, firma de crédito, WhatsApp ni comprobante compartible. Una compra ordinaria se rechaza (mensaje neutro) si el jugador tiene jugada financiada en la sesión.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

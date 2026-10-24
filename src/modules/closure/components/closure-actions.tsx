@@ -582,3 +582,110 @@ export function ConfirmClosureForm({
     </form>
   )
 }
+
+/**
+ * Conciliación de la DIFERENCIA NOMINAL global de la sesión (solo PARTNER o
+ * SUPERADMIN). El servidor calcula el importe; aquí solo se elige el hecho
+ * verificado y se explica.
+ */
+export function SessionChipReconciliationForm({
+  sessionId,
+  difference,
+  identifiable,
+}: {
+  sessionId: string
+  difference: string
+  identifiable: string
+}) {
+  const router = useRouter()
+  const [key, renew] = useIdempotencyKey()
+  const [kind, setKind] = useState<
+    "RETURN_IDENTIFIED_IN_COUNT" | "UNRECOVERED_AUTHORIZED"
+  >(
+    Number(identifiable) > 0
+      ? "RETURN_IDENTIFIED_IN_COUNT"
+      : "UNRECOVERED_AUTHORIZED"
+  )
+  const [reason, setReason] = useState("")
+  const m = useMutation({
+    mutationFn: () =>
+      apiRequest(`${base(sessionId)}/chip-reconciliation`, {
+        method: "POST",
+        body: { kind, reason: reason.trim(), idempotencyKey: key },
+      }),
+    onSuccess: () => {
+      renew()
+      toast.success(
+        kind === "RETURN_IDENTIFIED_IN_COUNT"
+          ? "Retorno identificado registrado: vuelve a contar las fichas"
+          : "Diferencia documentada y autorizada"
+      )
+      router.refresh()
+    },
+    onError: (e) => toast.error(msg(e, "No se pudo conciliar")),
+  })
+  return (
+    <form
+      className="space-y-2 rounded-lg border p-3"
+      data-testid="chip-reconciliation-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        m.mutate()
+      }}
+    >
+      <p className="text-sm">
+        Diferencia nominal de la sesión:{" "}
+        <strong>{formatNominal(difference)}</strong>. Ningún jugador se lleva
+        fichas: concilia con un hecho verificado.
+      </p>
+      <label className="flex min-h-11 items-start gap-2 text-sm">
+        <input
+          type="radio"
+          name="chip-rec-kind"
+          className="mt-1 size-5"
+          checked={kind === "RETURN_IDENTIFIED_IN_COUNT"}
+          disabled={Number(identifiable) <= 0}
+          onChange={() => setKind("RETURN_IDENTIFIED_IN_COUNT")}
+          data-testid="chip-rec-identified"
+        />
+        <span>
+          Las fichas están en la caja: el arqueo encontró{" "}
+          {formatNominal(identifiable)} de más (devoluciones no capturadas). Se
+          registra la entrada real y se vuelve a contar.
+        </span>
+      </label>
+      <label className="flex min-h-11 items-start gap-2 text-sm">
+        <input
+          type="radio"
+          name="chip-rec-kind"
+          className="mt-1 size-5"
+          checked={kind === "UNRECOVERED_AUTHORIZED"}
+          onChange={() => setKind("UNRECOVERED_AUTHORIZED")}
+          data-testid="chip-rec-unrecovered"
+        />
+        <span>
+          Las fichas no aparecen: documentar y autorizar la diferencia (sin
+          movimientos; queda señalada).
+        </span>
+      </label>
+      <Label htmlFor="chip-rec-reason">Qué se verificó y por qué</Label>
+      <textarea
+        id="chip-rec-reason"
+        rows={2}
+        className={textareaClass}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        data-testid="chip-rec-reason"
+      />
+      <Button
+        type="submit"
+        className="h-11 md:h-9"
+        disabled={reason.trim().length < 10 || m.isPending}
+        data-testid="chip-rec-submit"
+      >
+        {m.isPending ? <Loader2 className="animate-spin" /> : null}
+        Conciliar diferencia
+      </Button>
+    </form>
+  )
+}

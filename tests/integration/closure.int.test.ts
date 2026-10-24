@@ -19,6 +19,7 @@ import {
 import {
   confirmClosingChipCount,
   confirmClosure,
+  reconcileSessionChips,
   getClosureReport,
   recordClosingCashCount,
   registerFinalWithdrawal,
@@ -269,6 +270,9 @@ async function settle(
   await confirmReturn(cashier, settlementId, {
     expectedVersion: s.version,
     chipsReceived: true,
+    ...(Number(s.returnedNominalAmount) === 0
+      ? { zeroReturnConfirmed: true as const }
+      : {}),
     ...(immediateCashAmount
       ? { immediateCashAmount, cashDelivered: true }
       : {}),
@@ -458,7 +462,7 @@ describe("prevalidación e inicio del cierre", () => {
     expect(codes("BLOCKING")).toEqual([])
     // Pago pendiente y fichas no retornadas: advertencias, no bloqueos.
     expect(codes("WARNING")).toEqual(
-      expect.arrayContaining(["PAYABLES_PENDING", "CHIPS_NOT_RETURNED"])
+      expect.arrayContaining(["PAYABLES_PENDING", "SESSION_NOMINAL_DIFFERENCE"])
     )
     await start()
     expect(await status()).toBe("CLOSING")
@@ -514,7 +518,7 @@ describe("prevalidación e inicio del cierre", () => {
 })
 
 describe("cierre completo (flujo normal)", () => {
-  it("arqueo global único, fichas no retornadas ≠ faltante, caja $0, retiro con receptor y confirmación de PARTNER", async () => {
+  it("arqueo global único, diferencia nominal conciliada por un socio (≠ faltante físico), caja $0, retiro con receptor y confirmación de PARTNER", async () => {
     const { b } = await typicalNight()
     await closeTable(t25)
     await closeTable(t10)
@@ -588,7 +592,20 @@ describe("cierre completo (flujo normal)", () => {
     expect(denied.status).toBe(403)
     expect(await status()).toBe("CLOSING")
 
-    expect(p.readiness.ready).toBe(true)
+    // Sin conciliar la diferencia nominal global no está listo.
+    expect(p.readiness.ready).toBe(false)
+    // Conciliación global: todos terminaron y faltan fichas que el arqueo
+    // NO encontró → bloquea hasta que un socio documente y autorice.
+    expect(
+      (await computePrecheck(prisma, sessionId)).findings.find(
+        (f) => f.code === "SESSION_NOMINAL_DIFFERENCE"
+      )?.severity
+    ).toBe("BLOCKING")
+    await reconcileSessionChips(partner, sessionId, {
+      kind: "UNRECOVERED_AUTHORIZED",
+      reason: "Fichas no localizadas tras la revisión del cierre",
+      idempotencyKey: key(),
+    })
     await confirmAs(partner)
     expect(await status()).toBe("CLOSED")
 
@@ -615,8 +632,12 @@ describe("cierre completo (flujo normal)", () => {
       settlements: { pendingAmount: "1000.00", pendingPlayers: 1 },
     })
     expect(report.lines.map((l) => l.label)).toContain(
-      "Valor no retornado (pendiente)"
+      "Balance nominal de la sesión"
     )
+    expect(report.content.inventory.chipReconciliation).toMatchObject({
+      status: "RECONCILED",
+      authorizedUnrecovered: "3000.00",
+    })
 
     // PNG (no PDF) y su descarga auditada.
     const { png, filename } = await renderClosureReportPng(sessionId)
@@ -1171,7 +1192,7 @@ describe("cierre sin actividad", () => {
 })
 
 describe("circulación global entre sesiones", () => {
-  it("las fichas no retornadas persisten como circulación, no bloquean la siguiente apertura y no se duplican", async () => {
+  it("una diferencia autorizada (no recuperada) persiste fuera de custodia, no bloquea la siguiente apertura y no se duplica", async () => {
     await openTables()
     const a = await seat(t25)
     await cashBuy(a.participationId, "3000")
@@ -1182,6 +1203,18 @@ describe("circulación global entre sesiones", () => {
     await countChips(196)
     await countCash("2000")
     await withdraw("2000")
+    // Conciliación global: todos terminaron y faltan fichas que el arqueo
+    // NO encontró → bloquea hasta que un socio documente y autorice.
+    expect(
+      (await computePrecheck(prisma, sessionId)).findings.find(
+        (f) => f.code === "SESSION_NOMINAL_DIFFERENCE"
+      )?.severity
+    ).toBe("BLOCKING")
+    await reconcileSessionChips(partner, sessionId, {
+      kind: "UNRECOVERED_AUTHORIZED",
+      reason: "Fichas no localizadas tras la revisión del cierre",
+      idempotencyKey: key(),
+    })
     await confirmAs(partner)
     expect(await nominal()).toEqual({
       custody: "98000.00",
@@ -1201,7 +1234,7 @@ describe("circulación global entre sesiones", () => {
       pre.findings.find((f) => f.code === "GLOBAL_CIRCULATION")?.amount
     ).toBe("2000.00")
     expect(
-      pre.findings.find((f) => f.code === "CHIPS_NOT_RETURNED")
+      pre.findings.find((f) => f.code === "SESSION_NOMINAL_DIFFERENCE")
     ).toBeUndefined()
     // Nunca se reconoció como ingreso: ningún asiento financiero por fichas.
     expect(

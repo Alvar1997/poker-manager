@@ -150,6 +150,7 @@ async function settle(
   await api(page, "post", `/api/settlements/${s.settlementId}/confirm-return`, {
     expectedVersion: view.version,
     chipsReceived: true,
+    ...(Number(returned) === 0 ? { zeroReturnConfirmed: true } : {}),
     ...(cash ? { immediateCashAmount: cash, cashDelivered: true } : {}),
     idempotencyKey: randomUUID(),
   })
@@ -289,10 +290,11 @@ test("prevalidación, entrada a CLOSING y arqueo global con diferencia que bloqu
     "data-severity",
     "WARNING"
   )
-  await expect(visible(page, "finding-CHIPS_NOT_RETURNED")).toHaveAttribute(
-    "data-severity",
-    "WARNING"
-  )
+  // Todos terminaron y faltan $1,500 por regresar: diferencia nominal GLOBAL
+  // (advertencia antes del cierre; bloquea la confirmación).
+  await expect(
+    visible(page, "finding-SESSION_NOMINAL_DIFFERENCE")
+  ).toHaveAttribute("data-severity", "WARNING")
   await noHorizontalScroll(page)
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre`)
   await visible(page, "closure-start").click()
@@ -308,7 +310,7 @@ test("prevalidación, entrada a CLOSING y arqueo global con diferencia que bloqu
   })
   expect(blocked.ok()).toBeFalsy()
 
-  // Fichas: entregadas $6,000 − devueltas $4,500 = $1,500 pendientes de retorno.
+  // Fichas: entregadas $6,000 − devueltas $4,500 = $1,500 de diferencia nominal.
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/inventario`)
   await expect(visible(page, "chip-session-outstanding")).toHaveText(mxn(1500))
   // Arqueo con UNA ficha menos de la denominación menor: diferencia física.
@@ -333,7 +335,7 @@ test("prevalidación, entrada a CLOSING y arqueo global con diferencia que bloqu
   await expect(visible(page, "chip-physical-difference")).toHaveText(
     mxn(-smallest)
   )
-  // La circulación NO se volvió faltante: siguen $1,500 pendientes aparte.
+  // La diferencia nominal se muestra aparte de la física (no se mezclan).
   await expect(visible(page, "chip-session-outstanding")).toHaveText(mxn(1500))
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/resumen`)
   await expect(visible(page, "check-CHIP_DIFFERENCES")).toHaveAttribute(
@@ -369,6 +371,22 @@ test("un socio autoriza el ajuste; el cajero cuenta el efectivo y registra el re
   )
   await expect(visible(page, "discrepancy-resolution")).toContainText(
     "Ajuste excepcional autorizado"
+  )
+  // Diferencia nominal global: las fichas no aparecieron en el arqueo → el
+  // socio documenta y autoriza (sin movimientos).
+  await expect(visible(page, "nominal-reconciliation")).toHaveAttribute(
+    "data-status",
+    "UNEXPLAINED_DIFFERENCE"
+  )
+  await expect(visible(page, "nominal-difference")).toHaveText(mxn(1500))
+  await visible(page, "chip-rec-unrecovered").check()
+  await visible(page, "chip-rec-reason").fill(
+    "Fichas no localizadas tras revisar ambas mesas con el cajero"
+  )
+  await visible(page, "chip-rec-submit").click()
+  await expect(visible(page, "nominal-reconciliation")).toHaveAttribute(
+    "data-status",
+    "RECONCILED"
   )
   await logout(page)
 
@@ -426,7 +444,7 @@ test("el cajero no puede confirmar; el socio confirma, ve el comprobante y desca
   await visible(page, "closure-confirm").click()
   await expect(page).toHaveURL(/\/cierre\/comprobante$/, { timeout: 30_000 })
   await expect(visible(page, "closure-report")).toContainText(
-    "Valor no retornado (pendiente)"
+    "Balance nominal de la sesión"
   )
   await expect(visible(page, "closure-report")).toContainText(
     "Socio receptor E2E"

@@ -37,9 +37,25 @@ const referenceText = z
       "No captures números de tarjeta: usa solo el folio o número de autorización de la terminal.",
   })
 
+export const PURCHASE_PAYMENT_MODES = [
+  "CASH",
+  "BANK_TRANSFER",
+  "CARD",
+  "CREDIT",
+  "MIXED",
+] as const
+export type PurchasePaymentModeValue = (typeof PURCHASE_PAYMENT_MODES)[number]
+
 export const createPurchaseSchema = z.strictObject({
   participationId: idSchema,
   nominalAmount: positiveMoneySchema,
+  /**
+   * Modalidad elegida por el cajero. CREDIT = crédito TOTAL (no admite
+   * cobros); CASH/CARD = un solo componente que cubre todo; BANK_TRANSFER =
+   * transferencia (pendiente = crédito hasta verificarla); MIXED = varios
+   * componentes y el resto a crédito. Sin modalidad: comportamiento anterior.
+   */
+  paymentMode: z.enum(PURCHASE_PAYMENT_MODES).optional(),
   notes: optionalText(300),
   idempotencyKey: idempotencyKeySchema,
 })

@@ -255,3 +255,7 @@ El reverso completo de compras es del Módulo 16: al ejecutarse llama a `voidRec
 ## Mesa interactiva (rediseño) — ver `docs/POKER_TABLE_UX_REDESIGN.md`
 
 La firma de una compra a crédito se captura dentro del panel de compra de la mesa con el mismo resumen preparado por el servidor y `SignatureCapture` (que acepta `onDone` opcional). Comprobantes accesibles desde el asiento.
+
+## Conciliación global de fichas (corrección transversal)
+
+Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

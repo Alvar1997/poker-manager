@@ -271,7 +271,33 @@ export async function getSettlementContext(participationId: string) {
   const balances = new Map(
     (await receivablesOf(prisma, p.player.id)).map((r) => [r.id, r])
   )
+  // Compras confirmadas del jugador en la SESIÓN (todas las mesas): base del
+  // resultado individual (devuelto − comprado), que NO es un faltante.
+  const bought = await prisma.chipPurchase.aggregate({
+    where: {
+      sessionId: p.session.id,
+      playerId: p.player.id,
+      status: "CONFIRMED",
+    },
+    _sum: { nominalAmount: true },
+    _count: { _all: true },
+  })
+  // Crédito originado por las compras de la SESIÓN (deudas de su origen).
+  const sessionCredit = await prisma.playerDebt.aggregate({
+    where: { sessionId: p.session.id, playerId: p.player.id },
+    _sum: { originalAmount: true },
+  })
+  const boughtNominal = dec(bought._sum.nominalAmount ?? 0)
+  const creditNominal = dec(sessionCredit._sum.originalAmount ?? 0)
   return {
+    purchasedInSession: {
+      nominal: fmt(boughtNominal),
+      count: bought._count._all,
+      /** Comprado a crédito en esta sesión (deuda original). */
+      credit: fmt(creditNominal),
+      /** Cubierto con pagos (efectivo, terminal, transferencias). */
+      paid: fmt(boughtNominal.sub(creditNominal)),
+    },
     participation: {
       id: p.id,
       status: p.status,
@@ -398,6 +424,7 @@ export async function createSettlement(
           returnedNominalAmount: returned,
           offsetDecision: input.offsetDecision,
           requestedOffsetAmount: requested,
+          exitKind: input.exitKind ?? (returned.isZero() ? "OUT" : "CASHOUT"),
           notes: input.notes ?? null,
           createdById: actor.id,
           idempotencyKey: input.idempotencyKey,
@@ -715,6 +742,22 @@ export async function confirmReturn(
         throw new ConflictError(
           "La liquidación cambió desde que revisaste el resumen. Revísalo de nuevo."
         )
+      // Retorno CERO solo con confirmación EXPRESA: ningún jugador se lleva
+      // fichas y la ausencia de fichas nunca se asume.
+      if (
+        dec(s.returnedNominalAmount).isZero() &&
+        input.zeroReturnConfirmed !== true
+      )
+        throw new BusinessRuleError(
+          "El jugador devuelve $0: confirma expresamente que terminó sin fichas y no conserva fichas de esta participación."
+        )
+      if (
+        dec(s.returnedNominalAmount).greaterThan(0) &&
+        input.chipsReceived !== true
+      )
+        throw new BusinessRuleError(
+          "Confirma que recibiste físicamente las fichas del jugador."
+        )
       // 3. Mesa y participación vigentes.
       const table = await lockSessionTable(tx, s.sessionTableId)
       if (table.status !== "OPEN" || table.cycles[0]?.id !== s.cycleId)
@@ -882,6 +925,7 @@ export async function confirmReturn(
           status: "PENDING_PAYOUT",
           receivedAt: now,
           receivedById: actor.id,
+          zeroReturnConfirmed: dec(s.returnedNominalAmount).isZero(),
           signatureId: signature.signatureId,
           debtBalanceSnapshot: plan.outstanding,
           offsetAmount: plan.offset,
@@ -1132,6 +1176,8 @@ const detailSelect = {
   sessionId: true,
   participationId: true,
   returnedNominalAmount: true,
+  exitKind: true,
+  zeroReturnConfirmed: true,
   offsetDecision: true,
   requestedOffsetAmount: true,
   debtBalanceSnapshot: true,
@@ -1255,6 +1301,8 @@ function detailView(r: DetailRow) {
     participationStatus: r.participation.status,
     returnedNominalAmount: fmt(dec(r.returnedNominalAmount)),
     offsetDecision: r.offsetDecision,
+    exitKind: r.exitKind,
+    zeroReturnConfirmed: r.zeroReturnConfirmed,
     requestedOffsetAmount: r.requestedOffsetAmount
       ? fmt(dec(r.requestedOffsetAmount))
       : null,

@@ -176,6 +176,7 @@ describe("estado del asiento y tipo de compra", () => {
     expect(seatActions(s)).toMatchObject({
       buy: true,
       settle: false,
+      out: false,
       withdraw: true,
       continuePurchase: false,
     })
@@ -188,7 +189,11 @@ describe("estado del asiento y tipo de compra", () => {
       hasSettlementInProgress: false,
     })
     expect(s).toBe("PLAYING")
-    expect(seatActions(s)).toMatchObject({ settle: true, withdraw: false })
+    expect(seatActions(s)).toMatchObject({
+      settle: true,
+      out: true,
+      withdraw: false,
+    })
   })
 
   it("compra en preparación → continuar (no se inicia otra); liquidación en curso → liquidando", () => {
