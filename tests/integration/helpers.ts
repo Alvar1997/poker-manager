@@ -186,4 +186,9 @@ export async function countPendingRakeAsZero(
       physicallyCounted: true,
       idempotencyKey: `rake-zero-${c.id}`,
     })
+  // Asistente de cierre: el cajero confirma que el conteo del staff está
+  // completo (estas pruebas no registran propinas).
+  const { reviewSessionTips } =
+    await import("@/modules/staff-tips/tips.service")
+  await reviewSessionTips(actor, sessionId)
 }

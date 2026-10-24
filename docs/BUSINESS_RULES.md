@@ -248,6 +248,11 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 - Si faltan o sobran fichas (nominal o en el arqueo físico), se advierte y el cajero cierra con motivo obligatorio; no se crean ajustes ni movimientos. Deudas y pagos pendientes no cambian.
 - Ver `docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md`.
 
+## Asistente de cierre
+
+- El cierre se hace en 6 pasos validados por el servidor; un paso solo está completo con datos reales.
+- En cierre bloquean: jugadores sin terminar, mesas abiertas, rake de conteo final sin contar, propinas sin confirmar o sin la confirmación «conteo del staff completo», arqueos faltantes o desactualizados, diferencias de efectivo y retiro final. Las diferencias de fichas solo exigen motivo.
+
 ## Conciliación global de fichas (corrección transversal)
 
 Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

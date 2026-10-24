@@ -285,6 +285,10 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 
 `src/modules/rake/*` (`rake.math.ts` puro, `rake.service.ts`, `nominal-effect.ts`) y `src/modules/staff-tips/*` (`tips.math.ts` puro, `tips.service.ts`, `staff.service.ts`). Rake y propinas mueven el inventario nominal con el motor único (`confirmNominalChipReturnInTx`; correcciones negativas con reserva + entrega). La conciliación de la sesión clasifica el libro nominal por referencia (`chipDestinations`). El cierre registra la diferencia con motivo (`session_chip_differences`) sin ajustes. Los servicios usan `roleHasPermission` (puro), nunca `@/config/permissions` (arrastra la autenticación a pruebas puras).
 
+## Asistente de cierre
+
+`closure-wizard.service.ts` compone los datos del cierre (`buildClosurePreview`, rake, propinas) en 6 pasos con tareas (código, severidad, entidad y ruta real); `closure-wizard.math.ts` deriva estados y progreso. Progreso persistente en `session_closure_progress` (solo lo declarado por el cajero). Ver `docs/SESSION_CLOSURE_WIZARD.md`.
+
 ## Conciliación global de fichas (corrección transversal)
 
 Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

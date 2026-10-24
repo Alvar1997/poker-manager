@@ -1,3 +1,4 @@
+import { ClosureReturnBanner } from "@/modules/closure/components/closure-return-banner"
 import { redirect } from "next/navigation"
 
 import { AppNav } from "@/components/layout/app-nav"
@@ -59,6 +60,7 @@ export default async function DashboardLayout({
         <main className="min-w-0 flex-1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6">
           {children}
         </main>
+        <ClosureReturnBanner />
       </div>
     </div>
   )

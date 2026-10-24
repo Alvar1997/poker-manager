@@ -18,6 +18,10 @@ import {
   startClosing,
   startClosingChipCount,
 } from "@/modules/closure/closure.service"
+import {
+  getClosureWizard,
+  saveClosureWizardProgress,
+} from "@/modules/closure/closure-wizard.service"
 import { receivablesOf } from "@/modules/credits/receivable.service"
 import {
   confirmStockCount,
@@ -72,6 +76,7 @@ import {
   correctTipCount,
   getSessionTips,
   recordPartialTip,
+  reviewSessionTips,
   saveTipCountDraft,
 } from "@/modules/staff-tips/tips.service"
 
@@ -326,6 +331,7 @@ async function night(tipAmounts: string[]) {
 
 /** Cierre completo: arqueo global (chips = custodia esperada + offset), caja y retiro. */
 async function prepareClosing(chipOffset = 0) {
+  await reviewSessionTips(cashier, sessionId)
   await startClosing(cashier, sessionId, { idempotencyKey: key() })
   const { count } = await startClosingChipCount(cashier, sessionId)
   const state = await prisma.chipSetInventoryState.findFirstOrThrow()
@@ -834,5 +840,143 @@ describe("conciliación global y cierre con diferencia", () => {
     })
     expect(await prisma.sessionChipDifference.count()).toBe(1)
     expect(await prisma.closureReport.count({ where: { sessionId } })).toBe(1)
+  })
+})
+
+describe("asistente de cierre (6 pasos)", () => {
+  const stepOf = async (n: number) =>
+    (await getClosureWizard(sessionId)).steps[n - 1]
+
+  it("D: dos jugadores pendientes con RESOLVER a su mesa; al liquidar se recalcula", async () => {
+    const a = await seat(t25)
+    const b = await seat(t10)
+    await cashBuy(a.participationId, "1000")
+    await cashBuy(b.participationId, "1000")
+    let s1 = await stepOf(1)
+    expect(s1.status).toBe("ERROR")
+    const tasks = s1.tasks.filter((t) => t.code === "PLAYER_SETTLEMENT_MISSING")
+    expect(tasks).toHaveLength(2)
+    expect(tasks.map((t) => t.href).sort()).toEqual(
+      [
+        `/dashboard/sesiones/${sessionId}/mesas/${t10}`,
+        `/dashboard/sesiones/${sessionId}/mesas/${t25}`,
+      ].sort()
+    )
+    // Firma pendiente: liquidación creada sin firmar.
+    const { settlementId } = await createSettlement(cashier, {
+      participationId: a.participationId,
+      returnedNominalAmount: "1000",
+      offsetDecision: "NO_COMPENSATE",
+      idempotencyKey: key(),
+    })
+    s1 = await stepOf(1)
+    expect(
+      s1.tasks.find((t) => t.code === "PLAYER_SIGNATURE_MISSING")?.href
+    ).toBe(`/dashboard/liquidaciones/${settlementId}/firma`)
+    const w = await getClosureWizard(sessionId)
+    expect(w.canConfirm).toBe(false)
+    expect(w.players).toMatchObject({ total: 2, pending: 2 })
+  })
+
+  it("E y A: rake de 25/25 pendiente → se cuenta → paso completo; cierre perfecto con todos los pasos completos", async () => {
+    await night(["3000", "2500", "1500", "1000"])
+    // night() ya contó 25/25; reabrimos 25/25 para un ciclo sin contar.
+    await openSessionTable(cashier, sessionId, t25, { idempotencyKey: key() })
+    await closeSessionTable(cashier, sessionId, t25, { idempotencyKey: key() })
+    let s2 = await stepOf(2)
+    const pending = s2.tasks.find((t) => t.code === "RAKE_COUNT_MISSING")!
+    expect(pending.href).toBe(
+      `/dashboard/sesiones/${sessionId}/mesas/${t25}/rake`
+    )
+    expect(s2.status).toBe("ERROR")
+    await confirmRakeCount(cashier, sessionId, t25, {
+      cycleId: (await cycleOf(t25)).id,
+      countedAmount: "0",
+      zeroConfirmed: true,
+      physicallyCounted: true,
+      idempotencyKey: key(),
+    })
+    s2 = await stepOf(2)
+    expect(s2.status).toBe("COMPLETED")
+    // Paso 3: falta la confirmación explícita del conteo del staff.
+    expect((await stepOf(3)).tasks.map((t) => t.code)).toEqual([
+      "STAFF_TIPS_REVIEW_MISSING",
+    ])
+    await prepareClosing()
+    const w = await getClosureWizard(sessionId)
+    expect(w.steps.map((s) => s.status)).toEqual([
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+    ])
+    expect(w.progress).toEqual({ done: 6, total: 6 })
+    expect(w.canConfirm).toBe(true)
+    await confirmAs(cashier)
+    expect(await sessionStatus()).toBe("CLOSED")
+    await expect(
+      saveClosureWizardProgress(cashier, sessionId, { currentStep: 2 })
+    ).rejects.toThrow(/ya no se edita/)
+  })
+
+  it("propinas: la revisión exige conteos confirmados y se invalida si cambian; el cierre lo exige en el servidor", async () => {
+    const p = await seat(t25)
+    await cashBuy(p.participationId, "1000")
+    const carlos = await staffIn("Carlos")
+    await saveTipCountDraft(cashier, sessionId, carlos, { amount: "100" })
+    await expect(reviewSessionTips(cashier, sessionId)).rejects.toThrow(
+      /Faltan 1/
+    )
+    const t = await getSessionTips(sessionId)
+    await confirmTipCount(cashier, sessionId, carlos, {
+      expectedVersion: t.staff[0].version!,
+      amount: "100",
+      physicallyReceived: true,
+    })
+    await reviewSessionTips(cashier, sessionId)
+    expect((await stepOf(3)).status).toBe("COMPLETED")
+    await correctTipCount(cashier, sessionId, carlos, {
+      amount: "25",
+      reason: "Ficha encontrada en el bolsillo",
+      idempotencyKey: key(),
+    })
+    const s3 = await stepOf(3)
+    expect(s3.tasks[0].code).toBe("STAFF_TIPS_REVIEW_MISSING")
+    expect(s3.tasks[0].title).toMatch(/cambiaron/)
+  })
+
+  it("persistencia y motivos: el paso actual y los borradores sobreviven; el cierre usa el borrador; un resumen obsoleto se rechaza", async () => {
+    await night(["3000", "2500", "1500", "975"])
+    await saveClosureWizardProgress(cashier, sessionId, { currentStep: 4 })
+    expect((await getClosureWizard(sessionId)).currentStep).toBe(4)
+    await prepareClosing()
+    let s5 = await stepOf(5)
+    expect(s5.tasks.map((t) => t.code)).toEqual(["NOMINAL_REASON_MISSING"])
+    expect((await getClosureWizard(sessionId)).canConfirm).toBe(false)
+    await saveClosureWizardProgress(cashier, sessionId, {
+      nominalReason: "Propina no capturada",
+    })
+    s5 = await stepOf(5)
+    expect(s5.status).toBe("WARNING")
+    const w = await getClosureWizard(sessionId)
+    expect(w.canConfirm).toBe(true)
+    expect(w.reconciliation.nominal?.text).toBe("faltan $25.00 por justificar")
+    // I: un cambio después de revisar invalida el resumen.
+    const stale = w.previewHash
+    await recordRakeCorrection(cashier, sessionId, t25, {
+      cycleId: (await cycleOf(t25)).id,
+      amount: "25",
+      reason: "Ficha del recipiente sin contar",
+      idempotencyKey: key(),
+    })
+    await expect(
+      confirmClosure(cashier, sessionId, {
+        idempotencyKey: key(),
+        previewHash: stale,
+      })
+    ).rejects.toThrow()
+    expect(await sessionStatus()).toBe("CLOSING")
   })
 })

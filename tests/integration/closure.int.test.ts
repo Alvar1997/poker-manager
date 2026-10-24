@@ -8,6 +8,7 @@ import * as resolveRoute from "@/app/api/sessions/[id]/closure/discrepancies/[di
 import * as reportImageRoute from "@/app/api/sessions/[id]/closure/report/image/route"
 import * as startRoute from "@/app/api/sessions/[id]/closure/start/route"
 import { Prisma } from "@/generated/prisma/client"
+import { getClosureWizard } from "@/modules/closure/closure-wizard.service"
 import { prisma } from "@/lib/prisma"
 import { confirmBankTransfer } from "@/modules/cash/bank-transfer.service"
 import { cashBalanceOf } from "@/modules/cash/ledger"
@@ -1180,6 +1181,18 @@ describe("cierre sin actividad", () => {
     // El arqueo de apertura sigue vigente: no hubo movimientos de fichas.
     const p = await buildClosurePreview(prisma, sessionId)
     expect(p.inventory.openingCountCurrent).toBe(true)
+    // Asistente: sin mesas no hay jugadores, rake ni propinas que exigir.
+    const w = await getClosureWizard(sessionId)
+    expect(w.noActivity).toBe(true)
+    expect(w.steps.map((x) => x.status)).toEqual([
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+      "COMPLETED",
+    ])
+    expect(w.canConfirm).toBe(true)
     await expect(confirmAs(partner)).rejects.toThrow(/motivo/)
     await confirmAs(partner, { noActivityReason: "No llegaron jugadores" })
     expect(await status()).toBe("CLOSED")

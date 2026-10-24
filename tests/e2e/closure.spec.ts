@@ -299,9 +299,10 @@ test("prevalidación, entrada a CLOSING y arqueo global con diferencia que bloqu
     visible(page, "finding-SESSION_NOMINAL_DIFFERENCE")
   ).toHaveAttribute("data-severity", "WARNING")
   await noHorizontalScroll(page)
-  await page.goto(`/dashboard/sesiones/${sessionId}/cierre`)
+  await page.goto(`/dashboard/sesiones/${sessionId}/cierre?paso=4`)
+  await page.waitForLoadState("networkidle")
   await visible(page, "closure-start").click()
-  await expect(visible(page, "session-status")).toHaveText("En cierre")
+  await expect(visible(page, "wizard-session-status")).toHaveText("En cierre")
 
   // CLOSING bloquea compras.
   const blocked = await page.request.post("/api/purchases", {
@@ -482,17 +483,15 @@ test("regreso CLOSING → Abierta con motivo queda auditado en el historial", as
   const users = requireE2EUsers()
   await login(page, users.cashier)
   sessionId = (await openSessionViaApi(page.request)).id
-  await page.goto(`/dashboard/sesiones/${sessionId}/cierre`)
+  await page.goto(`/dashboard/sesiones/${sessionId}/cierre?paso=4`)
   await page.waitForLoadState("networkidle")
   await visible(page, "closure-start").click()
-  await expect(visible(page, "session-status")).toHaveText("En cierre")
+  await expect(visible(page, "wizard-session-status")).toHaveText("En cierre")
+  await page.getByText("Regresar la sesión a «Abierta» (excepcional)").click()
   await visible(page, "closure-return-open").click()
   await page.getByLabel("Motivo").fill("Faltó registrar una aportación real")
   await visible(page, "closure-return-open-confirm").click()
-  await expect(visible(page, "session-status")).toHaveText("Abierta")
-  await expect(visible(page, "closure-attempts")).toContainText(
-    "Faltó registrar una aportación real"
-  )
+  await expect(visible(page, "wizard-session-status")).toHaveText("Abierta")
   await page.goto(`/dashboard/sesiones/${sessionId}`)
   await expect(visible(page, "status-history")).toContainText(
     "En cierre → Abierta"
@@ -505,10 +504,10 @@ test("cierre sin actividad: motivo obligatorio y comprobante distinto", async ({
   const users = requireE2EUsers()
   await login(page, users.cashier)
   // Misma sesión del caso anterior: nunca abrió mesas.
-  await page.goto(`/dashboard/sesiones/${sessionId}/cierre`)
+  await page.goto(`/dashboard/sesiones/${sessionId}/cierre?paso=4`)
   await page.waitForLoadState("networkidle")
   await visible(page, "closure-start").click()
-  await expect(visible(page, "session-status")).toHaveText("En cierre")
+  await expect(visible(page, "wizard-session-status")).toHaveText("En cierre")
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/caja`)
   // Esperar la hidratación: en WebKit un fill previo se pierde al hidratar.
   await page.waitForLoadState("networkidle")

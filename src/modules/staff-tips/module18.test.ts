@@ -233,3 +233,51 @@ describe("permisos y auditoría", () => {
     expect(moduleOfAction("CHIP_DIFFERENCE_RECORDED")).toBe("CLOSURE")
   })
 })
+
+describe("asistente de cierre (puro)", () => {
+  it("estado del paso derivado de sus tareas, nunca de haberlo visitado", async () => {
+    const { stepStatus, wizardProgress, firstOpenStep, WIZARD_STEPS } =
+      await import("@/modules/closure/closure-wizard.math")
+    expect(WIZARD_STEPS).toHaveLength(6)
+    expect(stepStatus({ available: false, tasks: [] })).toBe("PENDING")
+    expect(stepStatus({ available: true, tasks: [] })).toBe("COMPLETED")
+    expect(
+      stepStatus({
+        available: true,
+        tasks: [{ code: "X", severity: "WARNING", title: "x", href: null }],
+      })
+    ).toBe("WARNING")
+    expect(
+      stepStatus({
+        available: true,
+        tasks: [
+          { code: "W", severity: "WARNING", title: "w", href: null },
+          { code: "B", severity: "BLOCKING", title: "b", href: "/x" },
+        ],
+      })
+    ).toBe("ERROR")
+    const st = [
+      "COMPLETED",
+      "WARNING",
+      "ERROR",
+      "PENDING",
+      "PENDING",
+      "PENDING",
+    ] as const
+    expect(wizardProgress([...st])).toEqual({ done: 2, total: 6 })
+    expect(firstOpenStep([...st])).toBe(3)
+  })
+  it("textos de diferencia: nominal (+ faltan / − sobran) y física (contado − esperado)", async () => {
+    const { differenceText } =
+      await import("@/modules/closure/closure-wizard.math")
+    expect(differenceText("0.00", "nominal")).toBeNull()
+    expect(differenceText("25.00", "nominal")?.text).toBe(
+      "faltan $25.00 por justificar"
+    )
+    expect(differenceText("-100.00", "nominal")?.text).toBe(
+      "sobran $100.00 respecto al valor nominal entregado"
+    )
+    expect(differenceText("-50.00", "physical")?.tone).toBe("MISSING")
+    expect(differenceText("1020.00", "physical")?.tone).toBe("SURPLUS")
+  })
+})

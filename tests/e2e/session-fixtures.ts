@@ -289,6 +289,14 @@ export async function countPendingRakeAsZero(
   request: APIRequestContext,
   sessionId: string
 ) {
+  await rakeZero(request, sessionId)
+  // Asistente de cierre: confirma que el conteo del staff está completo.
+  await json(
+    await request.post(`/api/sessions/${sessionId}/closure/wizard/tips-review`)
+  )
+}
+
+async function rakeZero(request: APIRequestContext, sessionId: string) {
   const tables = await json<{ tableId: string }[]>(
     await request.get(`/api/sessions/${sessionId}/tables`)
   )

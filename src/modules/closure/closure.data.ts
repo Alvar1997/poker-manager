@@ -6,6 +6,7 @@ import { NotFoundError } from "@/lib/errors"
 import { prisma } from "@/lib/prisma"
 import { appliedByReceivable } from "@/modules/credits/receivable.service"
 import { sharedChipSetId } from "@/modules/inventory/inventory.core"
+import { getTipsReviewState } from "@/modules/staff-tips/tips.service"
 import {
   getGlobalChipPosition,
   getSessionChipFlows,
@@ -557,12 +558,16 @@ export async function computePrecheck(db: Db, sessionId: string) {
       amount: fmt(flows.difference),
     })
   }
+  // Asistente de cierre: los conteos obligatorios (recipientes de rake en
+  // conteo final y propinas del staff) BLOQUEAN la confirmación en CIERRE;
+  // antes del cierre se advierten. Las DIFERENCIAS de fichas nunca bloquean.
+  const mandatory = session.status === "CLOSING" ? "BLOCKING" : "WARNING"
   if (flows.rake.cyclesPendingCount > 0)
     add({
       code: "RAKE_COUNT_PENDING",
-      severity: "WARNING",
+      severity: mandatory,
       title: "Rake sin conteo final",
-      detail: `${flows.rake.cyclesPendingCount} ciclo(s) de mesa en conteo final sin contar el recipiente: su rake cuenta como $0 hasta registrarlo.`,
+      detail: `${flows.rake.cyclesPendingCount} ciclo(s) de mesa en conteo final sin contar el recipiente (si estaba vacío, confirma $0).`,
       count: flows.rake.cyclesPendingCount,
     })
   if (flows.rake.cyclesWithDifference > 0)
@@ -576,11 +581,24 @@ export async function computePrecheck(db: Db, sessionId: string) {
   if (flows.tips.unconfirmed > 0)
     add({
       code: "STAFF_TIPS_UNCONFIRMED",
-      severity: "WARNING",
+      severity: mandatory,
       title: "Propinas sin confirmar",
-      detail: `${flows.tips.unconfirmed} empleado(s) sin conteo de propinas confirmado: no cuentan en la conciliación hasta confirmarlo.`,
+      detail: `${flows.tips.unconfirmed} empleado(s) sin conteo de propinas confirmado (registra $0 si no recibió).`,
       count: flows.tips.unconfirmed,
     })
+  if (tableCycles > 0 || flows.tips.staff > 0) {
+    const review = await getTipsReviewState(db, sessionId)
+    if (!review.reviewed)
+      add({
+        code: "STAFF_TIPS_NOT_REVIEWED",
+        severity: mandatory,
+        title: review.stale
+          ? "Las propinas cambiaron después de revisarlas"
+          : "Falta confirmar que el conteo del staff está completo",
+        detail:
+          "Confirma en el paso «Propinas» que ya contaste a todo el staff (también si no hubo propinas).",
+      })
+  }
   add({
     code: "GLOBAL_CIRCULATION",
     severity: "INFO",

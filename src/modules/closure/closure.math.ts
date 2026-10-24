@@ -49,6 +49,7 @@ export type FindingCode =
   | "RAKE_COUNT_PENDING"
   | "RAKE_DIFFERENCE"
   | "STAFF_TIPS_UNCONFIRMED"
+  | "STAFF_TIPS_NOT_REVIEWED"
 
 export type Finding = {
   code: FindingCode

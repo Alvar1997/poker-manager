@@ -258,6 +258,8 @@ model User {
   staffTipCountsConfirmed      StaffTipCount[]                  @relation("StaffTipCountConfirmedBy")
   staffTipEntries              StaffTipEntry[]                  @relation("StaffTipEntryRecordedBy")
   chipDifferences              SessionChipDifference[]          @relation("SessionChipDifferenceRecordedBy")
+  closureProgressUpdated       SessionClosureProgress[]         @relation("ClosureProgressUpdatedBy")
+  closureTipsReviewed          SessionClosureProgress[]         @relation("ClosureTipsReviewedBy")
 
   @@index([role])
   @@index([isActive])
@@ -1608,6 +1610,7 @@ model PokerSession {
   rakeCounts          RakeCount[]
   sessionStaff        SessionStaff[]
   chipDifferences     SessionChipDifference[]
+  closureProgress     SessionClosureProgress?
 
   @@index([status])
   @@index([createdAt])
@@ -4805,11 +4808,38 @@ model SessionChipDifference {
   physicalCounted    Decimal?       @db.Decimal(14, 2)
   /// contado − esperado del arqueo global (independiente de la nominal).
   physicalDifference Decimal?       @db.Decimal(14, 2)
+  /// Motivo de la diferencia NOMINAL (o el motivo general si solo hay física).
   reason             String
+  /// Motivo de la diferencia FÍSICA del arqueo (si la hubo).
+  physicalReason     String?
   recordedById       String
   recordedBy         User           @relation("SessionChipDifferenceRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
   createdAt          DateTime       @default(now())
 
   @@index([sessionId])
   @@map("session_chip_differences")
+}
+
+/// Progreso del asistente de cierre (una fila por sesión). Solo guarda lo
+/// que el cajero DECLARA (paso actual, borradores de motivos y la revisión
+/// del conteo del staff con la huella del estado revisado); el estado de
+/// cada paso siempre se recalcula en el servidor con los datos reales.
+model SessionClosureProgress {
+  sessionId             String       @id
+  session               PokerSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  currentStep           Int          @default(1)
+  nominalReasonDraft    String?
+  physicalReasonDraft   String?
+  /// Revisión explícita «el conteo del staff está completo» (válida
+  /// mientras la huella coincida con el estado actual de las propinas).
+  tipsReviewedAt        DateTime?
+  tipsReviewedById      String?
+  tipsReviewedBy        User?        @relation("ClosureTipsReviewedBy", fields: [tipsReviewedById], references: [id], onDelete: Restrict)
+  tipsReviewFingerprint String?
+  updatedById           String
+  updatedBy             User         @relation("ClosureProgressUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  updatedAt             DateTime     @updatedAt
+  createdAt             DateTime     @default(now())
+
+  @@map("session_closure_progress")
 }

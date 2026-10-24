@@ -99,6 +99,7 @@ export type ClosureReportContent = {
       otherReturns?: string
       nominalDifference?: string
       differenceReason?: string | null
+      physicalDifferenceReason?: string | null
     }
   }
   cash: {
@@ -231,6 +232,11 @@ export function closureReportLines(c: ClosureReportContent): ReceiptLine[] {
       lines.push({
         label: "Motivo de la diferencia",
         value: rec.differenceReason,
+      })
+    if (rec.physicalDifferenceReason)
+      lines.push({
+        label: "Motivo de la diferencia física",
+        value: rec.physicalDifferenceReason,
       })
   }
   lines.push(

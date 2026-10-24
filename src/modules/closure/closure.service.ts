@@ -1174,6 +1174,8 @@ function buildReportContent(
     noActivityReason: string | null
     /** Módulo 18: motivo del cajero cuando faltan o sobran fichas. */
     differenceReason: string | null
+    /** Asistente de cierre: motivo de la diferencia del arqueo físico. */
+    physicalDifferenceReason: string | null
     kind: "NORMAL" | "NO_ACTIVITY"
     attempts: Awaited<ReturnType<typeof closureAttempts>>
     cycles: Awaited<ReturnType<typeof getCycleActivitySummary>>[]
@@ -1285,6 +1287,7 @@ function buildReportContent(
         otherReturns: inventory.reconciliation.otherReturns,
         nominalDifference: inventory.reconciliation.difference,
         differenceReason: extra.differenceReason,
+        physicalDifferenceReason: extra.physicalDifferenceReason,
       },
     },
     cash: {
@@ -1421,15 +1424,40 @@ export async function confirmClosure(
       const physicalDifference = physicalPending
         ? dec(preview.inventory.position.physicalDifference)
         : ZERO
-      const hasDifference =
-        closure.kind === "NORMAL" &&
-        (!nominalDifference.isZero() || !physicalDifference.isZero())
-      const differenceReason = input.differenceReason?.trim() ?? ""
-      if (hasDifference && differenceReason.length < 5)
+      const hasNominal =
+        closure.kind === "NORMAL" && !nominalDifference.isZero()
+      const hasPhysical =
+        closure.kind === "NORMAL" && !physicalDifference.isZero()
+      const hasDifference = hasNominal || hasPhysical
+      // Motivos: los del formulario o, si no vienen, los borradores que el
+      // cajero guardó en el asistente (paso 5). Uno por cada diferencia.
+      const drafts = await tx.sessionClosureProgress.findUnique({
+        where: { sessionId },
+        select: { nominalReasonDraft: true, physicalReasonDraft: true },
+      })
+      const pick = (...v: (string | null | undefined)[]) =>
+        v.map((x) => x?.trim() ?? "").find((x) => x.length > 0) ?? ""
+      const nominalReason = pick(
+        input.nominalReason,
+        input.differenceReason,
+        drafts?.nominalReasonDraft
+      )
+      const physicalReasonText = pick(
+        input.physicalReason,
+        input.differenceReason,
+        drafts?.physicalReasonDraft
+      )
+      if (hasNominal && nominalReason.length < 5)
         throw new ValidationError(
-          "Hay una diferencia de fichas: registra el motivo (mínimo 5 caracteres) para cerrar.",
-          [{ path: "differenceReason", message: "Motivo obligatorio" }]
+          "Hay una diferencia nominal de fichas: registra el motivo (mínimo 5 caracteres) para cerrar.",
+          [{ path: "nominalReason", message: "Motivo obligatorio" }]
         )
+      if (hasPhysical && physicalReasonText.length < 5)
+        throw new ValidationError(
+          "Hay una diferencia en el arqueo físico de fichas: registra el motivo (mínimo 5 caracteres) para cerrar.",
+          [{ path: "physicalReason", message: "Motivo obligatorio" }]
+        )
+      const differenceReason = hasNominal ? nominalReason : physicalReasonText
       const now = new Date()
       const approval = await tx.closureApproval.create({
         data: {
@@ -1472,7 +1500,8 @@ export async function confirmClosure(
         approvedAt: now,
         preparedBy: closure.startedBy,
         noActivityReason,
-        differenceReason: hasDifference ? differenceReason : null,
+        differenceReason: hasNominal ? nominalReason : null,
+        physicalDifferenceReason: hasPhysical ? physicalReasonText : null,
         kind: closure.kind,
         attempts,
         cycles: cycleSummaries,
@@ -1524,6 +1553,7 @@ export async function confirmClosure(
               ? physicalDifference
               : null,
             reason: differenceReason,
+            physicalReason: hasPhysical ? physicalReasonText : null,
             recordedById: actor.id,
           },
           select: { id: true },
@@ -1547,7 +1577,7 @@ export async function confirmClosure(
             data: {
               status: "RESOLVED",
               resolution: "CLOSED_WITH_REASON",
-              resolutionNotes: differenceReason,
+              resolutionNotes: physicalReasonText || differenceReason,
               resolvedAt: now,
               resolvedById: actor.id,
             },

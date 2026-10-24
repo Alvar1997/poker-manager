@@ -177,6 +177,18 @@ test("propinas por empleado: borrador, confirmación y total", async ({
   }
   await expect(visible(page, "tips-total")).toHaveText(mxn(500))
   await noHorizontalScroll(page)
+  // Asistente, paso 3: confirmación EXPLÍCITA de que el conteo está completo.
+  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/cierre?paso=3`)
+  await expect(visible(page, "wizard-step-3")).toHaveAttribute(
+    "data-status",
+    "ERROR"
+  )
+  await visible(page, "tips-review").click()
+  await expect(visible(page, "tips-reviewed")).toBeVisible()
+  await expect(visible(page, "wizard-step-3")).toHaveAttribute(
+    "data-status",
+    "COMPLETED"
+  )
 })
 
 test("cierre: faltan $25 → advertencia, el CAJERO registra el motivo y cierra", async ({
@@ -228,14 +240,33 @@ test("cierre: faltan $25 → advertencia, el CAJERO registra el motivo y cierra"
         idempotencyKey: randomUUID(),
       }
     )
-  // Conteo final del recipiente de 25/25 en la pantalla de la mesa.
-  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/mesas/${ctx.t25}/rake`)
+  // Asistente, paso 2: el rake de 25/25 está pendiente → RESOLVER.
+  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/cierre?paso=2`)
+  await expect(visible(page, "wizard-step-2")).toHaveAttribute(
+    "data-status",
+    "ERROR"
+  )
+  const task = page
+    .getByTestId("wizard-task")
+    .filter({ visible: true })
+    .and(page.locator('[data-code="RAKE_COUNT_MISSING"]'))
+  await task.getByTestId("wizard-resolve").click()
+  await expect(page).toHaveURL(new RegExp(`/mesas/${ctx.t25}/rake$`))
+  await page.waitForLoadState("networkidle")
   const form = visible(page, "rake-count-form")
   await form.getByTestId("rake-count-amount").fill("250")
   await expect(form.getByTestId("rake-count-amount")).toHaveValue("250")
   await form.getByTestId("rake-count-confirm").check()
   await form.getByTestId("rake-count-submit").click()
   await expect(visible(page, "rake-total")).toHaveText(mxn(250))
+  // Volver al cierre con un toque: el paso se recalcula.
+  await visible(page, "closure-return").click()
+  await expect(page).toHaveURL(/\/cierre\?paso=2$/)
+  await page.waitForLoadState("networkidle")
+  await expect(visible(page, "wizard-step-2")).toHaveAttribute(
+    "data-status",
+    "COMPLETED"
+  )
   // Cierre: arqueo global exacto y caja.
   await api(page, "post", `/api/sessions/${ctx.sessionId}/closure/start`, {
     idempotencyKey: randomUUID(),
@@ -283,22 +314,43 @@ test("cierre: faltan $25 → advertencia, el CAJERO registra el motivo y cierra"
       physicallyDelivered: true,
     }
   )
-  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/cierre/resumen`)
+  // Paso 5: conciliación con desglose y motivo obligatorio.
+  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/cierre?paso=5`)
   await expect(visible(page, "rec-delivered")).toHaveText(mxn(3000))
   await expect(visible(page, "rec-players")).toHaveText(mxn(2000))
   await expect(visible(page, "rec-rake")).toHaveText(mxn(475))
   await expect(visible(page, "rec-tips")).toHaveText(mxn(500))
-  await expect(visible(page, "rec-nominal-difference")).toHaveText(mxn(25))
-  await expect(visible(page, "closure-difference")).toContainText(
+  await expect(visible(page, "rec-nominal")).toHaveText(
     "faltan $25.00 por justificar"
   )
-  await visible(page, "closure-reviewed").check()
-  await expect(visible(page, "closure-confirm")).toBeDisabled()
-  await visible(page, "closure-difference-reason").fill(
+  await expect(visible(page, "wizard-step-5")).toHaveAttribute(
+    "data-status",
+    "ERROR"
+  )
+  await visible(page, "reason-nominal").fill(
     "Propina que no quedó correctamente registrada"
   )
+  await visible(page, "reason-save").click()
+  await expect(visible(page, "wizard-step-5")).toHaveAttribute(
+    "data-status",
+    "WARNING"
+  )
   await noHorizontalScroll(page)
-  await visible(page, "closure-confirm").click()
+  // Persistencia: al recargar el cierre sin ?paso abre el último paso.
+  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/cierre`)
+  await expect(visible(page, "wizard-panel-reconciliation")).toBeVisible()
+  await expect(visible(page, "reason-nominal")).toHaveValue(
+    "Propina que no quedó correctamente registrada"
+  )
+  // Paso 6: resumen y confirmación final (el CAJERO cierra).
+  await goto(page, `/dashboard/sesiones/${ctx.sessionId}/cierre?paso=6`)
+  await expect(visible(page, "wizard-ready")).toContainText("faltan $25.00")
+  await expect(visible(page, "wizard-progress")).toHaveText(
+    "Progreso: 6 de 6 pasos"
+  )
+  await noHorizontalScroll(page)
+  await visible(page, "wizard-confirm").click()
+  await visible(page, "wizard-confirm-final").click()
   await expect(page).toHaveURL(/\/cierre\/comprobante$/, { timeout: 30_000 })
   await expect(visible(page, "closure-report")).toContainText(
     "Propina que no quedó correctamente registrada"

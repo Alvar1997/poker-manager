@@ -140,6 +140,9 @@ export const confirmClosureSchema = z.strictObject({
    * nominal o física). Se guarda con el snapshot; no crea ajustes.
    */
   differenceReason: z.string().trim().max(1000).optional(),
+  /** Asistente de cierre: motivos separados (nominal y físico). */
+  nominalReason: z.string().trim().max(1000).optional(),
+  physicalReason: z.string().trim().max(1000).optional(),
 })
 export type ConfirmClosureInput = z.infer<typeof confirmClosureSchema>
 

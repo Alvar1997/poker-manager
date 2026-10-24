@@ -13,6 +13,7 @@ export const closureBase = (sessionId: string) =>
   `${SESSIONS_BASE}/${sessionId}/cierre`
 
 export const CLOSURE_STEPS = [
+  { slug: "", label: "← Asistente de cierre" },
   { slug: "prevalidacion", label: "Prevalidación" },
   { slug: "propinas", label: "Propinas" },
   { slug: "inventario", label: "Arqueo de fichas" },
@@ -50,7 +51,11 @@ export function ClosureNav({
         {CLOSURE_STEPS.map((s) => (
           <li key={s.slug}>
             <Link
-              href={`${closureBase(sessionId)}/${s.slug}`}
+              href={
+                s.slug
+                  ? `${closureBase(sessionId)}/${s.slug}`
+                  : closureBase(sessionId)
+              }
               className={cn(
                 "inline-flex min-h-9 items-center rounded-full border px-3 whitespace-nowrap",
                 current === s.slug && "bg-primary text-primary-foreground"

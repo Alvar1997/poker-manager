@@ -3,6 +3,7 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 
 import { Prisma } from "@/generated/prisma/client"
+import { canonicalHash } from "@/lib/canonical-json"
 import { BusinessRuleError, ConflictError, NotFoundError } from "@/lib/errors"
 import { isUniqueViolation } from "@/lib/prisma-errors"
 import { prisma } from "@/lib/prisma"
@@ -535,4 +536,108 @@ export async function getSessionTipsSummary(db: Db, sessionId: string) {
     if (f.state !== "CONFIRMED") unconfirmed++
   }
   return { staff: rows.length, recognized, unconfirmed }
+}
+
+// ── Revisión explícita del conteo del staff (asistente de cierre) ──────
+
+/**
+ * Huella del estado de las propinas de la sesión: si cualquier conteo,
+ * corrección o empleado cambia después de la revisión, la revisión deja de
+ * valer (nunca se queda «completo» algo que cambió).
+ */
+export async function tipsFingerprint(db: Db, sessionId: string) {
+  const rows = await db.sessionStaff.findMany({
+    where: { sessionId },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      tipCount: { select: { status: true, amount: true, version: true } },
+      entries: { orderBy: { id: "asc" }, select: { id: true, amount: true } },
+    },
+  })
+  return canonicalHash(
+    rows.map((r) => ({
+      id: r.id,
+      count: r.tipCount
+        ? [r.tipCount.status, fmt(dec(r.tipCount.amount)), r.tipCount.version]
+        : null,
+      entries: r.entries.map((e) => [e.id, fmt(dec(e.amount))]),
+    }))
+  )
+}
+
+export async function getTipsReviewState(db: Db, sessionId: string) {
+  const [progress, fingerprint] = await Promise.all([
+    db.sessionClosureProgress.findUnique({
+      where: { sessionId },
+      select: {
+        tipsReviewedAt: true,
+        tipsReviewFingerprint: true,
+        tipsReviewedBy: { select: { name: true } },
+      },
+    }),
+    tipsFingerprint(db, sessionId),
+  ])
+  const reviewed =
+    !!progress?.tipsReviewedAt && progress.tipsReviewFingerprint === fingerprint
+  return {
+    reviewed,
+    /** Hubo revisión pero las propinas cambiaron después. */
+    stale: !!progress?.tipsReviewedAt && !reviewed,
+    reviewedAt: progress?.tipsReviewedAt?.toISOString() ?? null,
+    reviewedBy: progress?.tipsReviewedBy?.name ?? null,
+  }
+}
+
+/**
+ * El cajero declara que el conteo del staff está COMPLETO (también si no
+ * hubo propinas). Exige que todos los empleados tengan conteo confirmado.
+ */
+export async function reviewSessionTips(
+  actor: SessionUser,
+  sessionId: string,
+  ctx: RequestContext = {}
+) {
+  return prisma.$transaction(async (tx) => {
+    await lockLiveSessionInTx(tx, sessionId, "revisar las propinas")
+    await tx.$queryRaw`SELECT "id" FROM "session_staff" WHERE "sessionId" = ${sessionId} FOR UPDATE`
+    const summary = await getSessionTipsSummary(tx, sessionId)
+    if (summary.unconfirmed > 0)
+      throw new BusinessRuleError(
+        `Faltan ${summary.unconfirmed} empleado(s) por confirmar su conteo (o registra $0).`
+      )
+    const fingerprint = await tipsFingerprint(tx, sessionId)
+    const now = new Date()
+    await tx.sessionClosureProgress.upsert({
+      where: { sessionId },
+      create: {
+        sessionId,
+        tipsReviewedAt: now,
+        tipsReviewedById: actor.id,
+        tipsReviewFingerprint: fingerprint,
+        updatedById: actor.id,
+      },
+      update: {
+        tipsReviewedAt: now,
+        tipsReviewedById: actor.id,
+        tipsReviewFingerprint: fingerprint,
+        updatedById: actor.id,
+      },
+    })
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.STAFF_TIPS_REVIEWED,
+        entityType: "PokerSession",
+        entityId: sessionId,
+        actorUserId: actor.id,
+        actorRole: actor.role,
+        requestId: ctx.requestId,
+        sessionId,
+        amount: fmt(summary.recognized),
+        metadata: { staff: summary.staff, total: fmt(summary.recognized) },
+      },
+      tx
+    )
+    return { reviewed: true, total: fmt(summary.recognized) }
+  }, TX)
 }
