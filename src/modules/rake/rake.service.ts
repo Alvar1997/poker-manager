@@ -524,16 +524,14 @@ export async function recordRakeCorrection(
       : null
     if (input.movementId && !target)
       throw new NotFoundError("Registro de rake no encontrado en ese ciclo")
-    if (!target) {
-      if (!count)
-        throw new BusinessRuleError(
-          "Indica el registro a corregir o cuenta primero el recipiente."
-        )
-      if (count.modeSnapshot !== "FINAL_COUNT")
-        throw new BusinessRuleError(
-          "En captura manual se corrige un registro concreto."
-        )
-    }
+    // Sin registro concreto, la corrección se hace contra el CONTEO del
+    // recipiente: en conteo final corrige el rake contado; en captura
+    // manual reconoce la diferencia que encontró la comprobación (p. ej.
+    // rake contado que no se capturó durante la mesa).
+    if (!target && !count)
+      throw new BusinessRuleError(
+        "Indica el registro a corregir o cuenta primero el recipiente."
+      )
     const all = await tx.rakeMovement.aggregate({
       where: { cycleId: cycle.id },
       _sum: { amount: true },

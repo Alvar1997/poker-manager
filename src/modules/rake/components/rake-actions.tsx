@@ -283,19 +283,24 @@ export function RakeCorrectionForm({
   tableId,
   cycleId,
   targets,
+  countTarget,
   suggested,
 }: {
   sessionId: string
   tableId: string
   cycleId: string
-  /** Registros manuales corregibles; vacío = se corrige el conteo final. */
+  /** Registros manuales corregibles. */
   targets: { id: string; label: string }[]
+  /** Hay conteo del recipiente: se puede corregir contra él. */
+  countTarget?: boolean
   suggested?: string
 }) {
   const { pending, run } = useRun()
   const [key, renew] = useIdempotencyKey()
   const [open, setOpen] = useState(false)
-  const [movementId, setMovement] = useState(targets.at(-1)?.id ?? "")
+  const [movementId, setMovement] = useState(
+    countTarget ? "" : (targets.at(-1)?.id ?? "")
+  )
   const [amount, setAmount] = useState(suggested ?? "")
   const [reason, setReason] = useState("")
   if (!open)
@@ -323,7 +328,7 @@ export function RakeCorrectionForm({
                 method: "POST",
                 body: {
                   cycleId,
-                  ...(targets.length > 0 ? { movementId } : {}),
+                  ...(movementId ? { movementId } : {}),
                   amount,
                   reason,
                   idempotencyKey: key,
@@ -349,6 +354,9 @@ export function RakeCorrectionForm({
           onChange={(e) => setMovement(e.target.value)}
           data-testid="rake-correct-target"
         >
+          {countTarget ? (
+            <option value="">Diferencia del conteo del recipiente</option>
+          ) : null}
           {targets.map((t) => (
             <option key={t.id} value={t.id}>
               {t.label}

@@ -459,6 +459,41 @@ describe("rake por mesa", () => {
     ).toBe(0)
   })
 
+  it("manual sin capturas: el conteo de comprobación muestra la diferencia y una corrección contra el conteo la reconoce como rake", async () => {
+    const p = await seat(t10)
+    await cashBuy(p.participationId, "20000")
+    await settle(p.participationId, "4050")
+    await closeSessionTable(cashier, sessionId, t10, { idempotencyKey: key() })
+    const cycleId = (await cycleOf(t10)).id
+    await confirmRakeCount(cashier, sessionId, t10, {
+      cycleId,
+      countedAmount: "15950",
+      physicallyCounted: true,
+      idempotencyKey: key(),
+    })
+    let view = await getTableRake(sessionId, t10)
+    expect(view.cycles[0]).toMatchObject({
+      rakeStatus: "DIFFERENCE",
+      recognized: "0.00",
+      difference: "15950.00",
+    })
+    await recordRakeCorrection(cashier, sessionId, t10, {
+      cycleId,
+      amount: "15950",
+      reason: "Rake contado en el recipiente sin capturas durante la mesa",
+      idempotencyKey: key(),
+    })
+    view = await getTableRake(sessionId, t10)
+    expect(view.cycles[0]).toMatchObject({
+      rakeStatus: "RECONCILED",
+      recognized: "15950.00",
+      difference: "0.00",
+    })
+    const rec = await getSessionChipReconciliation(prisma, sessionId)
+    expect(rec.breakdown.rake.toFixed(2)).toBe("15950.00")
+    expect(rec.difference.toFixed(2)).toBe("0.00")
+  })
+
   it("modalidad configurable en ambas mesas; el cambio requiere la mesa cerrada y PARTNER/SUPERADMIN", async () => {
     await expect(
       setTableRakeMode(cashier, t10, {

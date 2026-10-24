@@ -185,10 +185,21 @@ export default async function TableRakePage({
               mode={c.mode}
             />
           ) : null}
+          {c.rakeStatus === "DIFFERENCE" && c.difference ? (
+            <p
+              className="rounded-lg border border-amber-500/60 p-3 text-sm"
+              role="status"
+              data-testid="rake-difference-hint"
+            >
+              {c.difference.startsWith("-")
+                ? `El conteo encontró ${formatMXN(c.difference.slice(1))} MENOS de lo registrado. Si fue un error de captura, corrígelo; si no, la diferencia se conserva.`
+                : `El conteo encontró ${formatMXN(c.difference)} que no se registraron durante la mesa. Para que cuenten como rake, usa «Corregir» → «Diferencia del conteo» con el motivo.`}
+            </p>
+          ) : null}
           {operate &&
-          (c.movements.some((m) => m.kind === "MANUAL_ENTRY") ||
-            (c.mode === "FINAL_COUNT" && c.count)) ? (
+          (c.movements.some((m) => m.kind === "MANUAL_ENTRY") || c.count) ? (
             <RakeCorrectionForm
+              countTarget={!!c.count}
               sessionId={id}
               tableId={tableId}
               cycleId={c.id}
