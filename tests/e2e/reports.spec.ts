@@ -5,6 +5,7 @@ import ExcelJS from "exceljs"
 
 import { login, logout, requireE2EUsers } from "./helpers"
 import {
+  countPendingRakeAsZero,
   createE2EPlayer,
   openSessionViaApi,
   simulatePhysicalCount,
@@ -166,6 +167,7 @@ async function closeSessionViaApi(
   await api(page, "post", `/api/sessions/${sessionId}/tables/${table}/close`, {
     idempotencyKey: randomUUID(),
   })
+  await countPendingRakeAsZero(page.request, sessionId)
   await api(page, "post", `/api/sessions/${sessionId}/closure/start`, {
     idempotencyKey: randomUUID(),
   })

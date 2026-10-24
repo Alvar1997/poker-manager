@@ -45,6 +45,10 @@ export type FindingCode =
   | "CASH_BALANCE"
   | "LAST_PHYSICAL_COUNT"
   | "SETTLING_PARTICIPANTS"
+  // Módulo 18
+  | "RAKE_COUNT_PENDING"
+  | "RAKE_DIFFERENCE"
+  | "STAFF_TIPS_UNCONFIRMED"
 
 export type Finding = {
   code: FindingCode
@@ -339,16 +343,14 @@ export function evaluateReadiness(f: ReadinessFacts) {
         ? "El arqueo de fichas aún no está confirmado."
         : "Hubo movimientos de fichas después del arqueo: vuelve a contar."
   )
-  const chipDiffOk =
-    f.openChipDiscrepancies === 0 &&
-    (f.chipCount === null ||
-      f.chipCount.reconciliationStatus === "NOT_REQUIRED" ||
-      f.chipCount.reconciliationStatus === "RECONCILED")
+  // Módulo 18 (decisión del propietario): una diferencia física de fichas
+  // NO bloquea; se registra al confirmar con el motivo del cajero (sin
+  // ajustes). Las diferencias de EFECTIVO siguen bloqueando.
   add(
     "CHIP_DIFFERENCES",
-    "Diferencias de fichas resueltas",
-    chipDiffOk,
-    "Hay una diferencia física de fichas sin resolver (recuento, regreso a Abierta o ajuste autorizado)."
+    "Diferencias de fichas (se registran con motivo)",
+    true,
+    null
   )
 
   add(
@@ -455,6 +457,58 @@ export function sessionChipReconciliation(input: {
     authorizedUnrecovered: input.authorizedUnrecovered,
     difference,
     status,
+  }
+}
+
+/** Destino de cada movimiento nominal de la sesión (Módulo 18). */
+export type ChipDestination = "PLAYERS" | "RAKE" | "TIPS" | "OTHER"
+
+const DESTINATION_BY_REFERENCE: Record<string, ChipDestination> = {
+  RakeMovement: "RAKE",
+  RakeCount: "RAKE",
+  StaffTipCount: "TIPS",
+  StaffTipEntry: "TIPS",
+  SessionChipReconciliation: "OTHER",
+}
+
+/**
+ * Destinos de las fichas de la sesión (Módulo 18), del libro nominal:
+ * entregado a jugadores = Σ salidas de compras (incluye financiadas);
+ * jugadores = Σ devoluciones de liquidaciones/jugadas; rake y propinas =
+ * NETO de sus registros (una corrección negativa devuelve fichas a
+ * circulación y no es una entrega a jugadores); otros = retornos
+ * identificados en el arqueo. Cada ficha se cuenta UNA vez.
+ */
+export function chipDestinations(
+  rows: {
+    referenceType: string | null
+    circulationBefore: Dec | string
+    circulationAfter: Dec | string
+  }[]
+) {
+  const out = {
+    deliveredToPlayers: ZERO,
+    returnedByPlayers: ZERO,
+    rake: ZERO,
+    tips: ZERO,
+    other: ZERO,
+  }
+  for (const r of rows) {
+    const delta = dec(r.circulationAfter).sub(dec(r.circulationBefore))
+    if (delta.isZero()) continue
+    const d = DESTINATION_BY_REFERENCE[r.referenceType ?? ""] ?? "PLAYERS"
+    if (d === "PLAYERS") {
+      if (delta.greaterThan(0))
+        out.deliveredToPlayers = out.deliveredToPlayers.add(delta)
+      else out.returnedByPlayers = out.returnedByPlayers.add(delta.abs())
+    } else if (d === "RAKE") out.rake = out.rake.sub(delta)
+    else if (d === "TIPS") out.tips = out.tips.sub(delta)
+    else out.other = out.other.sub(delta)
+  }
+  return {
+    ...out,
+    /** Total explicado (jugadores + rake + propinas + otros). */
+    explained: out.returnedByPlayers.add(out.rake).add(out.tips).add(out.other),
   }
 }
 

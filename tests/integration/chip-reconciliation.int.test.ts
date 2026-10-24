@@ -77,6 +77,7 @@ import {
   createUser,
   resetDatabase,
   signInAs,
+  countPendingRakeAsZero,
 } from "./helpers"
 
 /**
@@ -259,6 +260,8 @@ async function settle(
 async function closeTables() {
   for (const t of [t25, t10])
     await closeSessionTable(cashier, sessionId, t, { idempotencyKey: key() })
+  // Módulo 18: sin rake en estos escenarios (recipientes vacíos, $0 explícito).
+  await countPendingRakeAsZero(cashier, sessionId)
 }
 
 /** Arqueo global de cierre: `chips` fichas de $500 contadas físicamente. */
@@ -332,6 +335,7 @@ describe("ESCENARIO A — pérdidas de uno = ganancias de otro", () => {
     expect(c).toEqual(
       expect.arrayContaining([{ code: "CHIPS_RECONCILED", severity: "INFO" }])
     )
+    await countPendingRakeAsZero(cashier, sessionId)
     await startClosing(cashier, sessionId, { idempotencyKey: key() })
     await countAtClose(200)
     const { preview, confirm } = await finishCashAndConfirm()
@@ -404,6 +408,7 @@ describe("ESCENARIO B — retorno cero explícito", () => {
     expect((await getSessionChipReconciliation(prisma, sessionId)).status).toBe(
       "RECONCILED"
     )
+    await countPendingRakeAsZero(cashier, sessionId)
     await startClosing(cashier, sessionId, { idempotencyKey: key() })
     await countAtClose(200)
     const { confirm } = await finishCashAndConfirm()
@@ -439,17 +444,20 @@ describe("ESCENARIO C — diferencia real: 100,000 entregados, 95,000 devueltos"
         { code: "SESSION_NOMINAL_DIFFERENCE", severity: "WARNING" },
       ])
     )
+    await countPendingRakeAsZero(cashier, sessionId)
     await startClosing(cashier, sessionId, { idempotencyKey: key() })
+    // Módulo 18: en CIERRE sigue siendo advertencia (no bloquea; exige motivo).
     expect(await codes()).toEqual(
       expect.arrayContaining([
-        { code: "SESSION_NOMINAL_DIFFERENCE", severity: "BLOCKING" },
+        { code: "SESSION_NOMINAL_DIFFERENCE", severity: "WARNING" },
       ])
     )
     // El arqueo físico encuentra las 200 fichas: $5,000 de más (sin capturar).
     await countAtClose(200)
     const before = await finishCashAndConfirm()
-    expect(before.preview.readiness.ready).toBe(false)
-    await expect(before.confirm()).rejects.toThrow()
+    // Módulo 18: la diferencia no bloquea, pero sin motivo no se confirma.
+    expect(before.preview.readiness.ready).toBe(true)
+    await expect(before.confirm()).rejects.toThrow(/motivo/)
     // CASHIER no concilia (servicio y endpoint).
     await expect(
       reconcileSessionChips(cashier, sessionId, {
@@ -523,6 +531,7 @@ describe("ESCENARIO C — diferencia real: 100,000 entregados, 95,000 devueltos"
 
   it("las fichas NO aparecen: sin autorización no cierra; el socio documenta y autoriza sin movimientos", async () => {
     await night()
+    await countPendingRakeAsZero(cashier, sessionId)
     await startClosing(cashier, sessionId, { idempotencyKey: key() })
     // El arqueo cuenta 190 fichas: coincide con el libro (faltan de verdad).
     await countAtClose(190)
@@ -535,7 +544,10 @@ describe("ESCENARIO C — diferencia real: 100,000 entregados, 95,000 devueltos"
       })
     ).rejects.toThrow(/no encontró fichas de más/)
     const blocked = await finishCashAndConfirm()
-    expect(blocked.preview.readiness.ready).toBe(false)
+    // Módulo 18: podría cerrarse con motivo; aquí el socio decide documentar
+    // y autorizar la diferencia antes (proceso especial que se conserva).
+    expect(blocked.preview.readiness.ready).toBe(true)
+    await expect(blocked.confirm()).rejects.toThrow(/motivo/)
     await reconcileSessionChips(partner, sessionId, {
       kind: "UNRECOVERED_AUTHORIZED",
       reason: "Fichas no localizadas tras revisión con la mesa; se documenta",
@@ -591,6 +603,7 @@ describe("ESCENARIO D — deudas y pagos pendientes sobreviven al cierre", () =>
       ])
     )
     expect(c.filter((x) => x.severity === "BLOCKING")).toEqual([])
+    await countPendingRakeAsZero(cashier, sessionId)
     await startClosing(cashier, sessionId, { idempotencyKey: key() })
     await countAtClose(200)
     const { confirm } = await finishCashAndConfirm()

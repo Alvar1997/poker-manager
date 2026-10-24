@@ -2,6 +2,8 @@ import "server-only"
 
 import ExcelJS from "exceljs"
 
+import { Prisma } from "@/generated/prisma/client"
+
 import { formatDateTime } from "@/lib/format"
 import { AUDIT_ACTIONS, recordAuditSafe } from "@/modules/audit/audit.service"
 import { getChipReport } from "@/modules/reports/chip-report.service"
@@ -43,6 +45,11 @@ import {
   type SessionReportRow,
   type TableCycleRow,
 } from "@/modules/reports/session-report.service"
+import {
+  getNominalConsolidated,
+  getRakeReport,
+  getTipsReport,
+} from "@/modules/reports/rake-tips-report.service"
 import { safeText, type Column } from "@/modules/reports/xlsx.cells"
 import { addKeyValues, addTable } from "@/modules/reports/xlsx.workbook"
 
@@ -71,6 +78,9 @@ export const EXPORT_TITLES: Record<ReportKind, string> = {
   chips: "Fichas",
   players: "Jugadores",
   comparisons: "Comparativos",
+  rake: "Rake",
+  tips: "Propinas",
+  nominal: "Consolidado_nominal",
 }
 
 const RULE_CREDITS =
@@ -892,6 +902,172 @@ const BUILDERS: Record<
   chips: chipsWorkbook,
   players: playersWorkbook,
   comparisons: comparisonsWorkbook,
+  rake: rakeWorkbook,
+  tips: tipsWorkbook,
+  nominal: nominalWorkbook,
+}
+
+// ── Módulo 18: rake, propinas y consolidado nominal ───────────────────
+
+/** Total verificable con Decimal (el libro también lleva la fórmula SUM). */
+const tot = <T>(rows: T[], f: (r: T) => unknown) =>
+  rows
+    .reduce(
+      (a, r) => a.add(new Prisma.Decimal(String(f(r) ?? "0"))),
+      new Prisma.Decimal(0)
+    )
+    .toFixed(2)
+
+const RULE_RAKE_TIPS =
+  "Fichas entregadas = devueltas por jugadores + rake (de la casa, por mesa) + propinas (de cada empleado) + otros retornos + diferencia nominal. Rake y propinas son cuentas distintas, nominales (no efectivo). Cada ficha se cuenta una vez; los registros parciales de propinas son informativos. La diferencia física del arqueo se presenta aparte."
+
+async function rakeWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
+  const r = await getRakeReport(f)
+  type C = (typeof r.cycles)[number]
+  addTable<C>(
+    wb,
+    "Rake por ciclo",
+    [
+      text("Sesión", (c) => c.sessionFolio),
+      day("Día operativo", (c) => c.day),
+      text("Mesa", (c) => c.table),
+      int("Ciclo", (c) => c.cycle),
+      text("Modalidad", (c) =>
+        c.mode === "MANUAL" ? "Manual" : "Conteo final"
+      ),
+      money(
+        "Registrado",
+        (c) => c.registered,
+        tot(r.cycles, (c) => c.registered)
+      ),
+      money(
+        "Correcciones",
+        (c) => c.corrected,
+        tot(r.cycles, (c) => c.corrected)
+      ),
+      money(
+        "Rake reconocido",
+        (c) => c.recognized,
+        tot(r.cycles, (c) => c.recognized)
+      ),
+      money("Contado", (c) => c.counted),
+      money("Diferencia", (c) => c.difference),
+      text("Estado", (c) => c.status),
+    ],
+    r.cycles,
+    { totalsLabel: "Total" }
+  )
+  type M = (typeof r.movements)[number]
+  addTable<M>(
+    wb,
+    "Movimientos de rake",
+    [
+      text("Sesión", (m) => m.sessionFolio),
+      text("Mesa", (m) => m.table),
+      int("Ciclo", (m) => m.cycle),
+      text("Tipo", (m) => (m.kind === "MANUAL_ENTRY" ? "Registro" : "Ajuste")),
+      dt("Hora efectiva", (m) => m.effectiveAt),
+      dt("Hora de captura", (m) => m.recordedAt),
+      money(
+        "Importe",
+        (m) => m.amount,
+        tot(r.movements, (m) => m.amount)
+      ),
+      money("Acumulado del ciclo", (m) => m.cumulative),
+      text("Registró", (m) => m.recordedBy),
+      text("Motivo / nota", (m) => m.reason ?? "—", 40),
+    ],
+    r.movements
+  )
+  return { rows: r.cycles.length + r.movements.length, notes: [RULE_RAKE_TIPS] }
+}
+
+async function tipsWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
+  const r = await getTipsReport(f)
+  type S = (typeof r.rows)[number]
+  addTable<S>(
+    wb,
+    "Propinas por empleado",
+    [
+      text("Sesión", (s) => s.sessionFolio),
+      day("Día operativo", (s) => s.day),
+      text("Empleado", (s) => s.staff),
+      text("Puesto", (s) => s.position),
+      text("Estado", (s) =>
+        s.state === "CONFIRMED"
+          ? "Confirmado"
+          : s.state === "DRAFT"
+            ? "Borrador"
+            : "Sin conteo"
+      ),
+      money("Parciales (informativo)", (s) => s.partials),
+      money("Conteo confirmado", (s) => s.confirmedCount),
+      money(
+        "Correcciones",
+        (s) => s.corrections,
+        tot(r.rows, (s) => s.corrections)
+      ),
+      money(
+        "Propinas reconocidas",
+        (s) => s.recognized,
+        tot(r.rows, (s) => s.recognized)
+      ),
+    ],
+    r.rows,
+    { totalsLabel: "Total" }
+  )
+  return { rows: r.rows.length, notes: [RULE_RAKE_TIPS] }
+}
+
+async function nominalWorkbook(wb: ExcelJS.Workbook, f: ReportFilters) {
+  const r = await getNominalConsolidated(f)
+  type N = (typeof r.rows)[number]
+  addTable<N>(
+    wb,
+    "Consolidado nominal",
+    [
+      text("Sesión", (n) => n.sessionFolio),
+      day("Día operativo", (n) => n.day),
+      text("Estado", (n) => n.status),
+      money(
+        "Fichas entregadas",
+        (n) => n.delivered,
+        tot(r.rows, (n) => n.delivered)
+      ),
+      money(
+        "Devueltas por jugadores",
+        (n) => n.players,
+        tot(r.rows, (n) => n.players)
+      ),
+      money(
+        "Rake",
+        (n) => n.rake,
+        tot(r.rows, (n) => n.rake)
+      ),
+      money(
+        "Propinas",
+        (n) => n.tips,
+        tot(r.rows, (n) => n.tips)
+      ),
+      money(
+        "Diferencias autorizadas",
+        (n) => n.authorizedUnrecovered,
+        tot(r.rows, (n) => n.authorizedUnrecovered)
+      ),
+      money(
+        "Diferencia nominal",
+        (n) => n.difference,
+        tot(r.rows, (n) => n.difference)
+      ),
+      text("Conciliación", (n) => n.reconciliation),
+      money("Arqueo: esperado", (n) => n.physicalExpected),
+      money("Arqueo: contado", (n) => n.physicalCounted),
+      money("Diferencia física", (n) => n.physicalDifference),
+    ],
+    r.rows,
+    { totalsLabel: "Total" }
+  )
+  return { rows: r.rows.length, notes: [RULE_RAKE_TIPS, RULE_CHIPS] }
 }
 
 export function exportFileName(kind: ReportKind) {

@@ -496,15 +496,19 @@ export function ConfirmClosureForm({
   previewHash,
   noActivity,
   ready,
+  difference,
 }: {
   sessionId: string
   previewHash: string
   noActivity: boolean
   ready: boolean
+  /** Módulo 18: texto de la diferencia de fichas (null = cuadra). */
+  difference: string | null
 }) {
   const router = useRouter()
   const [key, renew] = useIdempotencyKey()
   const [reason, setReason] = useState("")
+  const [differenceReason, setDifferenceReason] = useState("")
   const [reviewed, setReviewed] = useState(false)
   const m = useMutation({
     mutationFn: () =>
@@ -514,6 +518,7 @@ export function ConfirmClosureForm({
           idempotencyKey: key,
           previewHash,
           ...(noActivity ? { noActivityReason: reason.trim() } : {}),
+          ...(difference ? { differenceReason: differenceReason.trim() } : {}),
         },
       }),
     onSuccess: () => {
@@ -555,6 +560,29 @@ export function ConfirmClosureForm({
           />
         </div>
       ) : null}
+      {difference ? (
+        <div className="space-y-1" data-testid="closure-difference">
+          <p
+            className="rounded-lg border border-amber-500/60 p-3 text-sm font-medium"
+            role="alert"
+          >
+            {difference}. Puedes cerrar: la diferencia real se conserva y no se
+            crea ningún ajuste.
+          </p>
+          <Label htmlFor="difference-reason">
+            Motivo de la diferencia (obligatorio)
+          </Label>
+          <textarea
+            id="difference-reason"
+            rows={2}
+            className={textareaClass}
+            placeholder="P. ej. propina que no quedó registrada, posible ficha extraviada, error de captura pendiente de aclarar"
+            value={differenceReason}
+            onChange={(e) => setDifferenceReason(e.target.value)}
+            data-testid="closure-difference-reason"
+          />
+        </div>
+      ) : null}
       <label className="flex min-h-11 items-start gap-2 text-sm">
         <input
           type="checkbox"
@@ -572,7 +600,8 @@ export function ConfirmClosureForm({
           !ready ||
           !reviewed ||
           m.isPending ||
-          (noActivity && reason.trim().length < 5)
+          (noActivity && reason.trim().length < 5) ||
+          (!!difference && differenceReason.trim().length < 5)
         }
         data-testid="closure-confirm"
       >

@@ -116,6 +116,7 @@ import {
   resetDatabase,
   signInAs,
   signOut,
+  countPendingRakeAsZero,
 } from "./helpers"
 
 /**
@@ -317,6 +318,7 @@ async function closeNight(sessionId: string) {
     await closeSessionTable(cashier, sessionId, t.tableId, {
       idempotencyKey: key(),
     })
+  await countPendingRakeAsZero(cashier, sessionId)
   await startClosing(cashier, sessionId, { idempotencyKey: key() })
   const { count } = await startClosingChipCount(cashier, sessionId)
   await updateStockCount(cashier, count.id, {

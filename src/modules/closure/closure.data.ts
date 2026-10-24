@@ -525,10 +525,11 @@ export async function computePrecheck(db: Db, sessionId: string) {
       amount: fmt(dec(unapplied._sum.amount)),
     })
   }
-  // Conciliación GLOBAL de fichas (ambas mesas). Ningún jugador se lleva
-  // fichas: los resultados individuales (uno pierde, otro gana) se anulan
-  // entre sí; solo una diferencia GLOBAL con todos terminados es anómala.
-  const chipBase = `Entregado $${fmt(flows.delivered)} · devuelto $${fmt(flows.returned)}`
+  // Conciliación GLOBAL de fichas (Módulo 18): entregado = devuelto por
+  // jugadores + rake + propinas + otros + diferencia. Una diferencia (falten
+  // o sobren) NO bloquea: se advierte y el cierre exige motivo del cajero.
+  const b = flows.breakdown
+  const chipBase = `Entregado $${fmt(flows.delivered)} · jugadores $${fmt(b.players)} · rake $${fmt(b.rake)} · propinas $${fmt(b.tips)}${b.other.isZero() ? "" : ` · otros $${fmt(b.other)}`}`
   if (flows.status === "IN_PLAY") {
     add({
       code: "CHIPS_IN_PLAY",
@@ -542,27 +543,44 @@ export async function computePrecheck(db: Db, sessionId: string) {
       code: "CHIPS_RECONCILED",
       severity: "INFO",
       title: "Fichas de la sesión conciliadas",
-      detail: `${chipBase}${flows.authorizedUnrecovered.greaterThan(0) ? ` · diferencia autorizada $${fmt(flows.authorizedUnrecovered)}` : ""}. Las ganancias y pérdidas individuales se compensan entre jugadores.`,
-    })
-  } else if (flows.status === "UNEXPLAINED_DIFFERENCE") {
-    // En CIERRE bloquea la confirmación; antes (OPEN) se advierte para poder
-    // iniciar el cierre y hacer el arqueo que permite conciliarla.
-    add({
-      code: "SESSION_NOMINAL_DIFFERENCE",
-      severity: session.status === "CLOSING" ? "BLOCKING" : "WARNING",
-      title: "Diferencia nominal pendiente de conciliación",
-      detail: `${chipBase}: faltan $${fmt(flows.difference)} por regresar aunque todos los jugadores ya terminaron. Ningún jugador se lleva fichas: revisa las devoluciones capturadas contra el arqueo físico. Si las fichas están en la caja, un socio registra el retorno identificado en el arqueo; si no aparecen, un socio documenta y autoriza la diferencia.`,
-      amount: fmt(flows.difference),
+      detail: `${chipBase}${flows.authorizedUnrecovered.greaterThan(0) ? ` · diferencia autorizada $${fmt(flows.authorizedUnrecovered)}` : ""}: diferencia nominal $0.`,
     })
   } else {
+    const missing = flows.difference.greaterThan(0)
     add({
-      code: "SESSION_RETURNED_PRIOR_CIRCULATION",
+      code: "SESSION_NOMINAL_DIFFERENCE",
       severity: "WARNING",
-      title: "Se devolvieron fichas de sesiones anteriores",
-      detail: `${chipBase}: $${fmt(flows.difference.abs())} más de lo entregado en esta sesión provienen de circulación anterior (registro histórico).`,
-      amount: fmt(flows.difference.abs()),
+      title: missing
+        ? `Diferencia nominal: faltan $${fmt(flows.difference)} por justificar`
+        : `Diferencia nominal: sobran $${fmt(flows.difference.abs())} respecto al valor nominal entregado`,
+      detail: `${chipBase}. Revisa las devoluciones, el rake de cada mesa y las propinas de cada empleado. Puedes cerrar la sesión registrando el motivo: la diferencia real se conserva (no se crea ningún ajuste).`,
+      amount: fmt(flows.difference),
     })
   }
+  if (flows.rake.cyclesPendingCount > 0)
+    add({
+      code: "RAKE_COUNT_PENDING",
+      severity: "WARNING",
+      title: "Rake sin conteo final",
+      detail: `${flows.rake.cyclesPendingCount} ciclo(s) de mesa en conteo final sin contar el recipiente: su rake cuenta como $0 hasta registrarlo.`,
+      count: flows.rake.cyclesPendingCount,
+    })
+  if (flows.rake.cyclesWithDifference > 0)
+    add({
+      code: "RAKE_DIFFERENCE",
+      severity: "WARNING",
+      title: "Diferencias de rake",
+      detail: `${flows.rake.cyclesWithDifference} ciclo(s) con diferencia entre el rake registrado y el conteo de comprobación. Corrige un error de captura con un movimiento auditable; si no, la diferencia se conserva.`,
+      count: flows.rake.cyclesWithDifference,
+    })
+  if (flows.tips.unconfirmed > 0)
+    add({
+      code: "STAFF_TIPS_UNCONFIRMED",
+      severity: "WARNING",
+      title: "Propinas sin confirmar",
+      detail: `${flows.tips.unconfirmed} empleado(s) sin conteo de propinas confirmado: no cuentan en la conciliación hasta confirmarlo.`,
+      count: flows.tips.unconfirmed,
+    })
   add({
     code: "GLOBAL_CIRCULATION",
     severity: "INFO",
@@ -724,9 +742,10 @@ export async function getInventoryStatus(db: Db, sessionId: string) {
           id: count.id,
           status: count.status,
           reconciliationStatus: count.reconciliationStatus,
+          // Módulo 18: un arqueo con diferencia (PENDING) también es vigente;
+          // la diferencia física se registra al cerrar con motivo.
           current:
             count.status === "CONFIRMED" &&
-            count.reconciliationStatus !== "PENDING" &&
             count.reconciliationStatus !== "SUPERSEDED" &&
             count.resultingInventoryVersion === global.inventoryVersion,
           confirmedAt: count.confirmedAt?.toISOString() ?? null,
@@ -756,8 +775,8 @@ export async function getInventoryStatus(db: Db, sessionId: string) {
         ? fmt(position.physicalDifference)
         : null,
       physicalStatus: position.physicalStatus,
-      sessionDelivered: fmt(flows.delivered),
-      sessionReturned: fmt(flows.returned),
+      sessionDelivered: fmt(chipRec.delivered),
+      sessionReturned: fmt(chipRec.returned),
       sessionNetNotReturned: fmt(position.sessionNetNotReturned),
       globalCirculation: fmt(position.globalCirculation),
       globalCustody: fmt(global.custody),
@@ -773,6 +792,11 @@ export async function getInventoryStatus(db: Db, sessionId: string) {
       identifiedInCount: fmt(chipRec.identifiedInCount),
       difference: fmt(chipRec.difference),
       activeParticipants: chipRec.activeParticipants,
+      /** Módulo 18: destinos de las fichas (cada una contada una vez). */
+      returnedByPlayers: fmt(chipRec.breakdown.players),
+      rake: fmt(chipRec.breakdown.rake),
+      tips: fmt(chipRec.breakdown.tips),
+      otherReturns: fmt(chipRec.breakdown.other),
     },
     /** Resultado individual por jugador (INFORMATIVO, no es faltante). */
     attribution: { byPlayer: flows.byPlayer, byTable: flows.byTable },

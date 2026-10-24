@@ -279,3 +279,44 @@ export async function createE2EPlayer(
     })
   )
 }
+
+/**
+ * Módulo 18: cuenta como VACÍO ($0 confirmado) el recipiente de rake de
+ * cada ciclo cerrado sin conteo (pruebas que no registran rake; el cierre
+ * exige el conteo de cada ciclo).
+ */
+export async function countPendingRakeAsZero(
+  request: APIRequestContext,
+  sessionId: string
+) {
+  const tables = await json<{ tableId: string }[]>(
+    await request.get(`/api/sessions/${sessionId}/tables`)
+  )
+  for (const t of tables) {
+    const res = await request.get(
+      `/api/sessions/${sessionId}/tables/${t.tableId}/rake`
+    )
+    // Una mesa que nunca se abrió en la sesión no tiene ciclos ni rake.
+    if (res.status() === 404) continue
+    const rake = await json<{
+      cycles: { id: string; status: string; count: unknown }[]
+    }>(res)
+    for (const c of rake.cycles.filter(
+      (c) => c.status === "CLOSED" && !c.count
+    ))
+      await json(
+        await request.post(
+          `/api/sessions/${sessionId}/tables/${t.tableId}/rake/counts`,
+          {
+            data: {
+              cycleId: c.id,
+              countedAmount: "0",
+              zeroConfirmed: true,
+              physicallyCounted: true,
+              idempotencyKey: `rake-zero-${c.id}`,
+            },
+          }
+        )
+      )
+  }
+}

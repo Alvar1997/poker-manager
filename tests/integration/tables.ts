@@ -1,5 +1,14 @@
 /** Todas las tablas de la app, para vaciar bases de PRUEBA (nunca Neon). */
 export const ALL_TABLES = [
+  // Módulo 18
+  "session_chip_differences",
+  "staff_tip_entries",
+  "staff_tip_counts",
+  "session_staff",
+  "staff_members",
+  "staff_positions",
+  "rake_counts",
+  "rake_movements",
   "session_chip_reconciliations",
   "banking_regularization_receipts",
   "banking_regularization_recoveries",

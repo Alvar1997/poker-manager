@@ -93,6 +93,20 @@ export default async function SessionPage({
         session.status === "CLOSING" ||
         session.status === "CLOSED" ? (
           <Link
+            href={`${SESSIONS_BASE}/${id}/cierre/propinas`}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "h-11 md:h-9"
+            )}
+            data-testid="go-tips"
+          >
+            Propinas
+          </Link>
+        ) : null}
+        {session.status === "OPEN" ||
+        session.status === "CLOSING" ||
+        session.status === "CLOSED" ? (
+          <Link
             href={`${SESSIONS_BASE}/${id}/cierre`}
             className={cn(
               buttonVariants({

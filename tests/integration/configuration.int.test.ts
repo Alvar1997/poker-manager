@@ -219,7 +219,11 @@ describe("datos iniciales (seed)", () => {
                                'banking_regularizations', 'banking_regularization_recoveries',
                                'banking_regularization_receipts',
                                -- Conciliación global de fichas: importe del hecho autorizado.
-                               'session_chip_reconciliations')
+                               'session_chip_reconciliations',
+                               -- Módulo 18: importes nominales de rake y propinas y la
+                               -- diferencia registrada al cierre (hechos; nada se netea).
+                               'rake_movements', 'rake_counts', 'staff_tip_counts',
+                               'staff_tip_entries', 'session_chip_differences')
     `
     expect(columns).toEqual([])
   })

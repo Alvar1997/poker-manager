@@ -251,19 +251,31 @@ describe("requisitos del cierre definitivo", () => {
     )
   })
 
-  it("un arqueo de fichas con diferencia pendiente o desactualizado bloquea", () => {
+  it("un arqueo desactualizado o ausente bloquea; una diferencia física NO (Módulo 18: se cierra con motivo)", () => {
+    const f = failing(
+      ready({
+        chipCount: {
+          status: "CONFIRMED",
+          reconciliationStatus: "PENDING",
+          current: false,
+        },
+        openChipDiscrepancies: 1,
+      })
+    )
+    expect(f).toContain("CHIP_COUNT")
+    expect(f).not.toContain("CHIP_DIFFERENCES")
     expect(
       failing(
         ready({
           chipCount: {
             status: "CONFIRMED",
             reconciliationStatus: "PENDING",
-            current: false,
+            current: true,
           },
           openChipDiscrepancies: 1,
         })
       )
-    ).toEqual(expect.arrayContaining(["CHIP_COUNT", "CHIP_DIFFERENCES"]))
+    ).toEqual([])
     expect(failing(ready({ chipCount: null }))).toContain("CHIP_COUNT")
   })
 

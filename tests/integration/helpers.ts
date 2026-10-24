@@ -157,3 +157,33 @@ export function auditRows(action?: string) {
     orderBy: { createdAt: "asc" },
   })
 }
+
+/**
+ * Módulo 18: cuenta como VACÍO ($0 confirmado) el recipiente de rake de cada
+ * ciclo cerrado sin conteo, para pruebas anteriores que no registran rake
+ * (el cierre exige el conteo de cada ciclo).
+ */
+export async function countPendingRakeAsZero(
+  actor: Parameters<
+    typeof import("@/modules/rake/rake.service").confirmRakeCount
+  >[0],
+  sessionId: string
+) {
+  const { confirmRakeCount } = await import("@/modules/rake/rake.service")
+  const cycles = await prisma.sessionTableCycle.findMany({
+    where: {
+      status: "CLOSED",
+      rakeCount: null,
+      sessionTable: { sessionId },
+    },
+    select: { id: true, sessionTable: { select: { tableId: true } } },
+  })
+  for (const c of cycles)
+    await confirmRakeCount(actor, sessionId, c.sessionTable.tableId, {
+      cycleId: c.id,
+      countedAmount: "0",
+      zeroConfirmed: true,
+      physicallyCounted: true,
+      idempotencyKey: `rake-zero-${c.id}`,
+    })
+}

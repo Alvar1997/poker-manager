@@ -35,7 +35,7 @@ export default async function ClosurePanelPage({
   const session = await loadSession(id, user)
   const o = await getClosureOverview(id)
   const canManage = can(user, PERMISSIONS.SESSIONS_MANAGE)
-  const canAuthorize = can(user, PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE)
+  const canAuthorize = can(user, PERMISSIONS.SESSIONS_CLOSE_CONFIRM)
   const closing = session.status === "CLOSING"
   const blocking = o.precheck.findings.filter((f) => f.severity === "BLOCKING")
   const warnings = o.precheck.findings.filter((f) => f.severity === "WARNING")

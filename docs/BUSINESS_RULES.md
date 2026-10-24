@@ -241,6 +241,13 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 - Cambios de porcentaje, cortes, distribución de pérdidas entre tramos y retiros de reserva: aprobación digital de PARTNER o SUPERADMIN. Anticipos: autorización verbal o por mensaje registrada por el cajero, dentro del límite conservador. Anticipos excedidos: caso por caso.
 - Ver `docs/MODULE_17_BANKED_PLAYERS.md`.
 
+## Rake, propinas y conciliación de fichas (Módulo 18)
+
+- Entregado = devuelto por jugadores + rake + propinas + diferencia nominal. El rake es de la casa (por mesa); las propinas, de cada empleado (por sesión); nunca se mezclan y las propinas no reducen el rake.
+- Solo cuenta el conteo de propinas CONFIRMADO de cada empleado; los parciales son informativos; las correcciones requieren motivo.
+- Si faltan o sobran fichas (nominal o en el arqueo físico), se advierte y el cajero cierra con motivo obligatorio; no se crean ajustes ni movimientos. Deudas y pagos pendientes no cambian.
+- Ver `docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md`.
+
 ## Conciliación global de fichas (corrección transversal)
 
 Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

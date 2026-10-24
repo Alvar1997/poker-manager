@@ -29,6 +29,10 @@ export const REPORT_PERMISSION: Record<ReportKind, Permission> = {
   credits: PERMISSIONS.REPORTS_FINANCIAL,
   payments: PERMISSIONS.REPORTS_FINANCIAL,
   settlements: PERMISSIONS.REPORTS_FINANCIAL,
+  // Módulo 18
+  rake: PERMISSIONS.REPORTS_VIEW,
+  tips: PERMISSIONS.REPORTS_FINANCIAL,
+  nominal: PERMISSIONS.REPORTS_VIEW,
 }
 
 export function filtersOrThrow(

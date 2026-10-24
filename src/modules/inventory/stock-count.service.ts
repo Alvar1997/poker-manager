@@ -81,7 +81,12 @@ export type StockCountView = {
   container: { id: string; code: string; name: string }
   countType: CountType
   status: "DRAFT" | "CONFIRMED" | "CANCELLED"
-  reconciliationStatus: "NOT_REQUIRED" | "PENDING" | "RECONCILED" | "SUPERSEDED"
+  reconciliationStatus:
+    | "NOT_REQUIRED"
+    | "PENDING"
+    | "RECONCILED"
+    | "SUPERSEDED"
+    | "ACCEPTED_WITH_DIFFERENCE"
   /** Borrador cuyo esperado ya no coincide con las existencias actuales. */
   stale: boolean
   /** Las cantidades esperadas por denominación son exactas (si no, solo cuenta el valor total). */

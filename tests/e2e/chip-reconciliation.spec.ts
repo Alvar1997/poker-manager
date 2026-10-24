@@ -4,6 +4,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { login, logout, requireE2EUsers } from "./helpers"
 import {
+  countPendingRakeAsZero,
   createE2EPlayer,
   openSessionViaApi,
   simulatePhysicalCount,
@@ -174,6 +175,8 @@ async function closeTablesAndStart(page: Page) {
       `/api/sessions/${ctx.sessionId}/tables/${t}/close`,
       { idempotencyKey: randomUUID() }
     )
+  // Módulo 18: recipientes de rake vacíos ($0 explícito).
+  await countPendingRakeAsZero(page.request, ctx.sessionId)
 }
 
 async function countAtClose(page: Page, shortBy = 0) {
@@ -275,9 +278,10 @@ test("diferencia REAL (todos terminaron y faltan 2,000): bloquea; el cajero no c
     idempotencyKey: randomUUID(),
   })
   await page.goto(`/dashboard/sesiones/${ctx.sessionId}/cierre/prevalidacion`)
+  // Módulo 18: también en CIERRE es advertencia (se cierra con motivo).
   await expect(
     visible(page, "finding-SESSION_NOMINAL_DIFFERENCE")
-  ).toHaveAttribute("data-severity", "BLOCKING")
+  ).toHaveAttribute("data-severity", "WARNING")
   await countAtClose(page)
   await page.goto(`/dashboard/sesiones/${ctx.sessionId}/cierre/diferencias`)
   await expect(visible(page, "nominal-reconciliation")).toHaveAttribute(

@@ -56,6 +56,18 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
     update: {},
   })
 
+  // Módulo 18: catálogo inicial de puestos del staff (ampliable).
+  for (const [code, name, sortOrder] of [
+    ["DEALER", "Dealer", 1],
+    ["WAITER", "Mesero", 2],
+    ["OTHER", "Otro", 3],
+  ] as const)
+    await db.staffPosition.upsert({
+      where: { code },
+      create: { code, name, sortOrder },
+      update: {},
+    })
+
   await db.pokerTable.upsert({
     where: { code: "TABLE_25_25" },
     create: {
@@ -65,6 +77,8 @@ export async function seedConfiguration(db: PrismaClient): Promise<void> {
       bigBlind: "25",
       defaultChipSetId: sharedChipSet.id,
       sortOrder: 1,
+      // Módulo 18: modalidad sugerida (configurable).
+      rakeMode: "FINAL_COUNT",
     },
     update: {},
   })

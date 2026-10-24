@@ -26,6 +26,8 @@ export const AUDIT_MODULES = [
   "INFRASTRUCTURE",
   "SPECIAL_OPERATIONS",
   "BANKING",
+  "RAKE",
+  "STAFF_TIPS",
 ] as const
 
 export type AuditModule = (typeof AUDIT_MODULES)[number]
@@ -49,12 +51,20 @@ export const AUDIT_MODULE_LABEL: Record<AuditModule, string> = {
   INFRASTRUCTURE: "Respaldos y recuperación (M15)",
   SPECIAL_OPERATIONS: "Operaciones especiales (M16)",
   BANKING: "Bancaje (M17, privado)",
+  RAKE: "Rake por mesa (M18)",
+  STAFF_TIPS: "Staff y propinas (M18)",
 }
 
 /** Reglas ordenadas: el primer prefijo que coincide gana. */
 const RULES: [string, AuditModule][] = [
   // Módulo 17 (privado) antes que cualquier prefijo genérico.
   ["BANKING_", "BANKING"],
+  // Módulo 18.
+  ["RAKE_", "RAKE"],
+  ["STAFF_", "STAFF_TIPS"],
+  ["CHIP_RECONCILIATION_CALCULATED", "CLOSURE"],
+  ["CHIP_DIFFERENCE_RECORDED", "CLOSURE"],
+  ["SESSION_CLOSED_WITH_DIFFERENCE", "CLOSURE"],
   // Módulo 16 antes que compras/liquidaciones/créditos genéricos.
   ["LATE_REDEMPTION_", "SPECIAL_OPERATIONS"],
   ["PURCHASE_REVERSAL_", "SPECIAL_OPERATIONS"],

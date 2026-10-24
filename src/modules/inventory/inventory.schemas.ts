@@ -238,7 +238,13 @@ export const countsQuerySchema = z.object({
   chipSetId: idSchema.optional(),
   status: z.enum(["DRAFT", "CONFIRMED", "CANCELLED"]).optional(),
   reconciliationStatus: z
-    .enum(["NOT_REQUIRED", "PENDING", "RECONCILED", "SUPERSEDED"])
+    .enum([
+      "NOT_REQUIRED",
+      "PENDING",
+      "RECONCILED",
+      "SUPERSEDED",
+      "ACCEPTED_WITH_DIFFERENCE",
+    ])
     .optional(),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(20),

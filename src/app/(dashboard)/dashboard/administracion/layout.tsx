@@ -21,6 +21,9 @@ export default async function AdminLayout({
     { slug: "correcciones", label: "Correcciones" },
     { slug: "integridad", label: "Integridad" },
     { slug: "incidencias", label: "Incidencias" },
+    ...(can(user, PERMISSIONS.STAFF_READ)
+      ? [{ slug: "staff", label: "Staff" }]
+      : []),
     ...(can(user, PERMISSIONS.BANKING_READ)
       ? [{ slug: "bancaje", label: "Bancaje" }]
       : []),

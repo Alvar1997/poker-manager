@@ -135,6 +135,11 @@ export const confirmClosureSchema = z.strictObject({
   /** Huella del resumen que el autorizador revisó (GET …/closure/preview). */
   previewHash: z.string().regex(/^[a-f0-9]{64}$/, "Resumen inválido"),
   noActivityReason: z.string().trim().max(500).optional(),
+  /**
+   * Módulo 18: motivo OBLIGATORIO cuando faltan o sobran fichas (diferencia
+   * nominal o física). Se guarda con el snapshot; no crea ajustes.
+   */
+  differenceReason: z.string().trim().max(1000).optional(),
 })
 export type ConfirmClosureInput = z.infer<typeof confirmClosureSchema>
 

@@ -10,6 +10,7 @@ const RECON: Record<string, string> = {
   PENDING: "Diferencias pendientes",
   RECONCILED: "Conciliado",
   SUPERSEDED: "Sustituido por recuento",
+  ACCEPTED_WITH_DIFFERENCE: "Cerrado con diferencia (motivo registrado)",
 }
 export const COUNT_TYPE_LABEL: Record<string, string> = {
   INITIAL: "Inventario inicial",

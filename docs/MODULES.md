@@ -201,6 +201,10 @@ Detalle: [`docs/MODULE_17_BANKED_PLAYERS.md`](MODULE_17_BANKED_PLAYERS.md). Juga
 
 Migraciones aplicadas en Neon el 2026-10-23. Pendientes conocidos: jugadas en sesiones históricas, regularización de ciclos cerrados y devolución de excedentes por transferencia (NOT_IMPLEMENTED).
 
+## Módulo 18 — implementado (simplificado)
+
+Detalle: [`docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md`](MODULE_18_RAKE_TIPS_RECONCILIATION.md). Rake de la casa por mesa (captura manual con hora y acumulado, o conteo final del recipiente; modalidad configurable), propinas por empleado y sesión (un conteo confirmado por empleado; parciales informativos; correcciones con motivo), fórmula global entregado = jugadores + rake + propinas + diferencia, y cierre con diferencia: advertencia, motivo obligatorio y confirmación por el cajero sin ajustes. Reportes y XLSX `rake`, `tips`, `nominal`.
+
 ## Notas
 
 - `src/modules/*` del árbol de referencia (`auth`, `users`, `sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) se reparten entre estos módulos numerados — `sessions`+`tables` corresponden al Módulo 02, `reports` al Módulo 14 y `audit` al Módulo 15, etc.

@@ -63,6 +63,11 @@ export const PERMISSIONS = {
   // ajustes excepcionales de diferencias de arqueo (Módulo 12, DEC-04).
   // Solo PARTNER y SUPERADMIN: CASHIER prepara el cierre pero no lo confirma.
   SESSIONS_CLOSE_AUTHORIZE: "sessions:close-authorize",
+  // Módulo 18 (decisión del propietario): CONFIRMAR el cierre definitivo,
+  // incluso con diferencias de fichas (motivo obligatorio, sin ajustes). Los
+  // TRES roles. Los ajustes excepcionales y la conciliación especial siguen
+  // en `sessions:close-authorize`.
+  SESSIONS_CLOSE_CONFIRM: "sessions:close-confirm",
   // Registrar sesiones de una fecha operativa ANTERIOR (captura histórica).
   // Exclusivo de SUPERADMIN: sin caja, inventario ni operación en vivo.
   SESSIONS_HISTORICAL_CREATE: "sessions:historical-create",
@@ -145,6 +150,17 @@ export const PERMISSIONS = {
   BANKING_READ: "banking:read",
   BANKING_OPERATE: "banking:operate",
   BANKING_APPROVE: "banking:approve",
+
+  // Rake, staff y propinas (Módulo 18, simplificado). OPERATE: los tres
+  // roles registran rake, conteos, staff de la sesión, propinas y
+  // correcciones con motivo. AUTHORIZE: cambiar la modalidad de rake de una
+  // mesa (configuración; PARTNER y SUPERADMIN).
+  RAKE_READ: "rake:read",
+  RAKE_OPERATE: "rake:operate",
+  RAKE_AUTHORIZE: "rake:authorize",
+  STAFF_READ: "staff:read",
+  STAFF_MANAGE: "staff:manage",
+  TIPS_OPERATE: "tips:operate",
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -204,6 +220,14 @@ const CASHIER_PERMISSIONS: readonly Permission[] = [
   // Módulo 17: opera el bancaje; nunca aprueba digitalmente.
   PERMISSIONS.BANKING_READ,
   PERMISSIONS.BANKING_OPERATE,
+  // Módulo 18: opera rake y propinas y confirma el cierre (también con
+  // diferencias de fichas, con motivo).
+  PERMISSIONS.SESSIONS_CLOSE_CONFIRM,
+  PERMISSIONS.RAKE_READ,
+  PERMISSIONS.RAKE_OPERATE,
+  PERMISSIONS.STAFF_READ,
+  PERMISSIONS.STAFF_MANAGE,
+  PERMISSIONS.TIPS_OPERATE,
 ]
 
 export const ROLE_PERMISSIONS: Readonly<Record<Role, ReadonlySet<Permission>>> =

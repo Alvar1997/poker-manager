@@ -1,5 +1,7 @@
 # Conciliación GLOBAL de fichas, liquidaciones y cierre
 
+> **Actualización (Módulo 18):** la diferencia nominal ya incluye rake y propinas y **no bloquea** el cierre: se advierte y el cajero confirma con motivo obligatorio (sin ajustes). La conciliación especial de §5 sigue disponible como opción del socio. Ver `docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md`.
+
 Corrección transversal (Módulos 04, 07, 11, 12, 14, 15, 17). Código: `src/modules/closure/closure.math.ts` (`sessionChipReconciliation`, `individualResult`, `identifiableReturn`), `chip-circulation.service.ts#getSessionChipReconciliation`, `closure.data.ts#computePrecheck`, `closure.service.ts#reconcileSessionChips`; migración `20261102120000_chip_global_reconciliation`.
 
 ## 1. Regla

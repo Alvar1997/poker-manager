@@ -8,9 +8,12 @@ import {
   circulationFlows,
   dec,
   fmt,
+  chipDestinations,
   sessionChipReconciliation,
   ZERO,
 } from "@/modules/closure/closure.math"
+import { getSessionRakeSummary } from "@/modules/rake/rake.service"
+import { getSessionTipsSummary } from "@/modules/staff-tips/tips.service"
 
 /**
  * Control de fichas EN CIRCULACIÓN (Módulo 12, regla crítica §11).
@@ -137,27 +140,49 @@ export async function getSessionChipFlows(db: Db, sessionId: string) {
  * la prevalidación del cierre, la pantalla de pendientes y los reportes.
  */
 export async function getSessionChipReconciliation(db: Db, sessionId: string) {
-  const [flows, active, authorized, identified] = await Promise.all([
-    getSessionChipFlows(db, sessionId),
-    db.tableParticipation.count({ where: { sessionId, status: "ACTIVE" } }),
-    db.sessionChipReconciliation.aggregate({
-      where: { sessionId, kind: "UNRECOVERED_AUTHORIZED" },
-      _sum: { amount: true },
-    }),
-    db.sessionChipReconciliation.aggregate({
-      where: { sessionId, kind: "RETURN_IDENTIFIED_IN_COUNT" },
-      _sum: { amount: true },
-    }),
-  ])
+  const [flows, active, authorized, identified, rake, tips, rows] =
+    await Promise.all([
+      getSessionChipFlows(db, sessionId),
+      db.tableParticipation.count({ where: { sessionId, status: "ACTIVE" } }),
+      db.sessionChipReconciliation.aggregate({
+        where: { sessionId, kind: "UNRECOVERED_AUTHORIZED" },
+        _sum: { amount: true },
+      }),
+      db.sessionChipReconciliation.aggregate({
+        where: { sessionId, kind: "RETURN_IDENTIFIED_IN_COUNT" },
+        _sum: { amount: true },
+      }),
+      getSessionRakeSummary(db, sessionId),
+      getSessionTipsSummary(db, sessionId),
+      db.chipNominalMovement.findMany({
+        where: { sessionId },
+        select: {
+          referenceType: true,
+          circulationBefore: true,
+          circulationAfter: true,
+        },
+      }),
+    ])
+  // Módulo 18: entregado = jugadores + rake + propinas + otros + diferencia.
+  const d = chipDestinations(rows)
   const r = sessionChipReconciliation({
-    delivered: flows.delivered,
-    returned: flows.returned,
+    delivered: d.deliveredToPlayers,
+    returned: d.explained,
     authorizedUnrecovered: dec(authorized._sum.amount),
     activeParticipants: active,
   })
   return {
     ...r,
     activeParticipants: active,
+    breakdown: {
+      players: d.returnedByPlayers,
+      rake: d.rake,
+      tips: d.tips,
+      other: d.other,
+    },
+    /** Reconocidos en sus módulos (coinciden con el libro nominal). */
+    rake,
+    tips,
     /** Ya incluido en `returned` (entrada nominal real registrada). */
     identifiedInCount: dec(identified._sum.amount),
     byPlayer: flows.byPlayer,

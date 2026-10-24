@@ -57,6 +57,10 @@ export const REPORT_STATUSES = {
   players: [],
   comparisons: [],
   dashboard: [],
+  // Módulo 18
+  rake: [],
+  tips: [],
+  nominal: [],
 } as const satisfies Record<string, readonly string[]>
 
 export type ReportKind = keyof typeof REPORT_STATUSES

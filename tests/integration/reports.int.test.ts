@@ -101,6 +101,7 @@ import {
   resetDatabase,
   signInAs,
   signOut,
+  countPendingRakeAsZero,
 } from "./helpers"
 
 /**
@@ -264,6 +265,7 @@ async function settle(
 async function closeSession(sid: string) {
   await closeSessionTable(cashier, sid, t25, { idempotencyKey: key() })
   await closeSessionTable(cashier, sid, t10, { idempotencyKey: key() })
+  await countPendingRakeAsZero(cashier, sid)
   await startClosing(cashier, sid, { idempotencyKey: key() })
   const state = await prisma.chipSetInventoryState.findFirstOrThrow()
   const quantity = D(state.custodyNominal).div(500).toNumber()

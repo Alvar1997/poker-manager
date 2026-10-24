@@ -91,6 +91,14 @@ export type ClosureReportContent = {
       status: string
       authorizedUnrecovered: string
       identifiedInCount: string
+      /** Módulo 18 (opcional en snapshots anteriores). */
+      delivered?: string
+      returnedByPlayers?: string
+      rake?: string
+      tips?: string
+      otherReturns?: string
+      nominalDifference?: string
+      differenceReason?: string | null
     }
   }
   cash: {
@@ -196,6 +204,35 @@ export function closureReportLines(c: ClosureReportContent): ReceiptLine[] {
       label: "Ajuste autorizado (fichas)",
       value: `${m(a.amount)} · ${a.authorizedBy} · ${a.reason}`,
     })
+  const rec = c.inventory.chipReconciliation
+  if (rec?.nominalDifference !== undefined) {
+    // Módulo 18: entregado = jugadores + rake + propinas + diferencia.
+    const diff = rec.nominalDifference
+    const zero = !/[1-9]/.test(diff)
+    lines.push(
+      { label: "Fichas entregadas", value: m(rec.delivered ?? "0") },
+      {
+        label: "Devueltas por jugadores",
+        value: m(rec.returnedByPlayers ?? "0"),
+      },
+      { label: "Rake", value: m(rec.rake ?? "0") },
+      { label: "Propinas", value: m(rec.tips ?? "0") },
+      {
+        label: "Diferencia nominal",
+        value: zero
+          ? "$0 (cuadra)"
+          : diff.startsWith("-")
+            ? `sobran ${m(diff.slice(1))}`
+            : `faltan ${m(diff)}`,
+        strong: true,
+      }
+    )
+    if (rec.differenceReason)
+      lines.push({
+        label: "Motivo de la diferencia",
+        value: rec.differenceReason,
+      })
+  }
   lines.push(
     {
       label: "Fichas entregadas / devueltas",

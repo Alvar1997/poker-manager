@@ -1,5 +1,7 @@
 # Módulo 12 — Cierre de mesas, sesiones y conciliación final
 
+> **Actualización (Módulo 18, decisión del propietario):** las diferencias de FICHAS (nominal de la sesión, que ahora incluye rake y propinas, y física del arqueo) ya no bloquean: se advierten y el cierre se confirma con motivo obligatorio, sin ajustes (`session_chip_differences`, arqueo `ACCEPTED_WITH_DIFFERENCE`). Los TRES roles confirman el cierre (`sessions:close-confirm`). Las diferencias de efectivo siguen bloqueando. Ver `docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md`.
+
 > **Estado:** implementado (migraciones `20261026120000_module12_enums` y `20261026130000_module12_closure`). **No aplicadas en Neon** (requiere autorización).
 
 Código: `src/modules/closure/` · API: `src/app/api/sessions/[id]/closure/` · Pantallas: `src/app/(dashboard)/dashboard/sesiones/[id]/cierre/`.

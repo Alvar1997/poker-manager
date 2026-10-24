@@ -55,7 +55,12 @@ import {
   closureReportTitle,
   type ClosureReportContent,
 } from "@/modules/closure/closure-report.content"
-import { dec, fmt, identifiableReturn } from "@/modules/closure/closure.math"
+import {
+  dec,
+  fmt,
+  identifiableReturn,
+  ZERO,
+} from "@/modules/closure/closure.math"
 import { getSessionChipReconciliation } from "@/modules/closure/chip-circulation.service"
 import { confirmNominalChipReturnInTx } from "@/modules/inventory/reservation.service"
 import type {
@@ -1167,6 +1172,8 @@ function buildReportContent(
     approvedAt: Date
     preparedBy: { id: string; name: string }
     noActivityReason: string | null
+    /** Módulo 18: motivo del cajero cuando faltan o sobran fichas. */
+    differenceReason: string | null
     kind: "NORMAL" | "NO_ACTIVITY"
     attempts: Awaited<ReturnType<typeof closureAttempts>>
     cycles: Awaited<ReturnType<typeof getCycleActivitySummary>>[]
@@ -1270,6 +1277,14 @@ function buildReportContent(
         status: inventory.reconciliation.status,
         authorizedUnrecovered: inventory.reconciliation.authorizedUnrecovered,
         identifiedInCount: inventory.reconciliation.identifiedInCount,
+        // Módulo 18: destinos y diferencia con su motivo (snapshot).
+        delivered: inventory.reconciliation.delivered,
+        returnedByPlayers: inventory.reconciliation.returnedByPlayers,
+        rake: inventory.reconciliation.rake,
+        tips: inventory.reconciliation.tips,
+        otherReturns: inventory.reconciliation.otherReturns,
+        nominalDifference: inventory.reconciliation.difference,
+        differenceReason: extra.differenceReason,
       },
     },
     cash: {
@@ -1318,10 +1333,10 @@ export async function confirmClosure(
   input: ConfirmClosureInput,
   ctx: RequestContext = {}
 ) {
-  if (!roleHasPermission(actor.role, PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE))
-    throw new ForbiddenError(
-      "Solo un socio o un superadministrador puede confirmar el cierre definitivo."
-    )
+  // Módulo 18 (decisión del propietario): los TRES roles confirman el
+  // cierre, también con diferencias de fichas (motivo obligatorio).
+  if (!roleHasPermission(actor.role, PERMISSIONS.SESSIONS_CLOSE_CONFIRM))
+    throw new ForbiddenError("No tienes permiso para confirmar el cierre.")
   const replay = await prisma.closureApproval.findUnique({
     where: { idempotencyKey: input.idempotencyKey },
     select: { sessionId: true },
@@ -1396,6 +1411,25 @@ export async function confirmClosure(
         preview.precheck,
         ctx
       )
+      // Módulo 18: diferencia nominal y física, calculadas en el servidor en
+      // esta misma transacción. Faltantes o sobrantes NO bloquean: exigen
+      // motivo y se guardan tal cual (sin ajustes ni movimientos).
+      const rec = preview.inventory.reconciliation
+      const nominalDifference = dec(rec.difference)
+      const physicalPending =
+        preview.inventory.count?.reconciliationStatus === "PENDING"
+      const physicalDifference = physicalPending
+        ? dec(preview.inventory.position.physicalDifference)
+        : ZERO
+      const hasDifference =
+        closure.kind === "NORMAL" &&
+        (!nominalDifference.isZero() || !physicalDifference.isZero())
+      const differenceReason = input.differenceReason?.trim() ?? ""
+      if (hasDifference && differenceReason.length < 5)
+        throw new ValidationError(
+          "Hay una diferencia de fichas: registra el motivo (mínimo 5 caracteres) para cerrar.",
+          [{ path: "differenceReason", message: "Motivo obligatorio" }]
+        )
       const now = new Date()
       const approval = await tx.closureApproval.create({
         data: {
@@ -1438,6 +1472,7 @@ export async function confirmClosure(
         approvedAt: now,
         preparedBy: closure.startedBy,
         noActivityReason,
+        differenceReason: hasDifference ? differenceReason : null,
         kind: closure.kind,
         attempts,
         cycles: cycleSummaries,
@@ -1448,6 +1483,101 @@ export async function confirmClosure(
           authorizedBy: a.authorizedBy,
         })),
       })
+      await recordAudit(
+        {
+          action: AUDIT_ACTIONS.CHIP_RECONCILIATION_CALCULATED,
+          entityType: "SessionClosure",
+          entityId: closure.id,
+          actorUserId: actor.id,
+          actorRole: actor.role,
+          requestId: ctx.requestId,
+          sessionId,
+          amount: fmt(nominalDifference),
+          metadata: {
+            delivered: rec.delivered,
+            returnedByPlayers: rec.returnedByPlayers,
+            rake: rec.rake,
+            tips: rec.tips,
+            otherReturns: rec.otherReturns,
+            nominalDifference: fmt(nominalDifference),
+            physicalDifference: fmt(physicalDifference),
+          },
+        },
+        tx
+      )
+      if (hasDifference) {
+        const diff = await tx.sessionChipDifference.create({
+          data: {
+            sessionId,
+            closureId: closure.id,
+            delivered: rec.delivered,
+            returnedByPlayers: rec.returnedByPlayers,
+            rake: rec.rake,
+            tips: rec.tips,
+            otherReturns: rec.otherReturns,
+            nominalDifference,
+            physicalExpected: preview.inventory.count
+              ? preview.inventory.position.expectedCustody
+              : null,
+            physicalCounted: preview.inventory.position.countedCustody,
+            physicalDifference: preview.inventory.count
+              ? physicalDifference
+              : null,
+            reason: differenceReason,
+            recordedById: actor.id,
+          },
+          select: { id: true },
+        })
+        // La diferencia física se conserva: el arqueo queda «aceptado con
+        // diferencia» y su incidencia de cierre se resuelve con el motivo.
+        if (physicalPending && preview.inventory.count) {
+          await tx.chipStockCount.updateMany({
+            where: {
+              id: preview.inventory.count.id,
+              reconciliationStatus: "PENDING",
+            },
+            data: { reconciliationStatus: "ACCEPTED_WITH_DIFFERENCE" },
+          })
+          await tx.closureDiscrepancy.updateMany({
+            where: {
+              closureId: closure.id,
+              kind: "CHIP_INVENTORY",
+              status: "OPEN",
+            },
+            data: {
+              status: "RESOLVED",
+              resolution: "CLOSED_WITH_REASON",
+              resolutionNotes: differenceReason,
+              resolvedAt: now,
+              resolvedById: actor.id,
+            },
+          })
+        }
+        await recordAudit(
+          {
+            action: AUDIT_ACTIONS.CHIP_DIFFERENCE_RECORDED,
+            entityType: "SessionChipDifference",
+            entityId: diff.id,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            requestId: ctx.requestId,
+            sessionId,
+            amount: fmt(nominalDifference),
+            reason: differenceReason,
+            metadata: {
+              nominalDifference: fmt(nominalDifference),
+              nominalMeaning: nominalDifference.greaterThan(0)
+                ? "FALTAN"
+                : nominalDifference.lessThan(0)
+                  ? "SOBRAN"
+                  : "CUADRA",
+              physicalDifference: fmt(physicalDifference),
+              adjustmentCreated: false,
+            },
+          },
+          tx
+        )
+      }
       const contentHash = canonicalHash(content)
       const report = await tx.closureReport.create({
         data: {
@@ -1556,6 +1686,26 @@ export async function confirmClosure(
         },
         tx
       )
+      if (hasDifference)
+        await recordAudit(
+          {
+            action: AUDIT_ACTIONS.SESSION_CLOSED_WITH_DIFFERENCE,
+            entityType: "PokerSession",
+            entityId: sessionId,
+            actorUserId: actor.id,
+            actorRole: actor.role,
+            requestId: ctx.requestId,
+            sessionId,
+            amount: fmt(nominalDifference),
+            reason: differenceReason,
+            metadata: {
+              nominalDifference: fmt(nominalDifference),
+              physicalDifference: fmt(physicalDifference),
+              closedByRole: actor.role,
+            },
+          },
+          tx
+        )
     }, CLOSURE_TX)
   } catch (error) {
     if (isUniqueViolation(error)) {

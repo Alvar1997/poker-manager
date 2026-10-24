@@ -14,6 +14,7 @@ export const closureBase = (sessionId: string) =>
 
 export const CLOSURE_STEPS = [
   { slug: "prevalidacion", label: "Prevalidación" },
+  { slug: "propinas", label: "Propinas" },
   { slug: "inventario", label: "Arqueo de fichas" },
   { slug: "caja", label: "Arqueo de efectivo" },
   { slug: "diferencias", label: "Diferencias" },

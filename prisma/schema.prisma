@@ -248,6 +248,16 @@ model User {
   closureWithdrawalsReceived   ClosureCashWithdrawal[]          @relation("ClosureWithdrawalRecipient")
   closureApprovals             ClosureApproval[]                @relation("ClosureApprovedBy")
   closureReportsCreated        ClosureReport[]                  @relation("ClosureReportCreatedBy")
+  // Módulo 18
+  rakeMovementsRecorded        RakeMovement[]                   @relation("RakeMovementRecordedBy")
+  rakeCountsCounted            RakeCount[]                      @relation("RakeCountCountedBy")
+  staffMembersCreated          StaffMember[]                    @relation("StaffMemberCreatedBy")
+  staffMembersUpdated          StaffMember[]                    @relation("StaffMemberUpdatedBy")
+  sessionStaffAdded            SessionStaff[]                   @relation("SessionStaffAddedBy")
+  staffTipCountsSaved          StaffTipCount[]                  @relation("StaffTipCountSavedBy")
+  staffTipCountsConfirmed      StaffTipCount[]                  @relation("StaffTipCountConfirmedBy")
+  staffTipEntries              StaffTipEntry[]                  @relation("StaffTipEntryRecordedBy")
+  chipDifferences              SessionChipDifference[]          @relation("SessionChipDifferenceRecordedBy")
 
   @@index([role])
   @@index([isActive])
@@ -477,6 +487,10 @@ model PokerTable {
   sessionTables    SessionTable[]
   purchases        ChipPurchase[]
   settlements      PlayerSettlement[]
+  // Módulo 18: modalidad de rake (configurable por mesa).
+  rakeMode         RakeMode                 @default(MANUAL)
+  rakeMovements    RakeMovement[]
+  rakeCounts       RakeCount[]
 
   @@index([isActive])
   @@index([defaultChipSetId])
@@ -931,6 +945,10 @@ model ChipInventoryOperation {
   closureAdjustment ClosureAdjustmentAuthorization? @relation("ClosureAdjustmentChipOperation")
 
   sessionChipReconciliation SessionChipReconciliation? @relation("SessionChipReconciliationOperation")
+  rakeCount                 RakeCount?                 @relation("RakeCountOperation")
+  rakeMovement              RakeMovement?              @relation("RakeMovementOperation")
+  staffTipCount             StaffTipCount?             @relation("StaffTipCountOperation")
+  staffTipEntry             StaffTipEntry?             @relation("StaffTipEntryOperation")
 
   @@unique([id, chipSetId])
   @@index([chipSetId, createdAt])
@@ -1007,6 +1025,9 @@ enum ChipReconciliationStatus {
   /// posterior o por el regreso auditado de la sesión a OPEN (Módulo 12).
   /// No hubo ajuste: el arqueo original se conserva como evidencia.
   SUPERSEDED
+  /// Módulo 18: el cierre se confirmó con esta diferencia y el motivo del
+  /// cajero (sin ajuste; la diferencia real se conserva).
+  ACCEPTED_WITH_DIFFERENCE
 }
 
 /// Arqueo físico de un juego/maletín. Motor único que reutilizarán las
@@ -1582,6 +1603,11 @@ model PokerSession {
   dealerAssignments   DealerAssignment[]
   bankingGames        BankingGame[]
   chipReconciliations SessionChipReconciliation[]
+  // Módulo 18
+  rakeMovements       RakeMovement[]
+  rakeCounts          RakeCount[]
+  sessionStaff        SessionStaff[]
+  chipDifferences     SessionChipDifference[]
 
   @@index([status])
   @@index([createdAt])
@@ -1713,6 +1739,8 @@ model SessionTableCycle {
   settlements    PlayerSettlement[]
   seats          TableSeatAssignment[]
   dealers        DealerAssignment[]
+  rakeMovements  RakeMovement[]
+  rakeCount      RakeCount?
 
   @@unique([sessionTableId, cycleNumber])
   @@unique([id, sessionTableId])
@@ -1877,6 +1905,7 @@ model Dealer {
   updatedAt   DateTime @updatedAt
 
   assignments DealerAssignment[]
+  staffMember StaffMember?
 
   @@index([isActive, name])
   @@map("dealers")
@@ -3114,6 +3143,9 @@ enum ClosureDiscrepancyResolution {
   RECOUNT
   RETURNED_TO_OPEN
   AUTHORIZED_ADJUSTMENT
+  /// Módulo 18: cierre confirmado con la diferencia real y el motivo del
+  /// cajero (sin ajuste ni movimientos).
+  CLOSED_WITH_REASON
 }
 
 model SessionClosure {
@@ -3148,6 +3180,7 @@ model SessionClosure {
   withdrawal          ClosureCashWithdrawal?
   approval            ClosureApproval?
   report              ClosureReport?
+  chipDifference      SessionChipDifference?
 
   @@unique([sessionId, attemptNumber])
   @@index([sessionId, status])
@@ -4553,4 +4586,230 @@ model SessionChipReconciliation {
 
   @@index([sessionId])
   @@map("session_chip_reconciliations")
+}
+
+// ── Módulo 18: rake por mesa, propinas por empleado y conciliación ─────
+// Ver docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md. Modelo SIMPLIFICADO:
+// rake (de la casa, por mesa) y propinas (por empleado y sesión) solo como
+// importes nominales; sin turnos, firmas, pagos ni saldos del staff. Las
+// fichas regresan al inventario compartido con su registro/conteo
+// confirmado. entregado = jugadores + rake + propinas + otros + diferencia.
+
+enum RakeMode {
+  /// El cajero registra cada retiro de rake con hora e importe.
+  MANUAL
+  /// Se cuenta el recipiente al cerrar la mesa.
+  FINAL_COUNT
+}
+
+enum RakeMovementKind {
+  MANUAL_ENTRY
+  /// Corrección auditable (±, motivo obligatorio). Lo original no cambia.
+  CORRECTION
+}
+
+/// Registro de rake (inmutable). Pertenece a la casa; nunca se reduce por
+/// propinas directas. Cada registro y corrección mueve el inventario
+/// nominal: las fichas del recipiente son de la casa (custodia).
+model RakeMovement {
+  id                 String                  @id @default(cuid())
+  sessionId          String
+  session            PokerSession            @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  tableId            String
+  table              PokerTable              @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  cycleId            String
+  cycle              SessionTableCycle       @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  kind               RakeMovementKind
+  /// MANUAL_ENTRY > 0; CORRECTION ≠ 0.
+  amount             Decimal                 @db.Decimal(14, 2)
+  /// Corrección: el registro o el conteo que corrige.
+  correctsMovementId String?
+  correctsCountId    String?
+  chipOperationId    String?                 @unique
+  chipOperation      ChipInventoryOperation? @relation("RakeMovementOperation", fields: [chipOperationId], references: [id], onDelete: Restrict)
+  modeSnapshot       RakeMode
+  /// Hora efectiva declarada (por defecto, la del servidor).
+  effectiveAt        DateTime
+  /// Hora REAL de captura (servidor).
+  recordedAt         DateTime                @default(now())
+  recordedById       String
+  recordedBy         User                    @relation("RakeMovementRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  notes              String?
+  reason             String?
+  idempotencyKey     String                  @unique
+
+  @@index([sessionId, tableId, effectiveAt])
+  @@index([cycleId])
+  @@map("rake_movements")
+}
+
+/// Conteo físico del recipiente de rake de un ciclo (uno por ciclo).
+/// FINAL_COUNT: determina el rake y registra la entrada al inventario.
+/// MANUAL: comprobación sin movimiento (cada registro ya entró).
+model RakeCount {
+  id               String                  @id @default(cuid())
+  sessionId        String
+  session          PokerSession            @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  tableId          String
+  table            PokerTable              @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  cycleId          String                  @unique
+  cycle            SessionTableCycle       @relation(fields: [cycleId], references: [id], onDelete: Restrict)
+  modeSnapshot     RakeMode
+  /// Rake registrado manualmente en el ciclo al contar (MANUAL).
+  registeredAmount Decimal                 @db.Decimal(14, 2)
+  countedAmount    Decimal                 @db.Decimal(14, 2)
+  zeroConfirmed    Boolean                 @default(false)
+  chipOperationId  String?                 @unique
+  chipOperation    ChipInventoryOperation? @relation("RakeCountOperation", fields: [chipOperationId], references: [id], onDelete: Restrict)
+  notes            String?
+  countedById      String
+  countedBy        User                    @relation("RakeCountCountedBy", fields: [countedById], references: [id], onDelete: Restrict)
+  countedAt        DateTime                @default(now())
+  idempotencyKey   String                  @unique
+
+  @@index([sessionId, tableId])
+  @@map("rake_counts")
+}
+
+/// Catálogo de puestos (no limitado a DEALER/WAITER/OTHER).
+model StaffPosition {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  members StaffMember[]
+
+  @@map("staff_positions")
+}
+
+/// Empleado (sin usuario, contraseña ni rol). Nunca se borra: se desactiva.
+model StaffMember {
+  id          String        @id @default(cuid())
+  name        String
+  phone       String?
+  positionId  String
+  position    StaffPosition @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  /// Enlace opcional con el dealer de la mesa interactiva (misma persona).
+  dealerId    String?       @unique
+  dealer      Dealer?       @relation(fields: [dealerId], references: [id], onDelete: Restrict)
+  isActive    Boolean       @default(true)
+  notes       String?
+  createdById String
+  createdBy   User          @relation("StaffMemberCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById String?
+  updatedBy   User?         @relation("StaffMemberUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  sessions SessionStaff[]
+
+  @@index([isActive, name])
+  @@map("staff_members")
+}
+
+/// Personal asignado a una sesión (sin turnos, horarios ni firmas).
+model SessionStaff {
+  id            String       @id @default(cuid())
+  sessionId     String
+  session       PokerSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  staffMemberId String
+  staffMember   StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Restrict)
+  addedById     String
+  addedBy       User         @relation("SessionStaffAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+  createdAt     DateTime     @default(now())
+
+  tipCount StaffTipCount?
+  entries  StaffTipEntry[]
+
+  @@unique([sessionId, staffMemberId])
+  @@map("session_staff")
+}
+
+enum StaffTipCountStatus {
+  /// Borrador editable (no cuenta para la conciliación).
+  DRAFT
+  /// Confirmado: cifra única del empleado en la sesión (inmutable).
+  CONFIRMED
+}
+
+/// Conteo de propinas del empleado en la sesión: UNO por empleado y sesión.
+/// Al confirmarlo, las fichas se reciben y regresan al inventario (una vez).
+model StaffTipCount {
+  id              String                  @id @default(cuid())
+  sessionStaffId  String                  @unique
+  sessionStaff    SessionStaff            @relation(fields: [sessionStaffId], references: [id], onDelete: Restrict)
+  sessionId       String
+  amount          Decimal                 @db.Decimal(14, 2)
+  status          StaffTipCountStatus     @default(DRAFT)
+  version         Int                     @default(1)
+  savedById       String
+  savedBy         User                    @relation("StaffTipCountSavedBy", fields: [savedById], references: [id], onDelete: Restrict)
+  confirmedById   String?
+  confirmedBy     User?                   @relation("StaffTipCountConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  confirmedAt     DateTime?
+  chipOperationId String?                 @unique
+  chipOperation   ChipInventoryOperation? @relation("StaffTipCountOperation", fields: [chipOperationId], references: [id], onDelete: Restrict)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@index([sessionId, status])
+  @@map("staff_tip_counts")
+}
+
+enum StaffTipEntryKind {
+  /// Registro parcial informativo durante la noche (no se suma).
+  PARTIAL
+  /// Corrección auditable de un conteo CONFIRMADO (±, motivo obligatorio).
+  CORRECTION
+}
+
+/// Historial de propinas del empleado (inmutable).
+model StaffTipEntry {
+  id              String                  @id @default(cuid())
+  sessionStaffId  String
+  sessionStaff    SessionStaff            @relation(fields: [sessionStaffId], references: [id], onDelete: Restrict)
+  sessionId       String
+  kind            StaffTipEntryKind
+  amount          Decimal                 @db.Decimal(14, 2)
+  reason          String?
+  chipOperationId String?                 @unique
+  chipOperation   ChipInventoryOperation? @relation("StaffTipEntryOperation", fields: [chipOperationId], references: [id], onDelete: Restrict)
+  recordedById    String
+  recordedBy      User                    @relation("StaffTipEntryRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedAt      DateTime                @default(now())
+  idempotencyKey  String                  @unique
+
+  @@index([sessionStaffId, recordedAt])
+  @@map("staff_tip_entries")
+}
+
+/// Diferencia de fichas con la que se confirmó el cierre (snapshot +
+/// motivo del cajero). No es un ajuste: la diferencia real se conserva.
+model SessionChipDifference {
+  id                 String         @id @default(cuid())
+  sessionId          String
+  session            PokerSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  closureId          String         @unique
+  closure            SessionClosure @relation(fields: [closureId], references: [id], onDelete: Restrict)
+  delivered          Decimal        @db.Decimal(14, 2)
+  returnedByPlayers  Decimal        @db.Decimal(14, 2)
+  rake               Decimal        @db.Decimal(14, 2)
+  tips               Decimal        @db.Decimal(14, 2)
+  otherReturns       Decimal        @db.Decimal(14, 2)
+  /// + faltan por justificar; − sobran frente a lo entregado.
+  nominalDifference  Decimal        @db.Decimal(14, 2)
+  physicalExpected   Decimal?       @db.Decimal(14, 2)
+  physicalCounted    Decimal?       @db.Decimal(14, 2)
+  /// contado − esperado del arqueo global (independiente de la nominal).
+  physicalDifference Decimal?       @db.Decimal(14, 2)
+  reason             String
+  recordedById       String
+  recordedBy         User           @relation("SessionChipDifferenceRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt          DateTime       @default(now())
+
+  @@index([sessionId])
+  @@map("session_chip_differences")
 }

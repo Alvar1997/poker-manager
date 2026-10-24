@@ -12,4 +12,5 @@ export const REPORT_TABS = [
   { slug: "fichas", label: "Fichas" },
   { slug: "jugadores", label: "Jugadores" },
   { slug: "comparativos", label: "Comparativos" },
+  { slug: "rake-propinas", label: "Rake y propinas" },
 ] as const

@@ -4,6 +4,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test"
 
 import { login, logout, requireE2EUsers } from "./helpers"
 import {
+  countPendingRakeAsZero,
   createE2EPlayer,
   openSessionViaApi,
   simulatePhysicalCount,
@@ -274,6 +275,8 @@ test("cierra la primera mesa mientras la otra sigue operando y luego la segunda"
   await expect(card(page, "Mesa 10/10").getByTestId("table-status")).toHaveText(
     "Cerrada"
   )
+  // Módulo 18: recipientes de rake vacíos ($0 explícito).
+  await countPendingRakeAsZero(page.request, sessionId)
 })
 
 test("prevalidación, entrada a CLOSING y arqueo global con diferencia que bloquea", async ({
@@ -338,9 +341,10 @@ test("prevalidación, entrada a CLOSING y arqueo global con diferencia que bloqu
   // La diferencia nominal se muestra aparte de la física (no se mezclan).
   await expect(visible(page, "chip-session-outstanding")).toHaveText(mxn(1500))
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/resumen`)
+  // Módulo 18: la diferencia física no bloquea (se cierra con motivo).
   await expect(visible(page, "check-CHIP_DIFFERENCES")).toHaveAttribute(
     "data-ok",
-    "false"
+    "true"
   )
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/diferencias`)
   await expect(visible(page, "discrepancy")).toHaveAttribute(
@@ -415,31 +419,25 @@ test("un socio autoriza el ajuste; el cajero cuenta el efectivo y registra el re
   await noHorizontalScroll(page)
 })
 
-test("el cajero no puede confirmar; el socio confirma, ve el comprobante y descarga el PNG", async ({
+test("el cajero puede confirmar (Módulo 18); el socio confirma, ve el comprobante y descarga el PNG", async ({
   page,
 }) => {
   const users = requireE2EUsers()
   await login(page, users.cashier)
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/resumen`)
   await expect(visible(page, "summary-final-cash")).toHaveText(mxn(0))
-  await expect(visible(page, "closure-confirm-restricted")).toBeVisible()
-  await expect(visible(page, "closure-confirm")).toHaveCount(0)
-  const preview = await api<{ previewHash: string }>(
-    page,
-    "get",
-    `/api/sessions/${sessionId}/closure/preview`
-  )
-  const denied = await page.request.post(
-    `/api/sessions/${sessionId}/closure/confirm`,
-    { data: { idempotencyKey: randomUUID(), previewHash: preview.previewHash } }
-  )
-  expect(denied.status()).toBe(403)
+  await expect(page.getByTestId("closure-confirm-restricted")).toHaveCount(0)
+  await expect(visible(page, "closure-confirm")).toBeVisible()
   await logout(page)
 
   await login(page, users.partner)
   await page.goto(`/dashboard/sesiones/${sessionId}/cierre/resumen`)
   await page.waitForLoadState("networkidle")
   await noHorizontalScroll(page)
+  if ((await page.getByTestId("closure-difference-reason").count()) > 0)
+    await visible(page, "closure-difference-reason").fill(
+      "Diferencia revisada con el cajero al cierre"
+    )
   await visible(page, "closure-reviewed").check()
   await visible(page, "closure-confirm").click()
   await expect(page).toHaveURL(/\/cierre\/comprobante$/, { timeout: 30_000 })

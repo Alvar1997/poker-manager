@@ -122,6 +122,18 @@ export default async function SessionTablePage({
         >
           Historial
         </Link>
+        {can(user, PERMISSIONS.RAKE_READ) ? (
+          <Link
+            href={`${base}/rake`}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "h-11 md:h-9"
+            )}
+            data-testid="go-rake"
+          >
+            Rake
+          </Link>
+        ) : null}
         {canManage && t.catalogActive ? (
           <div className="col-span-3 sm:col-auto">
             <TableStatusButton

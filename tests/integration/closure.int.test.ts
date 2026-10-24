@@ -87,6 +87,7 @@ import {
   createUser,
   resetDatabase,
   signInAs,
+  countPendingRakeAsZero,
 } from "./helpers"
 
 /**
@@ -184,8 +185,14 @@ const openTables = async (sid = sessionId) => {
   await openSessionTable(cashier, sid, t25, { idempotencyKey: key() })
   await openSessionTable(cashier, sid, t10, { idempotencyKey: key() })
 }
-const closeTable = (tableId: string, sid = sessionId) =>
-  closeSessionTable(cashier, sid, tableId, { idempotencyKey: key() })
+const closeTable = async (tableId: string, sid = sessionId) => {
+  const r = await closeSessionTable(cashier, sid, tableId, {
+    idempotencyKey: key(),
+  })
+  // Módulo 18: sin rake en estas pruebas (recipiente vacío, $0 explícito).
+  await countPendingRakeAsZero(cashier, sid)
+  return r
+}
 
 async function seat(tableId = t25, sid = sessionId) {
   const pid = (await createTestPlayer()).id
@@ -281,8 +288,10 @@ async function settle(
   return settlementId
 }
 
-const start = (actor: Actor = cashier, sid = sessionId) =>
-  startClosing(actor, sid, { idempotencyKey: key() })
+const start = async (actor: Actor = cashier, sid = sessionId) => {
+  await countPendingRakeAsZero(actor, sid)
+  return startClosing(actor, sid, { idempotencyKey: key() })
+}
 
 /** Arqueo global de fichas del cierre: `quantity` fichas de $500 contadas. */
 async function countChips(quantity: number, actor: Actor = cashier) {
@@ -578,10 +587,9 @@ describe("cierre completo (flujo normal)", () => {
     // Sin confirmación del receptor: no existe ningún estado de aprobación pendiente.
     expect(await prisma.closureApproval.count()).toBe(0)
 
-    // CASHIER no confirma (servicio y endpoint).
-    await expect(confirmAs(cashier)).rejects.toThrow(
-      /socio o un superadministrador/
-    )
+    // Módulo 18: CASHIER sí confirma, pero con diferencia exige motivo
+    // (servicio y endpoint: 400 por validación, no 403).
+    await expect(confirmAs(cashier)).rejects.toThrow(/motivo/)
     signInAs({ ...cashier._user, isActive: true })
     const p = await buildClosurePreview(prisma, sessionId)
     const denied = await call(confirmRoute.POST, {
@@ -589,18 +597,19 @@ describe("cierre completo (flujo normal)", () => {
       params: { id: sessionId },
       body: { idempotencyKey: key(), previewHash: p.previewHash },
     })
-    expect(denied.status).toBe(403)
+    expect(denied.status).toBe(400)
     expect(await status()).toBe("CLOSING")
 
-    // Sin conciliar la diferencia nominal global no está listo.
-    expect(p.readiness.ready).toBe(false)
-    // Conciliación global: todos terminaron y faltan fichas que el arqueo
-    // NO encontró → bloquea hasta que un socio documente y autorice.
+    // Módulo 18: la diferencia nominal no bloquea (se cierra con motivo);
+    // aquí el socio la documenta y autoriza con el proceso especial.
+    expect(p.readiness.ready).toBe(true)
+    // Módulo 18: faltan fichas que el arqueo NO encontró → advertencia (no
+    // bloquea); el socio puede documentarla y autorizarla.
     expect(
       (await computePrecheck(prisma, sessionId)).findings.find(
         (f) => f.code === "SESSION_NOMINAL_DIFFERENCE"
       )?.severity
-    ).toBe("BLOCKING")
+    ).toBe("WARNING")
     await reconcileSessionChips(partner, sessionId, {
       kind: "UNRECOVERED_AUTHORIZED",
       reason: "Fichas no localizadas tras la revisión del cierre",
@@ -924,10 +933,11 @@ describe("diferencias físicas y ajustes", () => {
     })
     await countCash("0")
     const p = await buildClosurePreview(prisma, sessionId)
+    // Módulo 18: la diferencia física no bloquea; sin motivo no se confirma.
     expect(
       p.readiness.checks.find((c) => c.id === "CHIP_DIFFERENCES")?.ok
-    ).toBe(false)
-    await expect(confirmAs(partner)).rejects.toThrow(/no puede confirmarse/)
+    ).toBe(true)
+    await expect(confirmAs(partner)).rejects.toThrow(/motivo/)
 
     await expect(
       resolveDiscrepancy(cashier, sessionId, d.id, {
@@ -1203,13 +1213,13 @@ describe("circulación global entre sesiones", () => {
     await countChips(196)
     await countCash("2000")
     await withdraw("2000")
-    // Conciliación global: todos terminaron y faltan fichas que el arqueo
-    // NO encontró → bloquea hasta que un socio documente y autorice.
+    // Módulo 18: faltan fichas que el arqueo NO encontró → advertencia (no
+    // bloquea); el socio puede documentarla y autorizarla.
     expect(
       (await computePrecheck(prisma, sessionId)).findings.find(
         (f) => f.code === "SESSION_NOMINAL_DIFFERENCE"
       )?.severity
-    ).toBe("BLOCKING")
+    ).toBe("WARNING")
     await reconcileSessionChips(partner, sessionId, {
       kind: "UNRECOVERED_AUTHORIZED",
       reason: "Fichas no localizadas tras la revisión del cierre",

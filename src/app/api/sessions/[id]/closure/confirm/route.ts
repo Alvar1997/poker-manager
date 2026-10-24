@@ -8,16 +8,13 @@ import { parseSessionIdParam } from "@/modules/sessions/session.schemas"
 
 export const dynamic = "force-dynamic"
 
-/** POST — cierre DEFINITIVO (CLOSING → CLOSED). Solo PARTNER o SUPERADMIN; el servidor revalida todo. */
+/** POST — cierre DEFINITIVO (CLOSING → CLOSED). Los tres roles (Módulo 18); con diferencia de fichas exige motivo. El servidor revalida todo. */
 export const POST = withApiHandler<{ id: string }>(
   async (req, { params, requestId }) => {
-    const actor = await requirePermission(
-      PERMISSIONS.SESSIONS_CLOSE_AUTHORIZE,
-      {
-        requestId,
-        resource: "POST /api/sessions/:id/closure/confirm",
-      }
-    )
+    const actor = await requirePermission(PERMISSIONS.SESSIONS_CLOSE_CONFIRM, {
+      requestId,
+      resource: "POST /api/sessions/:id/closure/confirm",
+    })
     const id = await parseSessionIdParam(params)
     const input = await parseJsonBody(req, confirmClosureSchema)
     const result = await confirmClosure(actor, id, input, { requestId })
