@@ -289,6 +289,10 @@ Ver el árbol propuesto en el encargo original — se siguió sin cambios salvo 
 
 `closure-wizard.service.ts` compone los datos del cierre (`buildClosurePreview`, rake, propinas) en 6 pasos con tareas (código, severidad, entidad y ruta real); `closure-wizard.math.ts` deriva estados y progreso. Progreso persistente en `session_closure_progress` (solo lo declarado por el cajero). Ver `docs/SESSION_CLOSURE_WIZARD.md`.
 
+## Asistente de apertura
+
+`opening-wizard.service.ts` traduce `computeOpeningChecklist` (que ahora incluye `TABLES_READY`) a 4 pasos con tareas; `opening-wizard.math.ts` deriva estados y progreso. Plan de mesas en `session_opening_tables` (se abre con `openSessionTableInTx` dentro de `openSession`) y progreso en `session_opening_progress`. Las piezas visuales (`src/components/wizard/wizard-ui.tsx`) y el tipo de tarea (`src/lib/wizard.ts`) son comunes con el cierre. Ver `docs/SESSION_OPENING_WIZARD.md`.
+
 ## Conciliación global de fichas (corrección transversal)
 
 Ningún jugador se lleva fichas: el resultado individual no es faltante y el balance nominal GLOBAL de la sesión debe quedar en $0 con todos los jugadores terminados; una diferencia bloquea el cierre hasta que un socio la concilie. Ver `docs/CHIP_GLOBAL_RECONCILIATION.md`.

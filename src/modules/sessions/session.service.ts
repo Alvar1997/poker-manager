@@ -9,7 +9,7 @@ import {
   NotFoundError,
 } from "@/lib/errors"
 import { can, PERMISSIONS } from "@/config/permissions"
-import { businessDateOf } from "@/lib/format"
+import { businessDateOf, zonedDateTimeToUtc } from "@/lib/format"
 import { isUniqueViolation } from "@/lib/prisma-errors"
 import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
@@ -61,6 +61,8 @@ const sessionSelect = {
   isHistorical: true,
   historicalRecordedAt: true,
   historicalRecordedBy: actorSel,
+  operatedOpenedAt: true,
+  operatedClosedAt: true,
   status: true,
   notes: true,
   createdAt: true,
@@ -108,6 +110,9 @@ function toView(s: SessionRecord, viewer?: { id: string; role: string }) {
     /** Momento REAL de la captura histórica (no la fecha operativa). */
     historicalRecordedAt: iso(s.historicalRecordedAt),
     historicalRecordedBy: actor(s.historicalRecordedBy),
+    /** Jornada histórica: horas OPERATIVAS (las reales son openedAt/closedAt). */
+    operatedOpenedAt: iso(s.operatedOpenedAt),
+    operatedClosedAt: iso(s.operatedClosedAt),
     status: s.status,
     statusLabel: SESSION_STATUS_LABEL[s.status],
     notes: s.notes,
@@ -259,6 +264,32 @@ export async function createSession(
       throw new BusinessRuleError(HISTORICAL_DATE_MESSAGE[check.reason])
     }
   }
+  // Hora operativa de apertura (local del negocio → UTC); nunca futura.
+  const operatedOpenedAt = historical
+    ? zonedDateTimeToUtc(businessDate, input.openingTime as string)
+    : null
+  if (historical) {
+    const reason = !operatedOpenedAt
+      ? "Hora de apertura inválida."
+      : operatedOpenedAt.getTime() > Date.now()
+        ? "La hora de apertura no puede estar en el futuro."
+        : null
+    if (reason) {
+      await recordAudit({
+        action: AUDIT_ACTIONS.HISTORICAL_SESSION_CREATION_REJECTED,
+        entityType: "PokerSession",
+        actorUserId: actor.id,
+        result: "FAILURE",
+        requestId: ctx.requestId,
+        metadata: {
+          requestedBusinessDate: businessDate,
+          openingTime: input.openingTime ?? null,
+          reason,
+        },
+      })
+      throw new BusinessRuleError(reason)
+    }
+  }
 
   const replay = async () => {
     const existing = await prisma.pokerSession.findUnique({
@@ -297,7 +328,9 @@ export async function createSession(
         businessDate
       )
       const now = new Date()
-      const status = historical ? "HISTORICAL" : "DRAFT"
+      // Fecha anterior: misma vida que una normal (DRAFT → … → CLOSED),
+      // solo cambia la fecha operativa y queda marcada como capturada después.
+      const status = "DRAFT"
       const created = await tx.pokerSession.create({
         data: {
           folio,
@@ -313,6 +346,7 @@ export async function createSession(
                 isHistorical: true,
                 historicalRecordedAt: now,
                 historicalRecordedById: actor.id,
+                operatedOpenedAt,
               }
             : {}),
         },
@@ -325,7 +359,7 @@ export async function createSession(
           toStatus: status,
           changedById: actor.id,
           reason: historical
-            ? `Captura histórica de la fecha operativa ${businessDate}`
+            ? `Sesión de la fecha operativa anterior ${businessDate}`
             : null,
         },
       })
@@ -335,7 +369,12 @@ export async function createSession(
         sequenceNumber,
         businessDate,
         kind: historical ? "HISTORICAL" : "REGULAR",
-        ...(historical ? { recordedAt: now.toISOString() } : {}),
+        ...(historical
+          ? {
+              recordedAt: now.toISOString(),
+              operatedOpenedAt: operatedOpenedAt!.toISOString(),
+            }
+          : {}),
       }
       await recordAudit(
         {
@@ -519,8 +558,8 @@ export async function cancelSession(
   await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId)
     if (session.status === "CANCELLED") return
-    // Captura histórica registrada por error: solo SUPERADMIN la cancela
-    // (no tiene caja, inventario ni operaciones que revisar).
+    // Registro histórico anterior al 2026-10-29 (solo folio y fecha):
+    // solo SUPERADMIN lo cancela (no tiene caja, inventario ni operaciones).
     if (session.status === "HISTORICAL") {
       if (!can(actor, PERMISSIONS.SESSIONS_HISTORICAL_CREATE))
         throw new ForbiddenError(

@@ -109,14 +109,37 @@ describe("validación de entrada (backend)", () => {
     )
   })
 
-  it("9. sesión histórica: exige la fecha original", () => {
+  it("9. jornada histórica: exige la fecha original y la hora de apertura", () => {
+    expect(
+      createSessionSchema.safeParse({
+        idempotencyKey: KEY,
+        historical: true,
+        businessDate: "2026-10-14",
+        openingTime: "20:00",
+      }).success
+    ).toBe(true)
+    // Sin hora de apertura, con hora inválida o con hora en jornada normal.
     expect(
       createSessionSchema.safeParse({
         idempotencyKey: KEY,
         historical: true,
         businessDate: "2026-10-14",
       }).success
-    ).toBe(true)
+    ).toBe(false)
+    expect(
+      createSessionSchema.safeParse({
+        idempotencyKey: KEY,
+        historical: true,
+        businessDate: "2026-10-14",
+        openingTime: "25:00",
+      }).success
+    ).toBe(false)
+    expect(
+      createSessionSchema.safeParse({
+        idempotencyKey: KEY,
+        openingTime: "20:00",
+      }).success
+    ).toBe(false)
     expect(
       createSessionSchema.safeParse({ idempotencyKey: KEY, historical: true })
         .success

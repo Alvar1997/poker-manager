@@ -58,26 +58,28 @@ export default async function SessionPage({
           className="rounded-lg border border-violet-500/40 bg-violet-500/5 p-3 text-sm"
           data-testid="historical-notice"
         >
-          <strong>Sesión histórica</strong> de la fecha operativa{" "}
-          {formatBusinessDateMx(session.businessDate)}. Se registró el{" "}
+          <strong>Jornada histórica</strong> (fecha operativa{" "}
+          {formatBusinessDateMx(session.businessDate)}). Se registró el{" "}
           {session.historicalRecordedAt
             ? formatDateTime(session.historicalRecordedAt)
             : "—"}{" "}
-          por {session.historicalRecordedBy?.name ?? "—"}. No tiene caja ni
-          inventario propios y no admite operación en vivo.
+          por {session.historicalRecordedBy?.name ?? "—"}.{" "}
+          {session.status === "HISTORICAL"
+            ? "Es un registro anterior de solo folio y fecha: no tiene caja, inventario ni mesas."
+            : "Se opera completa, igual que una sesión de hoy."}
         </p>
       ) : null}
 
       <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
         {preparing ? (
           <Link
-            href={`${SESSIONS_BASE}/${id}/preparacion`}
+            href={`${SESSIONS_BASE}/${id}/apertura`}
             className={cn(buttonVariants(), "h-11 md:h-9")}
             data-testid="go-preparation"
           >
             {session.canManagePreparation
-              ? "Continuar preparación"
-              : "Ver preparación"}
+              ? "Continuar apertura"
+              : "Ver apertura"}
           </Link>
         ) : null}
         {session.status === "OPEN" ? (
@@ -157,8 +159,17 @@ export default async function SessionPage({
                 ? formatDateTime(session.preparationStartedAt)
                 : null
             )}
+            {session.isHistorical && session.operatedOpenedAt
+              ? row(
+                  "Apertura operativa (jornada histórica)",
+                  formatDateTime(session.operatedOpenedAt),
+                  "session-operated-opened-at"
+                )
+              : null}
             {row(
-              "Apertura real",
+              session.isHistorical
+                ? "Apertura capturada (real)"
+                : "Apertura real",
               session.openedAt ? formatDateTime(session.openedAt) : null,
               "session-opened-at"
             )}
@@ -177,8 +188,19 @@ export default async function SessionPage({
             {session.cancellationReason
               ? row("Motivo de cancelación", session.cancellationReason)
               : null}
+            {session.operatedClosedAt
+              ? row(
+                  "Cierre operativo (jornada histórica)",
+                  formatDateTime(session.operatedClosedAt),
+                  "session-operated-closed-at"
+                )
+              : null}
             {session.closedAt
-              ? row("Cierre", formatDateTime(session.closedAt))
+              ? row(
+                  session.isHistorical ? "Cierre capturado (real)" : "Cierre",
+                  formatDateTime(session.closedAt),
+                  "session-closed-at"
+                )
               : null}
           </dl>
           {session.opening ? (

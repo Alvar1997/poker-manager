@@ -57,8 +57,19 @@ export default async function SessionReportPage({
           <p className="text-muted-foreground text-sm">
             {SESSION_STATUS_LABEL[s.status] ?? s.status} · fecha operativa{" "}
             {s.operatedDay}
-            {s.openedAt ? ` · abrió ${formatDateTime(s.openedAt)}` : ""}
-            {s.closedAt ? ` · cerró ${formatDateTime(s.closedAt)}` : ""}
+            {s.operatedOpenedAt
+              ? ` · abrió ${formatDateTime(s.operatedOpenedAt)} (operativa)`
+              : s.openedAt
+                ? ` · abrió ${formatDateTime(s.openedAt)}`
+                : ""}
+            {s.operatedClosedAt
+              ? ` · cerró ${formatDateTime(s.operatedClosedAt)} (operativa)`
+              : s.closedAt
+                ? ` · cerró ${formatDateTime(s.closedAt)}`
+                : ""}
+            {s.recordedAt
+              ? ` · jornada histórica capturada el ${formatDateTime(s.recordedAt)}`
+              : ""}
           </p>
         </div>
         <ExportButton report="credits" filters={{ sessionId: s.id }} />

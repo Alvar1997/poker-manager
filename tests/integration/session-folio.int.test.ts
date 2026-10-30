@@ -17,6 +17,7 @@ import {
 } from "@/modules/inventory/stock-count.service"
 import { listSessionReports } from "@/modules/reports/session-report.service"
 import { parseReportFilters } from "@/modules/reports/report.filters"
+import { planOpeningTable } from "@/modules/sessions/opening-wizard.service"
 import {
   confirmOpeningCashCount,
   createOpeningChipCount,
@@ -66,7 +67,45 @@ const historical = (date: string, k = key(), actor: Actor = admin) =>
     idempotencyKey: k,
     historical: true,
     businessDate: date,
+    openingTime: "20:00",
   })
+
+/** Crea una sesión de fecha anterior y la cancela para liberar la vigente. */
+async function historicalDone(date: string) {
+  const s = await historical(date)
+  await cancelSession(admin, s.id, { reason: "Prueba de consecutivo" })
+  return s
+}
+
+/** Registro HISTORICAL anterior al cambio (solo folio y fecha). */
+async function legacyHistorical(date: string) {
+  const cashBox = await prisma.cashBox.findUniqueOrThrow({
+    where: { code: "MAIN" },
+  })
+  const n = (await prisma.pokerSession.count()) + 1
+  const id = await prisma.$transaction(async (tx) => {
+    // Simula una fila creada antes de la migración 20261107120000.
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica")
+    const created = await tx.pokerSession.create({
+      data: {
+        folio: `S-${String(n).padStart(4, "0")}-${date.replaceAll("-", "")}`,
+        sequenceNumber: n,
+        businessDate: new Date(`${date}T00:00:00.000Z`),
+        status: "HISTORICAL",
+        cashBoxId: cashBox.id,
+        createdById: admin.id,
+        idempotencyKey: key(),
+        isHistorical: true,
+        historicalRecordedAt: new Date(),
+        historicalRecordedById: admin.id,
+      },
+      select: { id: true },
+    })
+    await tx.$executeRaw`UPDATE "folio_sequences" SET "nextNumber" = GREATEST("nextNumber", ${n + 1}) WHERE "documentType" = 'SESSION'`
+    return created.id
+  })
+  return getSession(id)
+}
 
 async function moneyAndChips() {
   const state = await prisma.chipSetInventoryState.findFirst()
@@ -80,37 +119,6 @@ async function moneyAndChips() {
     circulation: state?.circulationNominal.toFixed(2) ?? null,
     counts: await prisma.chipStockCount.count(),
   }
-}
-
-/** Sesión NORMAL abierta con el flujo completo del Módulo 06. */
-async function openRegularSession(actor: Actor) {
-  const shared = await prisma.chipSet.findUniqueOrThrow({
-    where: { code: "CHIPSET_MAIN" },
-  })
-  const d = await prisma.chipDenomination.create({
-    data: { chipSetId: shared.id, value: "100" },
-  })
-  await initializeStock(actor, {
-    chipSetId: shared.id,
-    lines: [{ denominationId: d.id, quantity: 50 }],
-    idempotencyKey: key(),
-  })
-  const s = await createSession(actor, { idempotencyKey: key() })
-  await prepareSession(actor, s.id)
-  const { count } = await createOpeningChipCount(actor, s.id)
-  await updateStockCount(actor, count.id, {
-    lines: count.details.map((x) => ({
-      denominationId: x.denominationId,
-      countedQuantity: x.expectedQuantity,
-    })),
-  })
-  await confirmStockCount(actor, count.id, key())
-  await confirmOpeningCashCount(actor, s.id, {
-    countedAmount: "0",
-    physicallyVerified: true,
-  })
-  await openSession(actor, s.id, { idempotencyKey: key() })
-  return s
 }
 
 beforeEach(async () => {
@@ -173,33 +181,26 @@ describe("folio S-0001-YYYYMMDD y fecha operativa", () => {
   })
 })
 
-describe("captura histórica (solo SUPERADMIN)", () => {
-  it("registra una sesión del 14/10/2026 sin caja, inventario ni alterar la sesión activa", async () => {
-    const active = await openRegularSession(cashier)
+describe("sesión de fecha anterior (solo SUPERADMIN)", () => {
+  it("se crea en DRAFT con la fecha del 14/10/2026, sin mover caja ni inventario al crearla", async () => {
     const before = await moneyAndChips()
     const t0 = Date.now()
     const h = await historical("2026-10-14")
     expect(h).toMatchObject({
-      status: "HISTORICAL",
+      status: "DRAFT",
       isHistorical: true,
       businessDate: "2026-10-14",
       openedAt: null,
       closedAt: null,
       historicalRecordedBy: { id: admin.id },
+      // 14/10/2026 20:00 en Monterrey (UTC−6).
+      operatedOpenedAt: "2026-10-15T02:00:00.000Z",
     })
     expect(h.folio).toMatch(/^S-\d{4}-20261014$/)
-    expect(new Date(h.createdAt).getTime()).toBeGreaterThanOrEqual(t0 - 5)
     expect(new Date(h.historicalRecordedAt!).getTime()).toBeGreaterThanOrEqual(
       t0 - 5
     )
-    // Sin efectivo, cajas, arqueos ni movimientos de fichas.
     expect(await moneyAndChips()).toEqual(before)
-    expect(
-      await prisma.financialAccountBalance.count({ where: { scopeKey: h.id } })
-    ).toBe(0)
-    // La sesión normal sigue intacta y vigente.
-    const still = await getSession(active.id)
-    expect(still).toMatchObject({ status: "OPEN", folio: active.folio })
     const audit = await auditRows("HISTORICAL_SESSION_CREATED")
     expect(audit).toHaveLength(1)
     expect(audit[0]).toMatchObject({
@@ -214,11 +215,66 @@ describe("captura histórica (solo SUPERADMIN)", () => {
     })
   })
 
+  it("se opera completa: conteo, caja $0, apertura con mesa y la fecha operativa se conserva", async () => {
+    const shared = await prisma.chipSet.findUniqueOrThrow({
+      where: { code: "CHIPSET_MAIN" },
+    })
+    const d = await prisma.chipDenomination.create({
+      data: { chipSetId: shared.id, value: "100" },
+    })
+    await initializeStock(admin, {
+      chipSetId: shared.id,
+      lines: [{ denominationId: d.id, quantity: 50 }],
+      idempotencyKey: key(),
+    })
+    const h = await historical("2026-10-21")
+    await prepareSession(admin, h.id)
+    const { count } = await createOpeningChipCount(admin, h.id)
+    await updateStockCount(admin, count.id, {
+      lines: count.details.map((x) => ({
+        denominationId: x.denominationId,
+        countedQuantity: x.expectedQuantity,
+      })),
+    })
+    await confirmStockCount(admin, count.id, key())
+    await confirmOpeningCashCount(admin, h.id, {
+      countedAmount: "0",
+      physicallyVerified: true,
+    })
+    const t25 = await prisma.pokerTable.findUniqueOrThrow({
+      where: { code: "TABLE_25_25" },
+    })
+    await planOpeningTable(admin, h.id, t25.id)
+    await openSession(admin, h.id, { idempotencyKey: key() })
+    const opened = await getSession(h.id)
+    expect(opened).toMatchObject({
+      status: "OPEN",
+      isHistorical: true,
+      businessDate: "2026-10-21",
+      folio: h.folio,
+    })
+    const tables = await prisma.sessionTable.findMany({
+      where: { sessionId: h.id },
+      select: { tableId: true, status: true },
+    })
+    expect(tables).toEqual([{ tableId: t25.id, status: "OPEN" }])
+    // Ocupa la sesión vigente: no se crea otra hasta cerrarla.
+    await expect(
+      createSession(cashier, { idempotencyKey: key() })
+    ).rejects.toThrow(/sesión vigente/)
+  })
+
+  it("ocupa la sesión vigente: con una sesión en curso no se crea (409)", async () => {
+    await createSession(cashier, { idempotencyKey: key() })
+    await expect(historical("2026-10-14")).rejects.toThrow(/sesión vigente/)
+    expect(await prisma.pokerSession.count()).toBe(1)
+  })
+
   it("consecutivo global por orden de captura: misma fecha distinto número; una fecha anterior no renumera", async () => {
-    const a = await historical("2026-10-14")
-    const b = await historical("2026-10-14")
-    const c = await historical("2026-10-17")
-    const d = await historical("2026-10-10")
+    const a = await historicalDone("2026-10-14")
+    const b = await historicalDone("2026-10-14")
+    const c = await historicalDone("2026-10-17")
+    const d = await historicalDone("2026-10-10")
     expect([a, b, c, d].map((s) => s.sequenceNumber)).toEqual([1, 2, 3, 4])
     expect([a, b, c, d].map((s) => s.folio)).toEqual([
       "S-0001-20261014",
@@ -226,17 +282,22 @@ describe("captura histórica (solo SUPERADMIN)", () => {
       "S-0003-20261017",
       "S-0004-20261010",
     ])
-    // Nadie fue renumerado.
     expect((await getSession(a.id)).folio).toBe("S-0001-20261014")
   })
 
-  it("creaciones simultáneas obtienen consecutivos únicos y continuos", async () => {
-    const created = await Promise.all(
-      Array.from({ length: 12 }, () => historical("2026-09-01"))
+  it("creaciones simultáneas: solo una queda vigente y el consecutivo no se salta", async () => {
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, () => historical("2026-09-01"))
     )
-    const seqs = created.map((s) => s.sequenceNumber).sort((x, y) => x - y)
-    expect(seqs).toEqual(Array.from({ length: 12 }, (_, i) => i + 1))
-    expect(new Set(created.map((s) => s.folio)).size).toBe(12)
+    const ok = results.filter((r) => r.status === "fulfilled")
+    expect(ok).toHaveLength(1)
+    expect(await prisma.pokerSession.count()).toBe(1)
+    const next = await createSession(cashier, { idempotencyKey: key() }).catch(
+      () => null
+    )
+    expect(next).toBeNull()
+    const [only] = await prisma.pokerSession.findMany()
+    expect(only.sequenceNumber).toBe(1)
   })
 
   it("idempotencia: el mismo intento no duplica; la misma clave con otra fecha → 409", async () => {
@@ -269,6 +330,7 @@ describe("captura histórica (solo SUPERADMIN)", () => {
           idempotencyKey: key(),
           historical: true,
           businessDate: "2026-10-14",
+          openingTime: "20:00",
         },
       })
       expect(res.status, role).toBe(403)
@@ -292,13 +354,37 @@ describe("captura histórica (solo SUPERADMIN)", () => {
         idempotencyKey: key(),
         historical: true,
         businessDate: "2026-10-14",
+        openingTime: "20:00",
       },
     })
     expect(ok.status).toBe(201)
   })
 
-  it("una sesión histórica no se prepara ni se abre; solo SUPERADMIN la cancela", async () => {
-    const h = await historical("2026-10-14")
+  it("la base ya no admite crear sesiones en estado HISTORICAL", async () => {
+    await expect(
+      prisma.pokerSession.create({
+        data: {
+          folio: "S-0001-20261014",
+          sequenceNumber: 1,
+          businessDate: new Date("2026-10-14T00:00:00.000Z"),
+          status: "HISTORICAL",
+          cashBoxId: (
+            await prisma.cashBox.findUniqueOrThrow({
+              where: { code: "MAIN" },
+            })
+          ).id,
+          createdById: admin.id,
+          idempotencyKey: key(),
+          isHistorical: true,
+          historicalRecordedAt: new Date(),
+          historicalRecordedById: admin.id,
+        },
+      })
+    ).rejects.toThrow(/se crea en DRAFT/)
+  })
+
+  it("un registro HISTORICAL anterior no se prepara ni se abre; solo SUPERADMIN lo cancela", async () => {
+    const h = await legacyHistorical("2026-10-14")
     await expect(prepareSession(admin, h.id)).rejects.toThrow()
     await expect(
       prisma.pokerSession.update({
@@ -322,13 +408,9 @@ describe("captura histórica (solo SUPERADMIN)", () => {
     await cancelSession(admin, h.id, { reason: "Registrada por error" })
     const c = await getSession(h.id)
     expect(c).toMatchObject({ status: "CANCELLED", folio: h.folio })
-  })
-
-  it("no ocupa la sesión vigente: se puede crear una sesión normal después", async () => {
-    await historical("2026-10-14")
+    // Un registro anterior no ocupa la sesión vigente.
     const s = await createSession(cashier, { idempotencyKey: key() })
     expect(s.status).toBe("DRAFT")
-    expect(s.sequenceNumber).toBe(2)
   })
 
   it("vista previa provisional del folio sin consumir el consecutivo", async () => {
@@ -350,8 +432,8 @@ describe("captura histórica (solo SUPERADMIN)", () => {
 
 describe("listados y reportes por fecha operativa", () => {
   it("filtran por businessDate (no por la fecha de captura) y buscan por folio", async () => {
-    const a = await historical("2026-10-14")
-    await historical("2026-10-17")
+    const a = await historicalDone("2026-10-14")
+    await historicalDone("2026-10-17")
     const normal = await createSession(cashier, { idempotencyKey: key() })
     const list = await listSessions({
       from: "2026-10-14",
@@ -413,6 +495,8 @@ describe("migración de folios anteriores", () => {
       const NEW = [
         "20261031120000_session_folio_enums",
         "20261031130000_session_folio_historical",
+        // Depende de las columnas de captura de la anterior.
+        "20261107120000_backdated_sessions",
       ]
       for (const m of all.filter((d) => !NEW.includes(d)))
         await db.query(readFileSync(path.join(dir, m, "migration.sql"), "utf8"))

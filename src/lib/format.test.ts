@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { businessDateOf, formatCurrencyMXN, formatDate } from "@/lib/format"
+import {
+  businessDateOf,
+  formatCurrencyMXN,
+  formatDate,
+  localTimeOf,
+  zonedDateTimeToUtc,
+} from "@/lib/format"
 
 describe("formatCurrencyMXN", () => {
   it("formatea montos positivos en pesos mexicanos", () => {
@@ -29,5 +35,25 @@ describe("businessDateOf", () => {
   it("una sesión que cruza medianoche en UTC pertenece al día de Monterrey, no al del servidor", () => {
     const utcMidnight = new Date("2026-06-02T00:15:00Z")
     expect(businessDateOf(utcMidnight)).toBe("2026-06-01")
+  })
+})
+
+describe("zonedDateTimeToUtc (hora local de Monterrey → instante UTC)", () => {
+  it("24/10/2026 20:00 en Monterrey (UTC−6) es 2026-10-25T02:00Z", () => {
+    const d = zonedDateTimeToUtc("2026-10-24", "20:00")!
+    expect(d.toISOString()).toBe("2026-10-25T02:00:00.000Z")
+    expect(businessDateOf(d)).toBe("2026-10-24")
+    expect(localTimeOf(d)).toBe("20:00")
+  })
+
+  it("las 04:00 del día siguiente quedan en esa fecha local", () => {
+    const d = zonedDateTimeToUtc("2026-10-25", "04:00")!
+    expect(d.toISOString()).toBe("2026-10-25T10:00:00.000Z")
+  })
+
+  it("rechaza fechas u horas inválidas", () => {
+    expect(zonedDateTimeToUtc("2026-02-30", "20:00")).toBeNull()
+    expect(zonedDateTimeToUtc("2026-10-24", "24:00")).toBeNull()
+    expect(zonedDateTimeToUtc("24/10/2026", "20:00")).toBeNull()
   })
 })

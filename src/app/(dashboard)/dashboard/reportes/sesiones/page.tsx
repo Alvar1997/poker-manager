@@ -80,8 +80,15 @@ export default async function SessionsReportPage({
                     {s.folio}
                   </Link>
                   <span className="text-muted-foreground block text-xs">
-                    {s.openedAt ? formatDateTime(s.openedAt) : "Sin apertura"}
-                    {s.closedAt ? ` → ${formatDateTime(s.closedAt)}` : ""}
+                    {(s.operatedOpenedAt ?? s.openedAt)
+                      ? formatDateTime((s.operatedOpenedAt ?? s.openedAt)!)
+                      : "Sin apertura"}
+                    {(s.operatedClosedAt ?? s.closedAt)
+                      ? ` → ${formatDateTime((s.operatedClosedAt ?? s.closedAt)!)}`
+                      : ""}
+                    {s.recordedAt
+                      ? ` · histórica, capturada ${formatDateTime(s.recordedAt)}`
+                      : ""}
                   </span>
                 </Td>
                 <Td>{s.operatedDay}</Td>

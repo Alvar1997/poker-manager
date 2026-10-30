@@ -249,9 +249,20 @@ export async function previewSessionFolio(businessDate: string) {
     throw new BusinessRuleError(
       `No hay un consecutivo activo para ${FOLIO_DOCUMENT_LABEL.SESSION}`
     )
+  // Jornadas (no canceladas) con la MISMA fecha operativa: aviso de posible
+  // duplicado; nunca bloquea (puede haber dos jornadas el mismo día).
+  const sameDay = await prisma.pokerSession.findMany({
+    where: {
+      businessDate: new Date(`${businessDate}T00:00:00.000Z`),
+      status: { not: "CANCELLED" },
+    },
+    orderBy: { sequenceNumber: "asc" },
+    select: { folio: true, status: true },
+  })
   return {
     provisional: true as const,
     nextSequenceNumber: row.nextNumber,
     folio: formatSessionFolio(row.nextNumber, businessDate),
+    sameDay,
   }
 }

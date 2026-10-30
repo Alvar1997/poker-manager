@@ -32,10 +32,24 @@ const businessDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida (AAAA-MM-DD)")
 
+/** Hora local del negocio `HH:MM` (24 h). */
+export const localTimeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Hora inválida (HH:MM)")
+
+/** Fecha y hora locales del negocio (`AAAA-MM-DDTHH:MM`, sin zona). */
+export const localDateTimeSchema = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/,
+    "Fecha y hora inválidas"
+  )
+
 /**
  * Crear sesión. Normal: el servidor fija la fecha operativa (hoy, zona del
  * negocio). Histórica (`historical: true`, solo SUPERADMIN): la fecha
- * ORIGINAL anterior a hoy. El cliente nunca envía folio ni consecutivo.
+ * ORIGINAL anterior a hoy y la hora operativa de apertura (local). El
+ * cliente nunca envía folio ni consecutivo.
  */
 export const createSessionSchema = z
   .strictObject({
@@ -43,6 +57,16 @@ export const createSessionSchema = z
     notes,
     historical: z.boolean().optional(),
     businessDate: businessDateSchema.optional(),
+    /** Jornada histórica: hora operativa de apertura (HH:MM local). */
+    openingTime: localTimeSchema.optional(),
+  })
+  .refine((v) => !v.openingTime || v.historical === true, {
+    message: "La hora de apertura solo se elige en una jornada histórica",
+    path: ["openingTime"],
+  })
+  .refine((v) => v.historical !== true || Boolean(v.openingTime), {
+    message: "Indica la hora de apertura de la jornada",
+    path: ["openingTime"],
   })
   .refine((v) => !v.businessDate || v.historical === true, {
     message:
@@ -57,6 +81,11 @@ export type CreateSessionInput = z.infer<typeof createSessionSchema>
 
 export const openSessionSchema = z.strictObject({
   idempotencyKey: idempotencyKeySchema,
+  /** Huella del resumen revisado en el asistente (409 si cambió). */
+  previewHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/, "Huella inválida")
+    .optional(),
 })
 
 export const cancelSessionSchema = z.strictObject({
@@ -121,3 +150,27 @@ export async function parseSessionIdParam(
   if (!parsed.success) throw new ValidationError("Identificador inválido")
   return parsed.data
 }
+
+/** Asistente de apertura: lo que el creador declara (nunca estados de pasos). */
+export const openingWizardProgressSchema = z
+  .strictObject({
+    currentStep: z.number().int().min(1).max(4).optional(),
+    notes,
+    /** «Continuar sin mesas» (el paso de mesas es opcional). */
+    noTables: z.boolean().optional(),
+    /** Jornada histórica: corrige la hora operativa de apertura (HH:MM). */
+    openingTime: localTimeSchema.optional(),
+  })
+  .refine(
+    (v) =>
+      v.currentStep !== undefined ||
+      v.notes !== undefined ||
+      v.noTables !== undefined ||
+      v.openingTime !== undefined,
+    { message: "No hay cambios que guardar" }
+  )
+export type OpeningWizardProgressInput = z.infer<
+  typeof openingWizardProgressSchema
+>
+
+export const openingTableSchema = z.strictObject({ tableId: idSchema })

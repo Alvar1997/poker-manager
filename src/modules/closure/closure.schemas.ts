@@ -2,7 +2,10 @@ import { z } from "zod"
 
 import { ValidationError } from "@/lib/errors"
 import { positiveMoneySchema } from "@/lib/money"
-import { idempotencyKeySchema } from "@/modules/sessions/session.schemas"
+import {
+  idempotencyKeySchema,
+  localDateTimeSchema,
+} from "@/modules/sessions/session.schemas"
 
 /**
  * Schemas del Módulo 12. El cliente NUNCA envía importes esperados, saldos,
@@ -143,6 +146,12 @@ export const confirmClosureSchema = z.strictObject({
   /** Asistente de cierre: motivos separados (nominal y físico). */
   nominalReason: z.string().trim().max(1000).optional(),
   physicalReason: z.string().trim().max(1000).optional(),
+  /**
+   * Jornada histórica (solo SUPERADMIN): fecha y hora OPERATIVA de cierre,
+   * local del negocio (`AAAA-MM-DDTHH:MM`). Obligatoria en ese caso y
+   * rechazada en una jornada normal (cierra con la hora real).
+   */
+  operatedClosedAt: localDateTimeSchema.optional(),
 })
 export type ConfirmClosureInput = z.infer<typeof confirmClosureSchema>
 

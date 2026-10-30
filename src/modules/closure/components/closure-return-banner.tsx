@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 
 /**
- * Aviso «Volver al cierre» (asistente de cierre). Al pulsar RESOLVER se
+ * Aviso «Volver al cierre» / «Volver a la apertura» (asistentes guiados de
+ * sesión). Al pulsar RESOLVER se
  * guarda a dónde regresar; mientras el cajero resuelve en otras pantallas
  * (aunque navegue entre ellas) se muestra este botón fijo. Solo es una
  * comodidad del navegador: el estado del cierre siempre lo recalcula el
@@ -15,7 +16,12 @@ import { useEffect, useState } from "react"
 
 const KEY = "pm.closureReturn"
 
-type ReturnTarget = { url: string; folio: string }
+type ReturnTarget = {
+  url: string
+  folio: string
+  /** Texto del botón (por defecto «Volver al cierre»). */
+  label?: string
+}
 
 export function saveClosureReturn(target: ReturnTarget | null) {
   try {
@@ -47,27 +53,31 @@ export function ClosureReturnBanner() {
   }, [pathname])
   if (!target || pathname === target.url.split("?")[0]) return null
   return (
-    <div
-      className="bg-primary text-primary-foreground fixed inset-x-3 bottom-3 z-50 flex items-center gap-2 rounded-xl p-2 shadow-lg md:inset-x-auto md:right-6 md:bottom-6"
-      data-testid="closure-return-banner"
-    >
-      <Link
-        href={target.url}
-        className="flex min-h-11 flex-1 items-center gap-2 px-2 text-sm font-medium"
-        onClick={() => saveClosureReturn(null)}
-        data-testid="closure-return"
+    <>
+      {/* Espacio al final de la página: el aviso fijo no tapa sus botones. */}
+      <div aria-hidden className="h-20 md:h-24" />
+      <div
+        className="bg-primary text-primary-foreground fixed inset-x-3 bottom-3 z-50 flex items-center gap-2 rounded-xl p-2 shadow-lg md:inset-x-auto md:right-6 md:bottom-6"
+        data-testid="closure-return-banner"
       >
-        <ArrowLeft className="size-4" aria-hidden /> Volver al cierre{" "}
-        {target.folio}
-      </Link>
-      <button
-        type="button"
-        className="flex size-11 items-center justify-center"
-        aria-label="Ocultar"
-        onClick={() => saveClosureReturn(null)}
-      >
-        <X className="size-4" aria-hidden />
-      </button>
-    </div>
+        <Link
+          href={target.url}
+          className="flex min-h-11 flex-1 items-center gap-2 px-2 text-sm font-medium"
+          onClick={() => saveClosureReturn(null)}
+          data-testid="closure-return"
+        >
+          <ArrowLeft className="size-4" aria-hidden />{" "}
+          {target.label ?? "Volver al cierre"} {target.folio}
+        </Link>
+        <button
+          type="button"
+          className="flex size-11 items-center justify-center"
+          aria-label="Ocultar"
+          onClick={() => saveClosureReturn(null)}
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      </div>
+    </>
   )
 }

@@ -260,6 +260,10 @@ model User {
   chipDifferences              SessionChipDifference[]          @relation("SessionChipDifferenceRecordedBy")
   closureProgressUpdated       SessionClosureProgress[]         @relation("ClosureProgressUpdatedBy")
   closureTipsReviewed          SessionClosureProgress[]         @relation("ClosureTipsReviewedBy")
+  openingProgressUpdated       SessionOpeningProgress[]         @relation("OpeningProgressUpdatedBy")
+  openingNoTablesConfirmed     SessionOpeningProgress[]         @relation("OpeningNoTablesConfirmedBy")
+  openingTablesAdded           SessionOpeningTable[]            @relation("OpeningTableAddedBy")
+  openingTablesRemoved         SessionOpeningTable[]            @relation("OpeningTableRemovedBy")
 
   @@index([role])
   @@index([isActive])
@@ -486,6 +490,7 @@ model PokerTable {
   chipMovements    ChipInventoryMovement[]  @relation("ChipMovementTable")
   chipReservations ChipReservation[]        @relation("ChipReservationTable")
   chipNominalMoves ChipNominalMovement[]    @relation("ChipNominalMovementTable")
+  openingPlans     SessionOpeningTable[]
   sessionTables    SessionTable[]
   purchases        ChipPurchase[]
   settlements      PlayerSettlement[]
@@ -1565,6 +1570,12 @@ model PokerSession {
   historicalRecordedAt   DateTime?
   historicalRecordedById String?
   historicalRecordedBy   User?              @relation("SessionHistoricalRecordedBy", fields: [historicalRecordedById], references: [id], onDelete: Restrict)
+  /// Jornada histórica: hora OPERATIVA de apertura (cuándo empezó la noche,
+  /// la elige SUPERADMIN). `openedAt` sigue siendo el momento real.
+  operatedOpenedAt       DateTime?
+  /// Jornada histórica: hora OPERATIVA de cierre (al confirmar el cierre).
+  /// `closedAt` sigue siendo el momento real.
+  operatedClosedAt       DateTime?
   cashBoxId              String
   cashBox                CashBox            @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
   status                 PokerSessionStatus @default(DRAFT)
@@ -1611,6 +1622,8 @@ model PokerSession {
   sessionStaff        SessionStaff[]
   chipDifferences     SessionChipDifference[]
   closureProgress     SessionClosureProgress?
+  openingProgress     SessionOpeningProgress?
+  openingTables       SessionOpeningTable[]
 
   @@index([status])
   @@index([createdAt])
@@ -4842,4 +4855,42 @@ model SessionClosureProgress {
   createdAt             DateTime     @default(now())
 
   @@map("session_closure_progress")
+}
+
+/// Asistente de apertura (4 pasos): lo que el creador declara mientras
+/// prepara la jornada. El estado de los pasos NUNCA se guarda: se recalcula.
+model SessionOpeningProgress {
+  sessionId             String       @id
+  session               PokerSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  currentStep           Int          @default(1)
+  /// Decisión explícita «continuar sin mesas» (el paso 3 es opcional).
+  noTablesConfirmedAt   DateTime?
+  noTablesConfirmedById String?
+  noTablesConfirmedBy   User?        @relation("OpeningNoTablesConfirmedBy", fields: [noTablesConfirmedById], references: [id], onDelete: Restrict)
+  updatedById           String
+  updatedBy             User         @relation("OpeningProgressUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  updatedAt             DateTime     @updatedAt
+  createdAt             DateTime     @default(now())
+
+  @@map("session_opening_progress")
+}
+
+/// Mesa del catálogo que se abrirá AL CONFIRMAR la apertura (plan de la
+/// preparación). No es una mesa abierta: no tiene ciclo, inventario, caja
+/// ni jugadores. Quitarla de la preparación la marca (nunca se borra).
+model SessionOpeningTable {
+  id          String       @id @default(cuid())
+  sessionId   String
+  session     PokerSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  tableId     String
+  table       PokerTable   @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  addedById   String
+  addedBy     User         @relation("OpeningTableAddedBy", fields: [addedById], references: [id], onDelete: Restrict)
+  addedAt     DateTime     @default(now())
+  removedAt   DateTime?
+  removedById String?
+  removedBy   User?        @relation("OpeningTableRemovedBy", fields: [removedById], references: [id], onDelete: Restrict)
+
+  @@index([sessionId])
+  @@map("session_opening_tables")
 }

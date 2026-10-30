@@ -39,6 +39,8 @@ export async function getClosureWizard(sessionId: string) {
       status: true,
       openedAt: true,
       businessDate: true,
+      isHistorical: true,
+      operatedOpenedAt: true,
     },
   })
   if (!session) throw new NotFoundError("Sesión no encontrada")
@@ -433,6 +435,8 @@ export async function getClosureWizard(sessionId: string) {
       status: session.status,
       openedAt: session.openedAt?.toISOString() ?? null,
       businessDate: session.businessDate.toISOString().slice(0, 10),
+      isHistorical: session.isHistorical,
+      operatedOpenedAt: session.operatedOpenedAt?.toISOString() ?? null,
     },
     noActivity,
     progress: wizardProgress(statuses),

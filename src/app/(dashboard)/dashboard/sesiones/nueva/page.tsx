@@ -35,8 +35,8 @@ export default async function NewSessionPage({
               asigna el sistema.
             </li>
             <li>
-              No se selecciona mesa: las mesas se abren cuando la sesión ya esté
-              abierta.
+              Las mesas se preparan en el paso 3 de la apertura (opcional) o se
+              abren después.
             </li>
             <li>No hay fondo inicial: la caja abre en $0.00.</li>
             <li>

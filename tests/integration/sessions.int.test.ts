@@ -641,7 +641,8 @@ describe("permisos y consultas", () => {
       signInAs((await actorFor(role))._user)
       expect((await call(sessionsRoute.GET)).status).toBe(200)
       const c = await call(checklistRoute.GET, { params: { id: s.id } })
-      expect((c.json.data as { steps: unknown[] }).steps).toHaveLength(10)
+      // 11 controles (incluye «mesas preparadas», opcional).
+      expect((c.json.data as { steps: unknown[] }).steps).toHaveLength(11)
     }
     const list = await call(sessionsRoute.GET, {
       path: "/api/sessions?q=S-0001",

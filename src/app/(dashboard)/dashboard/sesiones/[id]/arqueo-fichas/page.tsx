@@ -32,8 +32,8 @@ export default async function OpeningCountPage({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <BackLink
-        href={`${SESSIONS_BASE}/${id}/preparacion`}
-        label="Preparación"
+        href={`${SESSIONS_BASE}/${id}/apertura?paso=2`}
+        label="Apertura"
       />
       <div className="space-y-1">
         <h1 className="text-xl font-semibold">

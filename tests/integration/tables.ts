@@ -1,6 +1,8 @@
 /** Todas las tablas de la app, para vaciar bases de PRUEBA (nunca Neon). */
 export const ALL_TABLES = [
-  // Módulo 18 y asistente de cierre
+  // Módulo 18 y asistentes de apertura y cierre
+  "session_opening_tables",
+  "session_opening_progress",
   "session_closure_progress",
   "session_chip_differences",
   "staff_tip_entries",

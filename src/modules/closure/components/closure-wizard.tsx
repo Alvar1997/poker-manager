@@ -1,17 +1,9 @@
 "use client"
 
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  CircleDashed,
-  Loader2,
-  XCircle,
-} from "lucide-react"
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -24,7 +16,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  errorText,
+  HistoricalBanner,
+  StepComplete,
+  type StepTone,
+  useRefreshOnFocus,
+  WizardHeader,
+  WizardNav,
+  WizardRow,
+  WizardStepList,
+  WizardTaskList,
+} from "@/components/wizard/wizard-ui"
 import { apiRequest, ApiClientError } from "@/lib/api-client"
+import { formatDateTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { formatMXN } from "@/modules/cash/components/format"
 import { useIdempotencyKey } from "@/modules/inventory/components/use-idempotency-key"
@@ -33,7 +38,7 @@ import {
   StaffTipRow,
 } from "@/modules/staff-tips/components/staff-actions"
 
-import type { WizardStepStatus, WizardTask } from "../closure-wizard.math"
+import type { WizardStepStatus } from "../closure-wizard.math"
 import type { ClosureWizardView } from "../closure-wizard.service"
 import { StartClosingButton } from "./closure-actions"
 import { saveClosureReturn } from "./closure-return-banner"
@@ -46,138 +51,15 @@ import { saveClosureReturn } from "./closure-return-banner"
  * recalcula todo.
  */
 
-const STATUS: Record<
-  WizardStepStatus,
-  { label: string; icon: ReactNode; className: string }
-> = {
-  COMPLETED: {
-    label: "Completo",
-    icon: <CheckCircle2 className="size-5 text-emerald-600" aria-hidden />,
-    className: "border-emerald-600/40",
-  },
-  WARNING: {
-    label: "Con advertencias",
-    icon: <AlertTriangle className="size-5 text-amber-600" aria-hidden />,
-    className: "border-amber-500/60",
-  },
-  ERROR: {
-    label: "Pendiente",
-    icon: <XCircle className="text-destructive size-5" aria-hidden />,
-    className: "border-destructive/50",
-  },
-  PENDING: {
-    label: "Aún no disponible",
-    icon: <CircleDashed className="text-muted-foreground size-5" aria-hidden />,
-    className: "",
-  },
+/** Estado del paso → tono y texto (las piezas visuales son comunes). */
+const STATUS: Record<WizardStepStatus, { label: string; tone: StepTone }> = {
+  COMPLETED: { label: "Completo", tone: "done" },
+  WARNING: { label: "Con advertencias", tone: "warning" },
+  ERROR: { label: "Pendiente", tone: "error" },
+  PENDING: { label: "Aún no disponible", tone: "idle" },
 }
 
-function errorText(e: unknown) {
-  if (e instanceof ApiClientError) return e.fieldIssues[0]?.message ?? e.message
-  return e instanceof Error ? e.message : "No se pudo completar la operación"
-}
-
-/** Recalcula al volver a la pestaña (p. ej. después de RESOLVER). */
-function useRefreshOnFocus() {
-  const router = useRouter()
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") router.refresh()
-    }
-    document.addEventListener("visibilitychange", onVisible)
-    window.addEventListener("focus", onVisible)
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible)
-      window.removeEventListener("focus", onVisible)
-    }
-  }, [router])
-}
-
-function Row({
-  label,
-  value,
-  strong,
-  testId,
-}: {
-  label: string
-  value: ReactNode
-  strong?: boolean
-  testId?: string
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-baseline justify-between gap-3 py-1 text-sm",
-        strong && "font-semibold"
-      )}
-    >
-      <dt className={strong ? "" : "text-muted-foreground"}>{label}</dt>
-      <dd className="text-right tabular-nums" data-testid={testId}>
-        {value}
-      </dd>
-    </div>
-  )
-}
-
-function TaskList({
-  tasks,
-  returnUrl,
-  folio,
-}: {
-  tasks: WizardTask[]
-  returnUrl: string
-  folio: string
-}) {
-  if (tasks.length === 0) return null
-  return (
-    <ul className="divide-y rounded-xl border" data-testid="wizard-tasks">
-      {tasks.map((t, i) => (
-        <li
-          key={`${t.code}-${t.entity?.id ?? i}`}
-          className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
-          data-testid="wizard-task"
-          data-code={t.code}
-          data-severity={t.severity}
-        >
-          <div className="flex items-start gap-2">
-            {t.severity === "BLOCKING" ? (
-              <XCircle
-                className="text-destructive mt-0.5 size-4 shrink-0"
-                aria-hidden
-              />
-            ) : (
-              <AlertTriangle
-                className="mt-0.5 size-4 shrink-0 text-amber-600"
-                aria-hidden
-              />
-            )}
-            <div>
-              <p className="text-sm font-medium">{t.title}</p>
-              {t.detail ? (
-                <p className="text-muted-foreground text-xs">{t.detail}</p>
-              ) : null}
-            </div>
-          </div>
-          {t.href ? (
-            <Link
-              href={t.href}
-              onClick={() => saveClosureReturn({ url: returnUrl, folio })}
-              className={cn(
-                buttonVariants({
-                  variant: t.severity === "BLOCKING" ? "default" : "outline",
-                }),
-                "h-11 shrink-0"
-              )}
-              data-testid="wizard-resolve"
-            >
-              {t.actionLabel ?? "Resolver"}
-            </Link>
-          ) : null}
-        </li>
-      ))}
-    </ul>
-  )
-}
+const Row = WizardRow
 
 export function ClosureWizard({
   data,
@@ -199,7 +81,6 @@ export function ClosureWizard({
   const returnUrl = `${base}?paso=${step}`
   const live =
     data.session.status === "OPEN" || data.session.status === "CLOSING"
-  const pct = Math.round((data.progress.done / data.progress.total) * 100)
 
   // El paso actual se guarda en el servidor (persistencia al recargar).
   useEffect(() => {
@@ -215,78 +96,45 @@ export function ClosureWizard({
 
   return (
     <div className="space-y-4" data-testid="closure-wizard">
-      <header className="space-y-2 rounded-xl border p-3">
-        <p className="text-muted-foreground text-xs font-semibold tracking-wide">
-          CIERRE DE JORNADA
-        </p>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-lg font-semibold">Sesión {data.session.folio}</h1>
-          <span className="text-sm" data-testid="wizard-session-status">
-            {data.session.status === "CLOSING"
-              ? "En cierre"
-              : data.session.status === "OPEN"
-                ? "Abierta"
-                : data.session.status === "CLOSED"
-                  ? "Cerrada"
-                  : data.session.status}
-          </span>
-        </div>
-        <div>
-          <div className="flex justify-between text-xs">
-            <span data-testid="wizard-progress">
-              Progreso: {data.progress.done} de {data.progress.total} pasos
-            </span>
-            <span>{pct}%</span>
-          </div>
-          <div
-            className="bg-muted mt-1 h-2 overflow-hidden rounded-full"
-            role="progressbar"
-            aria-valuenow={pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div
-              className="bg-primary h-full transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-      </header>
+      <WizardHeader
+        eyebrow="CIERRE DE JORNADA"
+        title={`Sesión ${data.session.folio}`}
+        statusText={
+          data.session.status === "CLOSING"
+            ? "En cierre"
+            : data.session.status === "OPEN"
+              ? "Abierta"
+              : data.session.status === "CLOSED"
+                ? "Cerrada"
+                : data.session.status
+        }
+        done={data.progress.done}
+        total={data.progress.total}
+      />
+      {data.session.isHistorical ? (
+        <HistoricalBanner
+          businessDate={data.session.businessDate}
+          operatedOpenedAt={data.session.operatedOpenedAt}
+        />
+      ) : null}
 
-      <ol className="grid gap-2 sm:grid-cols-2" aria-label="Pasos del cierre">
-        {data.steps.map((x) => {
-          const st = STATUS[x.status]
-          return (
-            <li key={x.id}>
-              <Link
-                href={`${base}?paso=${x.number}`}
-                aria-current={x.number === step ? "step" : undefined}
-                className={cn(
-                  "flex min-h-14 items-center gap-3 rounded-xl border p-3 text-left",
-                  st.className,
-                  x.number === step && "ring-primary ring-2"
-                )}
-                data-testid={`wizard-step-${x.number}`}
-                data-status={x.status}
-              >
-                {st.icon}
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">
-                    {x.number}. {x.title}
-                  </span>
-                  <span className="text-muted-foreground block text-xs">
-                    {x.blocking > 0
-                      ? `${x.blocking} pendiente(s)`
-                      : x.warnings > 0
-                        ? `${x.warnings} advertencia(s)`
-                        : st.label}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          )
-        })}
-      </ol>
+      <WizardStepList
+        label="Pasos del cierre"
+        current={step}
+        hrefFor={(n) => `${base}?paso=${n}`}
+        steps={data.steps.map((x) => ({
+          number: x.number,
+          title: x.title,
+          status: x.status,
+          tone: STATUS[x.status].tone,
+          summary:
+            x.blocking > 0
+              ? `${x.blocking} pendiente(s)`
+              : x.warnings > 0
+                ? `${x.warnings} advertencia(s)`
+                : STATUS[x.status].label,
+        }))}
+      />
 
       <section
         className="space-y-3 rounded-xl border p-3"
@@ -305,37 +153,16 @@ export function ClosureWizard({
           canOperate={canOperate && live}
           canConfirm={canConfirm}
         />
-        <TaskList
+        <WizardTaskList
           tasks={s.tasks}
-          returnUrl={returnUrl}
-          folio={data.session.folio}
+          onResolve={() =>
+            saveClosureReturn({ url: returnUrl, folio: data.session.folio })
+          }
         />
-        {s.status === "COMPLETED" ? (
-          <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="size-4" aria-hidden /> Paso completo.
-          </p>
-        ) : null}
+        {s.status === "COMPLETED" ? <StepComplete /> : null}
       </section>
 
-      <nav className="flex gap-2" aria-label="Navegación del cierre">
-        <Button
-          variant="outline"
-          className="h-12 flex-1"
-          disabled={step <= 1}
-          onClick={() => go(step - 1)}
-          data-testid="wizard-prev"
-        >
-          <ChevronLeft /> Anterior
-        </Button>
-        <Button
-          className="h-12 flex-1"
-          disabled={step >= 6}
-          onClick={() => go(step + 1)}
-          data-testid="wizard-next"
-        >
-          Siguiente <ChevronRight />
-        </Button>
-      </nav>
+      <WizardNav label="Navegación del cierre" step={step} total={6} go={go} />
       <p className="text-center text-xs">
         <Link className="underline" href={`${base}/prevalidacion`}>
           Ver detalle técnico del cierre
@@ -756,6 +583,9 @@ function ConfirmStep({
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [noActivityReason, setNoActivityReason] = useState("")
+  // Jornada histórica: fecha y hora OPERATIVA de cierre (local).
+  const [closedAtLocal, setClosedAtLocal] = useState("")
+  const historical = data.session.isHistorical
   const [key, renew] = useIdempotencyKey()
   const sm = data.summary
   const r = data.reconciliation
@@ -775,10 +605,16 @@ function ConfirmStep({
           label="Sesión"
           value={`${data.session.folio} · ${data.session.businessDate}`}
         />
+        {historical && data.session.operatedOpenedAt ? (
+          <Row
+            label="Apertura operativa"
+            value={formatDateTime(data.session.operatedOpenedAt)}
+          />
+        ) : null}
         {data.session.openedAt ? (
           <Row
-            label="Apertura"
-            value={new Date(data.session.openedAt).toLocaleString("es-MX")}
+            label={historical ? "Apertura capturada" : "Apertura"}
+            value={formatDateTime(data.session.openedAt)}
           />
         ) : null}
         <Row
@@ -864,12 +700,31 @@ function ConfirmStep({
           onChange={setNoActivityReason}
         />
       ) : null}
+      {historical && canConfirm ? (
+        <label className="block space-y-1 text-sm">
+          <span className="font-medium">
+            Fecha y hora en que terminó la jornada (obligatoria)
+          </span>
+          <input
+            type="datetime-local"
+            className="border-input h-12 w-full rounded-lg border bg-transparent px-2.5 text-base"
+            value={closedAtLocal}
+            onChange={(e) => setClosedAtLocal(e.target.value.slice(0, 16))}
+            data-testid="historical-closed-at"
+          />
+          <span className="text-muted-foreground block text-xs">
+            Hora local. Debe ser posterior a la apertura operativa y no futura;
+            la hora real de este registro queda en la auditoría.
+          </span>
+        </label>
+      ) : null}
       {canConfirm ? (
         <Button
           className="h-12 w-full text-base"
           disabled={
             !data.canConfirm ||
-            (data.noActivity && noActivityReason.trim().length < 5)
+            (data.noActivity && noActivityReason.trim().length < 5) ||
+            (historical && closedAtLocal.length !== 16)
           }
           onClick={() => setOpen(true)}
           data-testid="wizard-confirm"
@@ -904,6 +759,9 @@ function ConfirmStep({
                         previewHash: data.previewHash,
                         ...(data.noActivity
                           ? { noActivityReason: noActivityReason.trim() }
+                          : {}),
+                        ...(historical
+                          ? { operatedClosedAt: closedAtLocal }
                           : {}),
                       },
                     }

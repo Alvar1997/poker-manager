@@ -35,7 +35,8 @@ export async function resetActiveSessions() {
       "status" = CASE WHEN "status" IN ('DRAFT', 'PREPARATION') THEN 'CANCELLED'::"PokerSessionStatus" ELSE 'CLOSED'::"PokerSessionStatus" END,
       "cancelledAt" = CASE WHEN "status" IN ('DRAFT', 'PREPARATION') THEN NOW() ELSE "cancelledAt" END,
       "cancellationReason" = CASE WHEN "status" IN ('DRAFT', 'PREPARATION') THEN 'Limpieza E2E' ELSE "cancellationReason" END,
-      "closedAt" = CASE WHEN "status" IN ('OPEN', 'CLOSING') THEN NOW() ELSE "closedAt" END
+      "closedAt" = CASE WHEN "status" IN ('OPEN', 'CLOSING') THEN NOW() ELSE "closedAt" END,
+      "operatedClosedAt" = CASE WHEN "isHistorical" AND "status" IN ('OPEN', 'CLOSING') THEN NOW() ELSE "operatedClosedAt" END
       WHERE "status" IN ('DRAFT', 'PREPARATION', 'OPEN', 'CLOSING')`)
     await db.query(
       `UPDATE "chip_stock_counts" SET "status" = 'CANCELLED', "cancelledAt" = NOW() WHERE "status" = 'DRAFT'`
@@ -161,7 +162,25 @@ export async function openSessionViaApi(
       data: { idempotencyKey: randomUUID() },
     })
   )
-  await json(await request.post(`/api/sessions/${session.id}/prepare`))
+  await completeOpeningViaApi(request, session.id)
+  return session
+}
+
+/**
+ * Prepara (si hace falta), cuenta el inventario, confirma la caja en $0 y
+ * abre una sesión ya creada; `tableIds` se preparan para abrirse con ella.
+ */
+export async function completeOpeningViaApi(
+  request: APIRequestContext,
+  sessionId: string,
+  opts: { tableIds?: string[] } = {}
+) {
+  const session = { id: sessionId }
+  const current = await json<{ status: string }>(
+    await request.get(`/api/sessions/${session.id}`)
+  )
+  if (current.status === "DRAFT")
+    await json(await request.post(`/api/sessions/${session.id}/prepare`))
   const count = await json<{
     id: string
     expectedTotal: string
@@ -187,12 +206,17 @@ export async function openSessionViaApi(
       data: { countedAmount: "0", physicallyVerified: true },
     })
   )
+  for (const tableId of opts.tableIds ?? [])
+    await json(
+      await request.post(`/api/sessions/${session.id}/opening/tables`, {
+        data: { tableId },
+      })
+    )
   await json(
     await request.post(`/api/sessions/${session.id}/open`, {
       data: { idempotencyKey: randomUUID() },
     })
   )
-  return session
 }
 
 /**

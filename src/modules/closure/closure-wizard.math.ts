@@ -4,6 +4,10 @@
  * de que el cajero lo haya visitado ni de casillas marcables.
  */
 
+import type { WizardTask } from "@/lib/wizard"
+
+export type { TaskSeverity, WizardTask } from "@/lib/wizard"
+
 export type WizardStepId =
   "players" | "tables" | "tips" | "count" | "reconciliation" | "confirm"
 
@@ -15,20 +19,6 @@ export type WizardStepStatus =
   /** Completo, con advertencias que permiten continuar. */
   | "WARNING"
   | "COMPLETED"
-
-export type TaskSeverity = "BLOCKING" | "WARNING" | "INFO"
-
-export type WizardTask = {
-  /** Código estable (p. ej. PLAYER_SETTLEMENT_MISSING). */
-  code: string
-  severity: TaskSeverity
-  title: string
-  detail?: string
-  entity?: { type: string; id: string }
-  /** Ruta REAL para resolverlo (o null si se resuelve dentro del paso). */
-  href: string | null
-  actionLabel?: string
-}
 
 export const WIZARD_STEPS: { id: WizardStepId; title: string; hint: string }[] =
   [

@@ -3,13 +3,18 @@ import { randomUUID } from "node:crypto"
 import { expect, test, type Page } from "@playwright/test"
 
 import { login, requireE2EUsers } from "./helpers"
-import { openSessionViaApi } from "./session-fixtures"
+import {
+  completeOpeningViaApi,
+  ensureInventoryInitialized,
+  openSessionViaApi,
+  resetActiveSessions,
+} from "./session-fixtures"
 
 /**
- * Folios S-0001-YYYYMMDD y captura histórica (Chrome + iPhone), con la base
- * de PRUEBAS: SUPERADMIN registra una sesión de una fecha anterior mientras
- * hay una sesión normal abierta; la normal no cambia y la histórica no
- * tiene caja ni operación. PARTNER y CASHIER no pueden (ni por API).
+ * Folios S-0001-YYYYMMDD y sesiones de fecha anterior (Chrome + iPhone), con
+ * la base de PRUEBAS: SUPERADMIN crea una sesión de una fecha anterior que
+ * se abre (conteo, caja $0, mesa) y opera como una de hoy, conservando su
+ * fecha operativa. PARTNER y CASHIER no pueden (ni por API).
  */
 test.describe.configure({ mode: "serial" })
 
@@ -48,23 +53,22 @@ let active = { id: "", folio: "" }
 const historical = { id: "", folio: "" }
 const pastDay = businessDay(9)
 
-test("SUPERADMIN registra una sesión histórica sin alterar la sesión vigente", async ({
+test("SUPERADMIN crea una sesión de fecha anterior y la opera como una de hoy", async ({
   page,
 }) => {
   const users = requireE2EUsers()
   await login(page, users.superadmin)
-  active = await openSessionViaApi(page.request)
-  expect(active.folio).toMatch(/^S-\d{4,}-\d{8}$/)
+  await resetActiveSessions()
+  await ensureInventoryInitialized(page.request)
 
-  await page.goto("/dashboard/sesiones")
+  await page.goto("/dashboard/sesiones/nueva")
   await page.waitForLoadState("networkidle")
-  // Con una sesión vigente, la captura histórica sigue disponible.
-  await visible(page, "new-historical-session-link").click()
-  await page.waitForLoadState("networkidle")
-  await expect(visible(page, "historical-toggle")).toBeChecked()
+  await expect(visible(page, "mode-new")).toBeChecked()
+  await visible(page, "historical-toggle").check()
   await visible(page, "historical-date").fill(pastDay)
+  await visible(page, "historical-time").fill("20:00")
   await expect(visible(page, "historical-warning")).toContainText(
-    "no se modificarán automáticamente caja ni inventario"
+    "igual que una de hoy"
   )
   await expect(visible(page, "folio-preview")).toContainText(
     new RegExp(`S-\\d{4,}-${pastDay.replaceAll("-", "")}`)
@@ -72,36 +76,66 @@ test("SUPERADMIN registra una sesión histórica sin alterar la sesión vigente"
   await expect(visible(page, "folio-preview")).toContainText("provisional")
   await noHorizontalScroll(page)
   await visible(page, "create-session").click()
-  const definitive = visible(page, "definitive-folio")
-  await expect(definitive).toHaveText(
+  // Misma apertura que una sesión de hoy.
+  await expect(page).toHaveURL(/\/dashboard\/sesiones\/[A-Za-z0-9]+\/apertura/)
+  historical.id = page.url().split("/").at(-2)!
+  const folio = visible(page, "opening-folio")
+  await expect(folio).toHaveText(
     new RegExp(`^S-\\d{4,}-${pastDay.replaceAll("-", "")}$`)
   )
-  historical.folio = (await definitive.textContent())!.trim()
-  await visible(page, "go-created-session").click()
-  await expect(page).toHaveURL(/\/dashboard\/sesiones\/[A-Za-z0-9]+$/)
-  historical.id = page.url().split("/").at(-1)!
+  historical.folio = (await folio.textContent())!.trim()
+  // Aviso fijo de jornada histórica y hora operativa de apertura.
+  await expect(visible(page, "historical-banner")).toContainText(
+    "JORNADA HISTÓRICA"
+  )
+  await expect(visible(page, "opening-mode")).toHaveText("Jornada histórica")
+  await expect(visible(page, "opening-operated-at")).toContainText(
+    /\b(8:00|20:00)\b/
+  )
 
+  // Conteo, caja $0 y apertura con la mesa 25/25 preparada.
+  const tables = await (
+    await page.request.get(`/api/sessions/${historical.id}/tables`)
+  ).json()
+  const t25 = (tables.data as { tableId: string; code: string }[]).find(
+    (t) => t.code === "TABLE_25_25"
+  )!.tableId
+  await completeOpeningViaApi(page.request, historical.id, {
+    tableIds: [t25],
+  })
+
+  await page.goto(`/dashboard/sesiones/${historical.id}`)
+  await page.waitForLoadState("networkidle")
   await expect(visible(page, "session-folio")).toHaveText(historical.folio)
-  await expect(visible(page, "session-status")).toHaveText("Histórica")
+  await expect(visible(page, "session-status")).toHaveText("Abierta")
   await expect(visible(page, "session-business-date")).toHaveText(mx(pastDay))
-  // Fecha REAL de captura = hoy (no la fecha histórica).
+  // Fecha REAL de captura = hoy (no la fecha operativa).
   await expect(visible(page, "session-created-at")).toContainText(
     mxShort(businessDay(0))
   )
-  await expect(visible(page, "historical-notice")).toBeVisible()
-  // Sin operación en vivo: ni preparación, ni mesas, ni cierre.
-  for (const id of ["go-preparation", "go-tables", "go-closure"])
-    await expect(page.getByTestId(id)).toHaveCount(0)
+  await expect(visible(page, "historical-notice")).toContainText(
+    "Se opera completa"
+  )
+  await expect(visible(page, "go-tables")).toBeVisible()
+  await expect(visible(page, "go-closure")).toBeVisible()
   await noHorizontalScroll(page)
+  const after = await (
+    await page.request.get(`/api/sessions/${historical.id}/tables`)
+  ).json()
+  expect(
+    (after.data as { code: string; status: string }[]).find(
+      (t) => t.code === "TABLE_25_25"
+    )?.status
+  ).toBe("OPEN")
 
-  // La sesión vigente no cambió y la histórica no tiene caja.
+  // Ocupa la sesión vigente.
   const res = await page.request.get("/api/sessions/active")
-  const body = await res.json()
-  expect(body.data).toMatchObject({
-    id: active.id,
-    folio: active.folio,
+  expect((await res.json()).data).toMatchObject({
+    id: historical.id,
     status: "OPEN",
   })
+  // Para el listado: una sesión normal de hoy.
+  active = await openSessionViaApi(page.request)
 })
 
 test("el listado filtra por fecha operativa y muestra el folio nuevo", async ({
@@ -127,7 +161,7 @@ test("el listado filtra por fecha operativa y muestra el folio nuevo", async ({
 })
 
 for (const role of ["partner", "cashier"] as const) {
-  test(`${role.toUpperCase()} no puede crear sesiones históricas (ni manipulando la petición)`, async ({
+  test(`${role.toUpperCase()} no puede crear sesiones de fecha anterior (ni manipulando la petición)`, async ({
     page,
   }) => {
     const users = requireE2EUsers()
@@ -141,6 +175,7 @@ for (const role of ["partner", "cashier"] as const) {
         idempotencyKey: randomUUID(),
         historical: true,
         businessDate: pastDay,
+        openingTime: "20:00",
       },
     })
     expect(res.status()).toBe(403)

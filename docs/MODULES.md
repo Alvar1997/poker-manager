@@ -193,7 +193,7 @@ Pendientes conocidos: montos rápidos configurables desde la interfaz; pantalla 
 
 Detalle: [`docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`](SESSION_FOLIO_AND_HISTORICAL_ENTRY.md). Folio `S-0001-YYYYMMDD` (consecutivo global + fecha operativa `businessDate`), migración segura de los folios `SES-…` y registro de sesiones de fechas anteriores exclusivo de SUPERADMIN (estado `HISTORICAL`, sin caja, inventario ni operación). Listados y reportes por fecha operativa. Migraciones `20261031120000_session_folio_enums` y `20261031130000_session_folio_historical`.
 
-Migraciones aplicadas en Neon el 2026-10-23. Pendientes conocidos: captura financiera histórica (compras, pagos, liquidaciones antiguas) no implementada por diseño.
+Migraciones aplicadas en Neon el 2026-10-23. Desde el 2026-10-29 las sesiones de fecha anterior se operan completas (ciclo normal desde DRAFT; migración `20261107120000_backdated_sessions`, aplicada en Neon el 2026-10-30); los registros `HISTORICAL` anteriores se conservan.
 
 ## Módulo 17 — entregado
 
@@ -209,6 +209,10 @@ Detalle: [`docs/MODULE_18_RAKE_TIPS_RECONCILIATION.md`](MODULE_18_RAKE_TIPS_RECO
 
 Detalle: [`docs/SESSION_CLOSURE_WIZARD.md`](SESSION_CLOSURE_WIZARD.md). `/dashboard/sesiones/:id/cierre` es un asistente guiado (jugadores, mesas y rake, propinas, arqueo, conciliación, confirmación) con tareas calculadas en el servidor, botones RESOLVER a las pantallas reales, «Volver al cierre» y progreso persistente.
 
+## Asistente de apertura (4 pasos)
+
+Detalle: [`docs/SESSION_OPENING_WIZARD.md`](SESSION_OPENING_WIZARD.md). `/dashboard/sesiones/:id/apertura` guía la preparación (crear jornada, contar fichas, preparar mesas opcional, confirmar apertura) sobre el checklist real del Módulo 06, con RESOLVER, «Volver a la apertura», progreso persistente y mesas preparadas que se abren al confirmar.
+
 ## Notas
 
 - `src/modules/*` del árbol de referencia (`auth`, `users`, `sessions`, `tables`, `players`, `chips`, `cash`, `purchases`, `debts`, `settlements`, `notifications`, `reports`, `audit`) se reparten entre estos módulos numerados — `sessions`+`tables` corresponden al Módulo 02, `reports` al Módulo 14 y `audit` al Módulo 15, etc.
@@ -217,4 +221,4 @@ Detalle: [`docs/SESSION_CLOSURE_WIZARD.md`](SESSION_CLOSURE_WIZARD.md). `/dashbo
 
 ## Conciliación global de fichas — entregado
 
-Detalle: [`docs/CHIP_GLOBAL_RECONCILIATION.md`](CHIP_GLOBAL_RECONCILIATION.md). Sustituye la advertencia «Fichas no retornadas» por la conciliación GLOBAL (en juego / conciliada / diferencia por conciliar), retorno cero explícito en liquidaciones, resultado individual visible, conciliación autorizada (`session_chip_reconciliations`), reportes con «diferencia nominal» y comprobación de integridad `SESSION_NOMINAL_BALANCE`. Migración `20261102120000_chip_global_reconciliation` (pendiente en Neon).
+Detalle: [`docs/CHIP_GLOBAL_RECONCILIATION.md`](CHIP_GLOBAL_RECONCILIATION.md). Sustituye la advertencia «Fichas no retornadas» por la conciliación GLOBAL (en juego / conciliada / diferencia por conciliar), retorno cero explícito en liquidaciones, resultado individual visible, conciliación autorizada (`session_chip_reconciliations`), reportes con «diferencia nominal» y comprobación de integridad `SESSION_NOMINAL_BALANCE`. Migración `20261102120000_chip_global_reconciliation` (aplicada en Neon el 2026-10-23).

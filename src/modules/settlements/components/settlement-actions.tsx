@@ -422,7 +422,12 @@ export function SettlementSignatureCapture({
       }),
     onSuccess: () => {
       renew()
-      toast.success("Firma registrada. El cajero debe confirmar la recepción.")
+      // Dentro de la hoja de la mesa el siguiente paso ya lo dice; el aviso
+      // flotante taparía «Confirmar» en el celular.
+      if (!onDone)
+        toast.success(
+          "Firma registrada. El cajero debe confirmar la recepción."
+        )
       onDone?.()
       router.refresh()
     },

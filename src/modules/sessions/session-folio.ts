@@ -68,6 +68,16 @@ export function formatBusinessDateMx(businessDate: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : businessDate
 }
 
+/** 2026-10-24 → «24 de octubre de 2026» (fecha DATE, sin zona horaria). */
+export function formatBusinessDateLong(businessDate: string): string {
+  const m = DAY.exec(businessDate)
+  if (!m) return businessDate
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "UTC",
+    dateStyle: "long",
+  }).format(new Date(`${businessDate}T12:00:00Z`))
+}
+
 /** Fecha mínima aceptada para captura histórica (evita errores de captura). */
 export const HISTORICAL_MIN_DATE = "2000-01-01"
 

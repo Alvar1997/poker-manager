@@ -117,20 +117,22 @@ Registra usuario, fecha y motivo. Cancelar no es borrar: no existe `DELETE`.
 
 ## 17. Endpoints
 
-| Método   | Ruta                                              | Permiso                                |
-| -------- | ------------------------------------------------- | -------------------------------------- |
-| GET      | `/api/sessions` (status, q, from, to, sort, page) | `sessions:read`                        |
-| POST     | `/api/sessions`                                   | `sessions:manage`                      |
-| GET      | `/api/sessions/active`                            | `sessions:read`                        |
-| GET      | `/api/sessions/:id`                               | `sessions:read`                        |
-| POST     | `/api/sessions/:id/prepare`                       | `sessions:manage` + creador/SUPERADMIN |
-| GET/POST | `/api/sessions/:id/opening-chip-count`            | read / manage + creador                |
-| POST     | `/api/sessions/:id/opening-cash`                  | manage + creador                       |
-| GET      | `/api/sessions/:id/opening-checklist`             | `sessions:read`                        |
-| GET      | `/api/sessions/:id/opening`                       | `sessions:read`                        |
-| POST     | `/api/sessions/:id/open`                          | manage + creador                       |
-| POST     | `/api/sessions/:id/cancel`                        | manage + creador                       |
-| GET      | `/api/sessions/:id/status-history`                | `sessions:read`                        |
+| Método    | Ruta                                                      | Permiso                                |
+| --------- | --------------------------------------------------------- | -------------------------------------- |
+| GET       | `/api/sessions` (status, q, from, to, sort, page)         | `sessions:read`                        |
+| POST      | `/api/sessions`                                           | `sessions:manage`                      |
+| GET       | `/api/sessions/active`                                    | `sessions:read`                        |
+| GET       | `/api/sessions/:id`                                       | `sessions:read`                        |
+| POST      | `/api/sessions/:id/prepare`                               | `sessions:manage` + creador/SUPERADMIN |
+| GET/POST  | `/api/sessions/:id/opening-chip-count`                    | read / manage + creador                |
+| POST      | `/api/sessions/:id/opening-cash`                          | manage + creador                       |
+| GET       | `/api/sessions/:id/opening-checklist`                     | `sessions:read`                        |
+| GET       | `/api/sessions/:id/opening`                               | `sessions:read`                        |
+| POST      | `/api/sessions/:id/open`                                  | manage + creador                       |
+| GET/PATCH | `/api/sessions/:id/opening/wizard`                        | read / manage + creador                |
+| POST      | `/api/sessions/:id/opening/tables` (+ `/:tableId/remove`) | manage + creador                       |
+| POST      | `/api/sessions/:id/cancel`                                | manage + creador                       |
+| GET       | `/api/sessions/:id/status-history`                        | `sessions:read`                        |
 
 Errores: 400 datos inválidos · 401 sin autenticación · 403 sin permiso o no creador · 404 no existe · 409 conflicto de estado, vigencia o concurrencia · 422 requisitos de apertura no cumplidos (con los pasos en `details`).
 
@@ -139,9 +141,8 @@ Errores: 400 datos inválidos · 401 sin autenticación · 403 sin permiso o no 
 - `/sesiones`: listado con búsqueda por folio, filtros, orden y paginación; la sesión vigente aparece destacada.
 - `/sesiones/nueva`: confirmación simple, sin mesa, fondo ni fecha.
 - `/sesiones/[id]`: folio, estado, responsable, fechas, evidencia de apertura e historial.
-- `/sesiones/[id]/preparacion`: checklist con progreso, acciones según permisos, y modo lectura para quien no es creador.
-- `/sesiones/[id]/arqueo-fichas`: reutiliza el formulario de captura del Módulo 04.
-- `/sesiones/[id]/apertura`: resumen y botón **Abrir sesión**, habilitado solo con el checklist completo.
+- `/sesiones/[id]/apertura`: **asistente de apertura en 4 pasos** (crear jornada, contar fichas, preparar mesas opcional, confirmar apertura), con modo lectura para quien no es creador. Ver `docs/SESSION_OPENING_WIZARD.md`. `/sesiones/[id]/preparacion` redirige aquí.
+- `/sesiones/[id]/arqueo-fichas`: reutiliza el formulario de captura del Módulo 04 (se abre desde RESOLVER).
 
 Son Mobile First, con skeleton, manejo de errores y confirmaciones. Las acciones usan TanStack Query (`useMutation`) y no muestran éxito antes de la respuesta del servidor.
 
@@ -161,4 +162,4 @@ Son Mobile First, con skeleton, manejo de errores y confirmaciones. Las acciones
 
 ## Folios de sesión y captura histórica — ver `docs/SESSION_FOLIO_AND_HISTORICAL_ENTRY.md`
 
-Folio `S-0001-YYYYMMDD` (consecutivo global `sequenceNumber` + fecha operativa `businessDate`) emitido por `issueSessionFolio` en la transacción de creación; inmutable. SUPERADMIN puede registrar sesiones de fechas anteriores (estado `HISTORICAL`, `isHistorical`, `historicalRecordedAt`/`By`): no ocupan la sesión vigente, no se preparan ni abren y solo pasan a CANCELLED. El listado filtra por fecha operativa y por tipo, y busca también por el folio anterior (`previousFolio`).
+Folio `S-0001-YYYYMMDD` (consecutivo global `sequenceNumber` + fecha operativa `businessDate`) emitido por `issueSessionFolio` en la transacción de creación; inmutable. SUPERADMIN puede crear sesiones de fechas anteriores (`isHistorical`, `historicalRecordedAt`/`By`): desde el 2026-10-29 nacen en DRAFT y se operan completas con el flujo normal (ocupan la sesión vigente). Los registros `HISTORICAL` anteriores solo pasan a CANCELLED. El listado filtra por fecha operativa y por tipo, y busca también por el folio anterior (`previousFolio`).

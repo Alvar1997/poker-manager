@@ -392,105 +392,16 @@ export async function openSessionTable(
   let replayedInTx = false
   try {
     await prisma.$transaction(async (tx) => {
-      const session = await lockOpenSession(tx, sessionId)
-      const table = await tx.pokerTable.findUnique({
-        where: { id: tableId },
-        select: {
-          id: true,
-          name: true,
-          isActive: true,
-          smallBlind: true,
-          bigBlind: true,
-        },
-      })
-      if (!table) throw new NotFoundError("Mesa no encontrada")
-      if (!table.isActive)
-        throw new BusinessRuleError(
-          `La mesa ${table.name} está desactivada en el catálogo.`
+      replayedInTx = (
+        await openSessionTableInTx(
+          tx,
+          actor,
+          sessionId,
+          tableId,
+          input.idempotencyKey,
+          ctx
         )
-
-      await tx.$executeRaw`
-        INSERT INTO "session_tables" ("id", "sessionId", "tableId", "status", "createdAt", "updatedAt")
-        VALUES (${`st_${sessionId}_${tableId}`.slice(0, 100)}, ${sessionId}, ${tableId}, 'PENDING', NOW(), NOW())
-        ON CONFLICT DO NOTHING
-      `
-      const st = await tx.sessionTable.findUniqueOrThrow({
-        where: { sessionId_tableId: { sessionId, tableId } },
-        select: { id: true },
-      })
-      const locked = await lockSessionTable(tx, st.id)
-      // Reintento simultáneo con la misma clave: esperó el bloqueo → respuesta segura.
-      const sameKey = await tx.sessionTableCycle.findUnique({
-        where: { openIdempotencyKey: input.idempotencyKey },
-        select: { sessionTableId: true },
-      })
-      if (sameKey?.sessionTableId === st.id) {
-        replayedInTx = true
-        return
-      }
-      if (locked.status === "OPEN" || locked.cycles.length > 0) {
-        throw new ConflictError("Esta mesa ya está abierta.")
-      }
-      const active = await tx.tableParticipation.count({
-        where: { sessionTableId: st.id, status: "ACTIVE" },
-      })
-      if (active > 0)
-        throw new BusinessRuleError(
-          "La mesa tiene participantes activos del ciclo anterior."
-        )
-      const last = await tx.sessionTableCycle.aggregate({
-        where: { sessionTableId: st.id },
-        _max: { cycleNumber: true },
-      })
-      const cycleNumber = (last._max.cycleNumber ?? 0) + 1
-      const cycle = await tx.sessionTableCycle.create({
-        data: {
-          sessionTableId: st.id,
-          cycleNumber,
-          openedById: actor.id,
-          openedAt: new Date(),
-          smallBlindSnapshot: table.smallBlind,
-          bigBlindSnapshot: table.bigBlind,
-          openIdempotencyKey: input.idempotencyKey,
-        },
-        select: { id: true },
-      })
-      await tx.sessionTable.update({
-        where: { id: st.id },
-        data: { status: "OPEN" },
-      })
-      const metadata = {
-        folio: session.folio,
-        table: table.name,
-        tableId,
-        cycleNumber,
-        cycleId: cycle.id,
-      }
-      await recordAudit(
-        {
-          action:
-            cycleNumber > 1
-              ? AUDIT_ACTIONS.SESSION_TABLE_REOPENED
-              : AUDIT_ACTIONS.SESSION_TABLE_OPENED,
-          entityType: "SessionTable",
-          entityId: st.id,
-          actorUserId: actor.id,
-          requestId: ctx.requestId,
-          metadata,
-        },
-        tx
-      )
-      await recordAudit(
-        {
-          action: AUDIT_ACTIONS.SESSION_TABLE_CYCLE_CREATED,
-          entityType: "SessionTableCycle",
-          entityId: cycle.id,
-          actorUserId: actor.id,
-          requestId: ctx.requestId,
-          metadata,
-        },
-        tx
-      )
+      ).replayed
     }, TABLE_TX)
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -507,6 +418,117 @@ export async function openSessionTable(
     table: await getSessionTableDetail(sessionId, tableId),
     replayed: replayedInTx,
   }
+}
+
+/**
+ * Núcleo de abrir/reabrir una mesa dentro de una transacción ya iniciada
+ * (también lo usa la confirmación de apertura para las mesas preparadas).
+ */
+export async function openSessionTableInTx(
+  tx: Tx,
+  actor: SessionUser,
+  sessionId: string,
+  tableId: string,
+  idempotencyKey: string,
+  ctx: RequestContext = {}
+): Promise<{ replayed: boolean }> {
+  const session = await lockOpenSession(tx, sessionId)
+  const table = await tx.pokerTable.findUnique({
+    where: { id: tableId },
+    select: {
+      id: true,
+      name: true,
+      isActive: true,
+      smallBlind: true,
+      bigBlind: true,
+    },
+  })
+  if (!table) throw new NotFoundError("Mesa no encontrada")
+  if (!table.isActive)
+    throw new BusinessRuleError(
+      `La mesa ${table.name} está desactivada en el catálogo.`
+    )
+
+  await tx.$executeRaw`
+    INSERT INTO "session_tables" ("id", "sessionId", "tableId", "status", "createdAt", "updatedAt")
+    VALUES (${`st_${sessionId}_${tableId}`.slice(0, 100)}, ${sessionId}, ${tableId}, 'PENDING', NOW(), NOW())
+    ON CONFLICT DO NOTHING
+  `
+  const st = await tx.sessionTable.findUniqueOrThrow({
+    where: { sessionId_tableId: { sessionId, tableId } },
+    select: { id: true },
+  })
+  const locked = await lockSessionTable(tx, st.id)
+  // Reintento simultáneo con la misma clave: esperó el bloqueo → respuesta segura.
+  const sameKey = await tx.sessionTableCycle.findUnique({
+    where: { openIdempotencyKey: idempotencyKey },
+    select: { sessionTableId: true },
+  })
+  if (sameKey?.sessionTableId === st.id) return { replayed: true }
+  if (locked.status === "OPEN" || locked.cycles.length > 0) {
+    throw new ConflictError("Esta mesa ya está abierta.")
+  }
+  const active = await tx.tableParticipation.count({
+    where: { sessionTableId: st.id, status: "ACTIVE" },
+  })
+  if (active > 0)
+    throw new BusinessRuleError(
+      "La mesa tiene participantes activos del ciclo anterior."
+    )
+  const last = await tx.sessionTableCycle.aggregate({
+    where: { sessionTableId: st.id },
+    _max: { cycleNumber: true },
+  })
+  const cycleNumber = (last._max.cycleNumber ?? 0) + 1
+  const cycle = await tx.sessionTableCycle.create({
+    data: {
+      sessionTableId: st.id,
+      cycleNumber,
+      openedById: actor.id,
+      openedAt: new Date(),
+      smallBlindSnapshot: table.smallBlind,
+      bigBlindSnapshot: table.bigBlind,
+      openIdempotencyKey: idempotencyKey,
+    },
+    select: { id: true },
+  })
+  await tx.sessionTable.update({
+    where: { id: st.id },
+    data: { status: "OPEN" },
+  })
+  const metadata = {
+    folio: session.folio,
+    table: table.name,
+    tableId,
+    cycleNumber,
+    cycleId: cycle.id,
+  }
+  await recordAudit(
+    {
+      action:
+        cycleNumber > 1
+          ? AUDIT_ACTIONS.SESSION_TABLE_REOPENED
+          : AUDIT_ACTIONS.SESSION_TABLE_OPENED,
+      entityType: "SessionTable",
+      entityId: st.id,
+      actorUserId: actor.id,
+      requestId: ctx.requestId,
+      metadata,
+    },
+    tx
+  )
+  await recordAudit(
+    {
+      action: AUDIT_ACTIONS.SESSION_TABLE_CYCLE_CREATED,
+      entityType: "SessionTableCycle",
+      entityId: cycle.id,
+      actorUserId: actor.id,
+      requestId: ctx.requestId,
+      metadata,
+    },
+    tx
+  )
+  return { replayed: false }
 }
 
 // ── Cerrar ────────────────────────────────────────────────────────────

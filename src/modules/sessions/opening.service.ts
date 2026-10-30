@@ -8,6 +8,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "@/lib/errors"
+import { canonicalHash, sha256Hex } from "@/lib/canonical-json"
 import { isUniqueViolation } from "@/lib/prisma-errors"
 import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
@@ -27,6 +28,7 @@ import {
   createStockCount,
   getStockCount,
 } from "@/modules/inventory/stock-count.service"
+import { openSessionTableInTx } from "@/modules/session-tables/session-table.service"
 import { assertPreparationAccess } from "@/modules/sessions/session-access"
 import type { OpeningCashInput } from "@/modules/sessions/session.schemas"
 import {
@@ -67,6 +69,7 @@ export type ChecklistStepId =
   | "NO_PENDING_CIRCULATION"
   | "CASH_COUNTED"
   | "CASH_ZERO_CONFIRMED"
+  | "TABLES_READY"
   | "USER_AUTHORIZED"
 
 export type ChecklistStep = {
@@ -87,8 +90,11 @@ export type OpeningChecklist = {
   blockers: string[]
   chipCountId: string | null
   cashReconciliationId: string | null
-  /** Mesas abiertas al confirmar: siempre 0 (se abren después, Módulo 07). */
-  initialOpenTables: 0
+  /**
+   * Mesas que se abrirán al confirmar (plan del asistente de apertura; 0 es
+   * válido: las mesas también se abren después, Módulo 07).
+   */
+  initialOpenTables: number
 }
 
 const money = (v: Prisma.Decimal) =>
@@ -182,9 +188,10 @@ export async function computeOpeningChecklist(
           })
         : 0,
     ])
-  const [cash, cashMovements] = await Promise.all([
+  const [cash, cashMovements, plan] = await Promise.all([
     cashBalanceOf(db, sessionId),
     db.cashTransaction.count({ where: { sessionId } }),
+    loadTablePlan(db, sessionId),
   ])
 
   const steps: ChecklistStep[] = []
@@ -363,6 +370,23 @@ export async function computeOpeningChecklist(
     })
   }
 
+  // Mesas preparadas (OPCIONAL): cero mesas es válido; una mesa del plan
+  // con configuración incompleta impide abrir hasta corregirla o quitarla.
+  const invalid = plan.filter((t) => t.problem)
+  step(
+    "TABLES_READY",
+    "Mesas preparadas (opcional)",
+    invalid.length > 0 ? "BLOCKED" : "DONE",
+    invalid.length > 0
+      ? { message: invalid.map((t) => t.problem).join(" ") }
+      : {
+          message:
+            plan.length === 0
+              ? "Sin mesas: se agregan después de abrir."
+              : `${plan.length} mesa(s) se abrirán al confirmar.`,
+        }
+  )
+
   if (canManagePreparation(actor, session)) {
     step("USER_AUTHORIZED", "Usuario autorizado para abrir", "DONE")
   } else {
@@ -385,8 +409,81 @@ export async function computeOpeningChecklist(
     blockers,
     chipCountId: count?.id ?? null,
     cashReconciliationId: cashRec?.id ?? null,
-    initialOpenTables: 0,
+    initialOpenTables: plan.length,
   }
+}
+
+// ── Plan de mesas de la preparación (asistente de apertura) ───────────
+
+/**
+ * Mesas del catálogo que se abrirán al confirmar la apertura. Una mesa con
+ * configuración incompleta (desactivada o sin ciegas válidas) no está lista.
+ */
+export async function loadTablePlan(db: Db, sessionId: string) {
+  const rows = await db.sessionOpeningTable.findMany({
+    where: { sessionId, removedAt: null },
+    orderBy: [{ addedAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      tableId: true,
+      addedAt: true,
+      addedBy: user,
+      table: {
+        select: {
+          code: true,
+          name: true,
+          smallBlind: true,
+          bigBlind: true,
+          isActive: true,
+        },
+      },
+    },
+  })
+  return rows.map((r) => {
+    const blindsValid =
+      r.table.smallBlind.greaterThan(0) &&
+      r.table.bigBlind.greaterThanOrEqualTo(r.table.smallBlind)
+    return {
+      planId: r.id,
+      tableId: r.tableId,
+      code: r.table.code,
+      name: r.table.name,
+      blinds: {
+        small: r.table.smallBlind.toFixed(2),
+        big: r.table.bigBlind.toFixed(2),
+      },
+      addedAt: r.addedAt.toISOString(),
+      addedBy: r.addedBy,
+      problem: !r.table.isActive
+        ? `La mesa ${r.table.name} está desactivada en el catálogo: actívala o quítala de la preparación.`
+        : !blindsValid
+          ? `La mesa ${r.table.name} no tiene ciegas válidas: corrígelas o quítala de la preparación.`
+          : null,
+    }
+  })
+}
+export type PlannedTable = Awaited<ReturnType<typeof loadTablePlan>>[number]
+
+/**
+ * Huella de lo que el creador revisó antes de ABRIR JORNADA: arqueos
+ * usados, estado de cada control y mesas del plan. Si algo cambia entre la
+ * revisión y la confirmación, la apertura responde 409 (estado obsoleto).
+ */
+export function openingFingerprint(
+  checklist: OpeningChecklist,
+  plan: { tableId: string }[]
+) {
+  return canonicalHash({
+    chipCountId: checklist.chipCountId,
+    cashReconciliationId: checklist.cashReconciliationId,
+    steps: checklist.steps.map((s) => [s.id, s.status]),
+    tables: plan.map((t) => t.tableId).sort(),
+  })
+}
+
+/** Clave de idempotencia de la mesa abierta por una confirmación de apertura. */
+function plannedTableKey(openingKey: string, tableId: string) {
+  return `opening-${sha256Hex(`${openingKey}:${tableId}`).slice(0, 48)}`
 }
 
 export function getOpeningChecklist(
@@ -550,12 +647,14 @@ export async function validateZeroOpeningCash(
  *   efectivo de la sesión;
  * - re-evalúa el checklist dentro de la transacción;
  * - registra la evidencia (`SessionOpening`, única por sesión) con la hora
- *   del SERVIDOR; no acepta fechas del cliente; no exige mesas.
+ *   del SERVIDOR; no acepta fechas del cliente; no exige mesas;
+ * - abre en la misma transacción las mesas preparadas (plan del asistente)
+ *   y, con `previewHash`, rechaza (409) si la preparación cambió tras revisarla.
  */
 export async function openSession(
   actor: SessionUser,
   sessionId: string,
-  input: { idempotencyKey: string },
+  input: { idempotencyKey: string; previewHash?: string },
   ctx: RequestContext = {}
 ) {
   let replayed = false
@@ -593,6 +692,17 @@ export async function openSession(
           { steps: checklist.steps }
         )
       }
+      const plan = await loadTablePlan(tx, sessionId)
+      if (
+        input.previewHash &&
+        openingFingerprint(checklist, plan) !== input.previewHash
+      ) {
+        throw new AppError(
+          "CONFLICT",
+          "La preparación cambió después de revisarla (conteo, caja o mesas): revisa el resumen de nuevo antes de abrir.",
+          { previewHash: openingFingerprint(checklist, plan), stale: true }
+        )
+      }
 
       const now = new Date()
       await tx.sessionOpening.create({
@@ -612,6 +722,18 @@ export async function openSession(
         openedAt: now,
         openedById: actor.id,
       })
+      // Mesas preparadas: se abren con el MISMO servicio del Módulo 07, en
+      // esta transacción (sin dinero, fichas, jugadores ni rake).
+      for (const t of plan) {
+        await openSessionTableInTx(
+          tx,
+          actor,
+          sessionId,
+          t.tableId,
+          plannedTableKey(input.idempotencyKey, t.tableId),
+          ctx
+        )
+      }
       await recordAudit(
         {
           action: AUDIT_ACTIONS.SESSION_OPENED,
@@ -626,7 +748,8 @@ export async function openSession(
             cashReconciliationId: checklist.cashReconciliationId,
             inventoryVersion: inventory.version,
             openingCash: "0.00",
-            openTables: 0,
+            openTables: plan.length,
+            tables: plan.map((t) => t.name),
             intervention: isSuperadminIntervention(actor, session),
           },
         },

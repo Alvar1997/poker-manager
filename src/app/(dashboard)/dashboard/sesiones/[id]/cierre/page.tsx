@@ -51,7 +51,12 @@ export default async function ClosureWizardPage({
           position: s.position.name,
         }))}
         canOperate={can(user, PERMISSIONS.SESSIONS_MANAGE)}
-        canConfirm={can(user, PERMISSIONS.SESSIONS_CLOSE_CONFIRM)}
+        canConfirm={
+          can(user, PERMISSIONS.SESSIONS_CLOSE_CONFIRM) &&
+          // Una jornada histórica la cierra SUPERADMIN (elige la hora).
+          (!data.session.isHistorical ||
+            can(user, PERMISSIONS.SESSIONS_HISTORICAL_CREATE))
+        }
       />
       {session.status === "CLOSING" &&
       can(user, PERMISSIONS.SESSIONS_MANAGE) ? (

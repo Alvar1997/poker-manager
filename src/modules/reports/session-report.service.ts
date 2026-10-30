@@ -381,6 +381,9 @@ const sessionListSelect = {
   previousFolio: true,
   businessDate: true,
   isHistorical: true,
+  historicalRecordedAt: true,
+  operatedOpenedAt: true,
+  operatedClosedAt: true,
   status: true,
   createdAt: true,
   openedAt: true,
@@ -406,6 +409,13 @@ function sessionHeader(s: SessionListRow) {
     operatedDay: s.businessDate.toISOString().slice(0, 10),
     openedAt: s.openedAt?.toISOString() ?? null,
     closedAt: s.closedAt?.toISOString() ?? null,
+    /**
+     * Jornada histórica: horas OPERATIVAS (cuándo ocurrió) y momento REAL de
+     * captura. En una jornada normal coinciden con las reales (null aquí).
+     */
+    operatedOpenedAt: s.operatedOpenedAt?.toISOString() ?? null,
+    operatedClosedAt: s.operatedClosedAt?.toISOString() ?? null,
+    recordedAt: s.historicalRecordedAt?.toISOString() ?? null,
     createdBy: s.createdBy,
   }
 }

@@ -41,9 +41,10 @@ function previousDay(day: string) {
 
 /**
  * Crear sesión. El servidor asigna folio (S-0001-AAAAMMDD), consecutivo,
- * creador y fechas reales. SUPERADMIN puede registrar una sesión HISTÓRICA
- * de una fecha anterior (el servidor revalida permiso y fecha). La vista
- * previa del folio es provisional: el definitivo llega en la respuesta.
+ * creador y fechas reales. SUPERADMIN puede crear una sesión de una FECHA
+ * ANTERIOR (el servidor revalida permiso y fecha): sigue la misma apertura,
+ * operación y cierre que una de hoy. La vista previa del folio es
+ * provisional: el definitivo llega en la respuesta.
  */
 export function CreateSessionForm({
   today,
@@ -60,11 +61,9 @@ export function CreateSessionForm({
   const [key, renew] = useIdempotencyKey()
   const [historical, setHistorical] = useState(initialHistorical)
   const [businessDate, setBusinessDate] = useState("")
-  const [created, setCreated] = useState<{
-    id: string
-    folio: string
-    isHistorical: boolean
-  } | null>(null)
+  const [openingTime, setOpeningTime] = useState("")
+  const [notes, setNotes] = useState("")
+  const [created, setCreated] = useState(false)
   const [error, setError] = useState<{
     message: string
     activeId: string | null
@@ -74,14 +73,17 @@ export function CreateSessionForm({
     /^\d{4}-\d{2}-\d{2}$/.test(businessDate) &&
     businessDate <= maxDate &&
     businessDate >= HISTORICAL_MIN_DATE
+  const validTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(openingTime)
   const previewDate = historical ? (validDate ? businessDate : null) : today
   const preview = useQuery({
     queryKey: ["session-folio-preview", previewDate],
     queryFn: () =>
-      apiRequest<{ folio: string; nextSequenceNumber: number }>(
-        `/api/sessions/folio-preview?businessDate=${previewDate}`
-      ),
-    enabled: previewDate !== null && created === null,
+      apiRequest<{
+        folio: string
+        nextSequenceNumber: number
+        sameDay: { folio: string; status: string }[]
+      }>(`/api/sessions/folio-preview?businessDate=${previewDate}`),
+    enabled: previewDate !== null && !created,
   })
   const mutation = useMutation({
     mutationFn: () =>
@@ -90,15 +92,21 @@ export function CreateSessionForm({
         {
           method: "POST",
           body: historical
-            ? { idempotencyKey: key, historical: true, businessDate }
+            ? {
+                idempotencyKey: key,
+                historical: true,
+                businessDate,
+                openingTime,
+                ...(notes.trim() ? { notes: notes.trim() } : {}),
+              }
             : { idempotencyKey: key },
         }
       ),
     onSuccess: (s) => {
       renew()
-      setCreated(s)
+      setCreated(true)
       toast.success(`Sesión ${s.folio} creada`)
-      if (!s.isHistorical) router.push(`${SESSIONS_BASE}/${s.id}/preparacion`)
+      router.push(`${SESSIONS_BASE}/${s.id}/apertura`)
     },
     onError: (e) => {
       const activeId =
@@ -113,45 +121,60 @@ export function CreateSessionForm({
     },
   })
 
-  if (created?.isHistorical)
-    return (
-      <div className="space-y-3" data-testid="historical-created">
-        <p className="rounded-lg border p-3 text-sm">
-          Sesión histórica registrada con el folio definitivo{" "}
-          <strong className="font-mono" data-testid="definitive-folio">
-            {created.folio}
-          </strong>
-          .
-        </p>
-        <Button
-          className="h-12 w-full text-base"
-          onClick={() => router.push(`${SESSIONS_BASE}/${created.id}`)}
-          data-testid="go-created-session"
-        >
-          Ver la sesión
-        </Button>
-      </div>
-    )
-
-  const blockedByActive = !historical && activeSession !== null
+  const blockedByActive = activeSession !== null
   const ready =
-    !mutation.isPending && !blockedByActive && (!historical || validDate)
+    !mutation.isPending &&
+    !blockedByActive &&
+    (!historical || (validDate && validTime))
+  const sameDay = historical ? (preview.data?.sameDay ?? []) : []
   return (
     <div className="space-y-4">
       {canHistorical ? (
-        <label className="flex min-h-11 items-center gap-3 rounded-lg border p-3 text-sm font-medium">
-          <input
-            type="checkbox"
-            className="size-5"
-            checked={historical}
-            onChange={(e) => {
-              setHistorical(e.target.checked)
-              setError(null)
-            }}
-            data-testid="historical-toggle"
-          />
-          Registrar sesión de fecha anterior
-        </label>
+        // Solo SUPERADMIN ve la modalidad; el servidor la revalida.
+        <fieldset className="space-y-2" data-testid="session-mode">
+          <legend className="mb-1 text-sm font-semibold">
+            Modalidad de jornada
+          </legend>
+          {(
+            [
+              [
+                false,
+                "Nueva jornada",
+                "Fecha y hora automáticas (hoy).",
+                "mode-new",
+              ],
+              [
+                true,
+                "Registrar jornada histórica",
+                "Una noche anterior que se captura después, completa.",
+                "historical-toggle",
+              ],
+            ] as const
+          ).map(([value, label, hint, testId]) => (
+            <label
+              key={testId}
+              className="flex min-h-11 items-start gap-3 rounded-lg border p-3 text-sm"
+            >
+              <input
+                type="radio"
+                name="session-mode"
+                className="mt-0.5 size-5"
+                checked={historical === value}
+                onChange={() => {
+                  setHistorical(value)
+                  setError(null)
+                }}
+                data-testid={testId}
+              />
+              <span>
+                <span className="block font-medium">{label}</span>
+                <span className="text-muted-foreground block text-xs">
+                  {hint}
+                </span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
       ) : null}
 
       {historical ? (
@@ -172,14 +195,47 @@ export function CreateSessionForm({
               ? `Fecha operativa: ${formatBusinessDateMx(businessDate)}`
               : `Elige un día anterior a hoy (${formatBusinessDateMx(today)}).`}
           </p>
+          <Label htmlFor="historical-time">Hora de apertura (hora local)</Label>
+          <Input
+            id="historical-time"
+            type="time"
+            className="h-12 text-base"
+            value={openingTime}
+            onChange={(e) => setOpeningTime(e.target.value.slice(0, 5))}
+            data-testid="historical-time"
+          />
+          <Label htmlFor="historical-notes">Observación (opcional)</Label>
+          <textarea
+            id="historical-notes"
+            rows={2}
+            maxLength={500}
+            className="border-input w-full rounded-lg border bg-transparent px-2.5 py-2 text-base md:text-sm"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            data-testid="historical-notes"
+          />
+          {sameDay.length > 0 ? (
+            <p
+              className="rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 text-sm"
+              role="alert"
+              data-testid="same-day-warning"
+            >
+              Ya existe otra jornada con esa fecha:{" "}
+              <strong>{sameDay.map((x) => x.folio).join(", ")}</strong>.
+              Verifica que no estés capturando la misma noche dos veces (no se
+              bloquea).
+            </p>
+          ) : null}
           <p
             className="rounded-lg border border-violet-500/40 bg-violet-500/5 p-3 text-sm"
             role="note"
             data-testid="historical-warning"
           >
-            Esta sesión se registrará como histórica. La fecha de captura real
-            quedará guardada en auditoría y no se modificarán automáticamente
-            caja ni inventario.
+            La sesión llevará la fecha operativa elegida y se opera completa:
+            apertura con conteo de fichas y caja en $0.00, mesas, compras,
+            firmas, liquidaciones y cierre, igual que una de hoy. Los
+            movimientos guardan su hora real de captura y la auditoría registra
+            que se capturó después.
           </p>
         </div>
       ) : (
@@ -214,7 +270,7 @@ export function CreateSessionForm({
         data-testid="create-session"
       >
         {mutation.isPending ? <Loader2 className="animate-spin" /> : null}
-        {historical ? "Registrar sesión histórica" : "Crear sesión"}
+        {historical ? "Crear jornada histórica" : "Crear sesión"}
       </Button>
       {error ? (
         <div role="alert" className="text-destructive space-y-2 text-sm">
@@ -231,47 +287,6 @@ export function CreateSessionForm({
         </div>
       ) : null}
     </div>
-  )
-}
-
-/** Acción simple POST sin cuerpo (p. ej. iniciar preparación). */
-export function SessionActionButton({
-  url,
-  label,
-  success,
-  redirectTo,
-  testId,
-  variant = "default",
-}: {
-  url: string
-  label: string
-  success: string
-  redirectTo?: string
-  testId?: string
-  variant?: "default" | "outline"
-}) {
-  const router = useRouter()
-  const mutation = useMutation({
-    mutationFn: () => apiRequest(url, { method: "POST" }),
-    onSuccess: () => {
-      toast.success(success)
-      if (redirectTo) router.push(redirectTo)
-      else router.refresh()
-    },
-    onError: (e) =>
-      toast.error(errorMessage(e, "No se pudo completar la acción")),
-  })
-  return (
-    <Button
-      variant={variant}
-      className="h-11 w-full md:h-9 md:w-auto"
-      onClick={() => mutation.mutate()}
-      disabled={mutation.isPending}
-      data-testid={testId}
-    >
-      {mutation.isPending ? <Loader2 className="animate-spin" /> : null}
-      {label}
-    </Button>
   )
 }
 
@@ -393,75 +408,6 @@ export function StartOpeningCountButton({
       {mutation.isPending ? <Loader2 className="animate-spin" /> : null}
       {label}
     </Button>
-  )
-}
-
-/** Confirmación de apertura: la hora la asigna el servidor; no se muestra éxito antes de su respuesta. */
-export function OpenSessionButton({
-  sessionId,
-  disabled,
-}: {
-  sessionId: string
-  disabled: boolean
-}) {
-  const router = useRouter()
-  const [key, renew] = useIdempotencyKey()
-  const [open, setOpen] = useState(false)
-  const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest<{ session: { openedAt: string; folio: string } }>(
-        `/api/sessions/${sessionId}/open`,
-        {
-          method: "POST",
-          body: { idempotencyKey: key },
-        }
-      ),
-    onSuccess: (r) => {
-      renew()
-      setOpen(false)
-      toast.success(`Sesión ${r.session.folio} abierta`)
-      router.push(`${SESSIONS_BASE}/${sessionId}`)
-    },
-    onError: (e) => toast.error(errorMessage(e, "No se pudo abrir la sesión")),
-  })
-  return (
-    <>
-      <Button
-        className="h-12 w-full text-base"
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        data-testid="open-session"
-      >
-        Abrir sesión
-      </Button>
-      <AlertDialog
-        open={open}
-        onOpenChange={(o) => !o && !mutation.isPending && setOpen(false)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Abrir la sesión?</AlertDialogTitle>
-            <AlertDialogDescription>
-              La hora de apertura la registra el servidor. La sesión abre sin
-              mesas; las mesas se abren después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={mutation.isPending}>
-              Cancelar
-            </AlertDialogCancel>
-            <Button
-              disabled={mutation.isPending}
-              onClick={() => mutation.mutate()}
-              data-testid="confirm-open-session"
-            >
-              {mutation.isPending ? <Loader2 className="animate-spin" /> : null}
-              Abrir sesión
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
   )
 }
 

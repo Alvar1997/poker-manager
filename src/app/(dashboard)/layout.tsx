@@ -59,8 +59,8 @@ export default async function DashboardLayout({
         </aside>
         <main className="min-w-0 flex-1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6">
           {children}
+          <ClosureReturnBanner />
         </main>
-        <ClosureReturnBanner />
       </div>
     </div>
   )

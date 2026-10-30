@@ -12,6 +12,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "@/lib/errors"
+import { zonedDateTimeToUtc } from "@/lib/format"
 import { isUniqueViolation } from "@/lib/prisma-errors"
 import { prisma } from "@/lib/prisma"
 import { AUDIT_ACTIONS, recordAudit } from "@/modules/audit/audit.service"
@@ -1177,6 +1178,7 @@ function buildReportContent(
     /** Asistente de cierre: motivo de la diferencia del arqueo físico. */
     physicalDifferenceReason: string | null
     kind: "NORMAL" | "NO_ACTIVITY"
+    historical: ClosureReportContent["session"]["historical"] | null
     attempts: Awaited<ReturnType<typeof closureAttempts>>
     cycles: Awaited<ReturnType<typeof getCycleActivitySummary>>[]
     adjustments: {
@@ -1207,6 +1209,7 @@ function buildReportContent(
       openedAt: session.openedAt?.toISOString() ?? null,
       closingStartedAt: session.closingStartedAt?.toISOString() ?? null,
       closedAt: extra.approvedAt.toISOString(),
+      ...(extra.historical ? { historical: extra.historical } : {}),
     },
     preparedBy: extra.preparedBy,
     approvedBy: {
@@ -1330,6 +1333,65 @@ function buildReportContent(
  * autorización, crea el comprobante inmutable y pasa la sesión a CLOSED.
  * Idempotente por clave. No toca deudas, obligaciones ni transferencias.
  */
+/**
+ * Jornada histórica: la hora OPERATIVA de cierre la elige SUPERADMIN
+ * (local del negocio), posterior a la apertura operativa y nunca futura.
+ * Una jornada normal no la acepta (cierra con la hora real). La hora real
+ * (`closedAt`, auditoría) nunca se reemplaza.
+ */
+async function historicalClosingTime(
+  tx: Prisma.TransactionClient,
+  actor: SessionUser,
+  sessionId: string,
+  localClosedAt: string | undefined
+) {
+  const s = await tx.pokerSession.findUniqueOrThrow({
+    where: { id: sessionId },
+    select: {
+      isHistorical: true,
+      businessDate: true,
+      operatedOpenedAt: true,
+      historicalRecordedAt: true,
+    },
+  })
+  if (!s.isHistorical) {
+    if (localClosedAt)
+      throw new ValidationError(
+        "La hora de cierre solo se elige en una jornada histórica.",
+        [{ path: "operatedClosedAt", message: "No aplica" }]
+      )
+    return null
+  }
+  if (!roleHasPermission(actor.role, PERMISSIONS.SESSIONS_HISTORICAL_CREATE))
+    throw new ForbiddenError(
+      "Solo un superadministrador confirma el cierre de una jornada histórica."
+    )
+  if (!localClosedAt)
+    throw new ValidationError(
+      "Indica la fecha y hora en que terminó la jornada histórica.",
+      [{ path: "operatedClosedAt", message: "Obligatoria" }]
+    )
+  const [day, time] = localClosedAt.split("T")
+  const at = zonedDateTimeToUtc(day, time)
+  const issue = !at
+    ? "Fecha u hora de cierre inválida."
+    : at.getTime() > Date.now()
+      ? "La hora de cierre no puede estar en el futuro."
+      : s.operatedOpenedAt && at.getTime() <= s.operatedOpenedAt.getTime()
+        ? "La hora de cierre debe ser posterior a la apertura de la jornada."
+        : null
+  if (issue)
+    throw new ValidationError(issue, [
+      { path: "operatedClosedAt", message: issue },
+    ])
+  return {
+    businessDate: s.businessDate.toISOString().slice(0, 10),
+    operatedOpenedAt: s.operatedOpenedAt?.toISOString() ?? null,
+    operatedClosedAt: at!.toISOString(),
+    recordedAt: s.historicalRecordedAt?.toISOString() ?? null,
+  }
+}
+
 export async function confirmClosure(
   actor: SessionUser,
   sessionId: string,
@@ -1370,6 +1432,12 @@ export async function confirmClosure(
         },
       })
       if (!closure) throw new ConflictError(NOT_CLOSING_MESSAGE)
+      const historical = await historicalClosingTime(
+        tx,
+        actor,
+        sessionId,
+        input.operatedClosedAt
+      )
       // Congela inventario y caja mientras se evalúa (mismo orden de bloqueos).
       await lockChipSet(tx, await sharedChipSetId(tx))
       await lockCashBalance(tx, sessionId)
@@ -1503,6 +1571,7 @@ export async function confirmClosure(
         differenceReason: hasNominal ? nominalReason : null,
         physicalDifferenceReason: hasPhysical ? physicalReasonText : null,
         kind: closure.kind,
+        historical,
         attempts,
         cycles: cycleSummaries,
         adjustments: adjustments.map((a) => ({
@@ -1632,7 +1701,12 @@ export async function confirmClosure(
         session,
         "CLOSED",
         actor,
-        { closedAt: now },
+        {
+          closedAt: now,
+          ...(historical
+            ? { operatedClosedAt: new Date(historical.operatedClosedAt) }
+            : {}),
+        },
         closure.kind === "NO_ACTIVITY"
           ? `Cierre sin actividad: ${noActivityReason}`
           : "Cierre definitivo"
@@ -1644,6 +1718,13 @@ export async function confirmClosure(
         reportId: report.id,
         reportFolio: folio,
         kind: closure.kind,
+        ...(historical
+          ? {
+              historical: true,
+              businessDate: historical.businessDate,
+              operatedClosedAt: historical.operatedClosedAt,
+            }
+          : {}),
       }
       await recordAudit(
         {

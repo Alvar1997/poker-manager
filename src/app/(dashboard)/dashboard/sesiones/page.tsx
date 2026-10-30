@@ -67,19 +67,6 @@ export default async function SessionsPage({
             <Plus />
             Nueva sesión
           </Link>
-        ) : active && can(user, PERMISSIONS.SESSIONS_HISTORICAL_CREATE) ? (
-          // La captura histórica no ocupa la sesión vigente.
-          <Link
-            href={`${SESSIONS_BASE}/nueva?historica=1`}
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "h-11 md:h-9"
-            )}
-            data-testid="new-historical-session-link"
-          >
-            <Plus />
-            Registrar sesión histórica
-          </Link>
         ) : null}
       </div>
 
@@ -207,11 +194,13 @@ export default async function SessionsPage({
                       {s.createdBy.name}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      {s.openedAt
-                        ? `Apertura ${formatDateTime(s.openedAt)}`
-                        : s.isHistorical
-                          ? "Captura histórica (sin operación en vivo)"
-                          : "Sin apertura"}
+                      {s.operatedOpenedAt && s.openedAt
+                        ? `Apertura operativa ${formatDateTime(s.operatedOpenedAt)} · capturada ${formatDateTime(s.openedAt)}`
+                        : s.openedAt
+                          ? `Apertura ${formatDateTime(s.openedAt)}`
+                          : s.status === "HISTORICAL"
+                            ? "Registro histórico (solo folio y fecha)"
+                            : "Sin apertura"}
                       {s.closedAt
                         ? ` · Cierre ${formatDateTime(s.closedAt)}`
                         : ""}

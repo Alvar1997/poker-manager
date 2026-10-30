@@ -230,7 +230,7 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 
 - Cada sesión tiene un folio `S-0001-AAAAMMDD`: un consecutivo único que nunca se reinicia ni se reutiliza, más la fecha operativa (el día en que comenzó la jornada, aunque termine después de medianoche). El folio no cambia nunca.
 - La fecha operativa es distinta de la fecha real en que se registró, abrió o cerró la sesión y de las fechas de sus movimientos. Los reportes por jornada usan la fecha operativa; los pagos posteriores conservan su fecha real.
-- Solo SUPERADMIN puede registrar una sesión de una fecha anterior. Esa sesión histórica no tiene caja, inventario ni operación, no afecta a la sesión vigente y solo puede cancelarse. Las operaciones financieras de fechas pasadas no se capturan todavía.
+- Solo SUPERADMIN puede crear una sesión de una fecha anterior. Desde el 2026-10-29 se opera completa, igual que una de hoy (apertura con conteo y caja $0, mesas, compras, firmas, liquidaciones y cierre), con la fecha operativa elegida y las fechas reales de captura en cada movimiento. Ocupa la sesión vigente (una a la vez). Los registros `HISTORICAL` anteriores (solo folio y fecha) se conservan y solo pueden cancelarse.
 
 ## Jugadores bancados por la casa (Módulo 17)
 
@@ -252,6 +252,12 @@ No implementado todavía (se construye en módulos posteriores — ver `docs/MOD
 
 - El cierre se hace en 6 pasos validados por el servidor; un paso solo está completo con datos reales.
 - En cierre bloquean: jugadores sin terminar, mesas abiertas, rake de conteo final sin contar, propinas sin confirmar o sin la confirmación «conteo del staff completo», arqueos faltantes o desactualizados, diferencias de efectivo y retiro final. Las diferencias de fichas solo exigen motivo.
+
+## Asistente de apertura
+
+- La apertura se hace en 4 pasos validados por el servidor: crear jornada, contar fichas (obligatorio, lo confirma el creador sin autorización de un socio), preparar mesas (opcional: se puede abrir con cero mesas) y confirmar apertura (caja física en $0.00, sin fondo ni arrastre).
+- Las mesas preparadas no mueven fichas ni dinero; se abren al confirmar. Una mesa con configuración incompleta impide abrir hasta corregirla o quitarla.
+- Solo el creador o SUPERADMIN continúan la preparación.
 
 ## Conciliación global de fichas (corrección transversal)
 

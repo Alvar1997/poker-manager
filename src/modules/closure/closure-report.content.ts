@@ -24,6 +24,17 @@ export type ClosureReportContent = {
     openedAt: string | null
     closingStartedAt: string | null
     closedAt: string
+    /**
+     * Jornada histórica (capturada después): horas OPERATIVAS elegidas por
+     * SUPERADMIN y momento real de captura. Ausente en jornadas normales y
+     * en comprobantes anteriores.
+     */
+    historical?: {
+      businessDate: string
+      operatedOpenedAt: string | null
+      operatedClosedAt: string
+      recordedAt: string | null
+    }
   }
   preparedBy: { id: string; name: string }
   approvedBy: { id: string; name: string; role: string }
